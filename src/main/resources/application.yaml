@@ -19,9 +19,9 @@ spring:
   datasource:
     url: jdbc:sqlite:./data/ai-summary-podcast.db
     driver-class-name: org.sqlite.JDBC
-  sql:
-    init:
-      mode: always
+  flyway:
+    baseline-on-migrate: true
+    baseline-version: 0
 
 app:
   encryption:
