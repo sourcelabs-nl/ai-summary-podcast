@@ -46,7 +46,7 @@ class BriefingComposer(
             - Include smooth transitions between topics
             - Target approximately $targetWords words
             - Start with a brief introduction and end with a sign-off
-            - Do NOT include any stage directions, sound effects, or non-spoken text$customInstructionsBlock
+            - Do NOT include any stage directions, sound effects, section headers (like [Opening], [Closing], [Transition]), or non-spoken text$customInstructionsBlock
 
             Article summaries:
             $summaryBlock
@@ -60,10 +60,15 @@ class BriefingComposer(
             promptBuilder.options(OpenAiChatOptions.builder().model(model).build())
         }
 
-        val script = promptBuilder.call()
+        val rawScript = promptBuilder.call()
             .content() ?: throw IllegalStateException("Empty response from LLM for briefing composition")
+
+        val script = stripSectionHeaders(rawScript)
 
         log.info("Composed briefing script: {} words from {} articles (style: {})", script.split("\\s+".toRegex()).size, articles.size, style)
         return script
     }
+
+    internal fun stripSectionHeaders(script: String): String =
+        script.replace(Regex("(?m)^\\[.+?]\\s*\\n"), "")
 }
