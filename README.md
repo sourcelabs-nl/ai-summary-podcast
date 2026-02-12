@@ -24,7 +24,9 @@ Each user can create multiple podcasts, each with its own sources, topic, LLM mo
 
 - Java 24+
 - FFmpeg (for audio concatenation and duration detection)
-- An [OpenRouter](https://openrouter.ai/) API key (LLM)
+- An LLM provider — one of:
+  - [OpenRouter](https://openrouter.ai/) API key (cloud, multiple models)
+  - [Ollama](https://ollama.com/) running locally (free, no API key needed)
 - An [OpenAI](https://platform.openai.com/) API key (TTS)
 
 ## Setup
@@ -40,6 +42,24 @@ OPENAI_API_KEY=<your-openai-key>
 Generate an encryption key: `openssl rand -base64 32`
 
 `APP_ENCRYPTION_MASTER_KEY` is required. `OPENROUTER_API_KEY` and `OPENAI_API_KEY` serve as global fallbacks for LLM and TTS respectively — they are used when a user has not configured their own provider keys via the API. Users can override these by setting per-user provider configs.
+
+### Using Ollama instead of OpenRouter
+
+To use [Ollama](https://ollama.com/) as the LLM provider, start Ollama locally and pull a model:
+
+```bash
+ollama pull llama3
+```
+
+Then configure a user's LLM provider to use Ollama (no API key needed):
+
+```bash
+curl -X PUT http://localhost:8080/users/{userId}/api-keys/LLM \
+  -H 'Content-Type: application/json' \
+  -d '{"provider": "ollama"}'
+```
+
+This uses the default Ollama base URL (`http://localhost:11434`). You can omit `OPENROUTER_API_KEY` from `.env` if all users are configured with Ollama.
 
 2. Start the application:
 
