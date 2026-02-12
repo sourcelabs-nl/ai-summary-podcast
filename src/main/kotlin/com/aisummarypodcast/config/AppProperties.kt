@@ -7,7 +7,12 @@ data class AppProperties(
     val llm: LlmProperties,
     val briefing: BriefingProperties,
     val episodes: EpisodesProperties,
-    val feed: FeedProperties
+    val feed: FeedProperties,
+    val encryption: EncryptionProperties
+)
+
+data class EncryptionProperties(
+    val masterKey: String
 )
 
 data class LlmProperties(

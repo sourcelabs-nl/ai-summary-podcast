@@ -2,6 +2,8 @@ package com.aisummarypodcast.podcast
 
 import com.aisummarypodcast.config.AppProperties
 import com.aisummarypodcast.store.EpisodeRepository
+import com.aisummarypodcast.store.Podcast
+import com.aisummarypodcast.store.User
 import com.rometools.rome.feed.synd.SyndContentImpl
 import com.rometools.rome.feed.synd.SyndEnclosureImpl
 import com.rometools.rome.feed.synd.SyndEntryImpl
@@ -24,30 +26,36 @@ class FeedGenerator(
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    fun generate(): String {
+    fun generate(podcast: Podcast, user: User): String {
+        val feedTitle = "${appProperties.feed.title} - ${user.name} - ${podcast.name}"
+
         val feed = SyndFeedImpl().apply {
             feedType = "rss_2.0"
-            title = appProperties.feed.title
+            title = feedTitle
             link = appProperties.feed.baseUrl
             description = appProperties.feed.description
         }
 
-        val episodes = episodeRepository.findAll().sortedByDescending { it.generatedAt }
+        val episodes = episodeRepository.findByPodcastId(podcast.id).sortedByDescending { it.generatedAt }
 
         feed.entries = episodes.map { episode ->
             SyndEntryImpl().apply {
                 val generatedInstant = Instant.parse(episode.generatedAt)
-                title = "${appProperties.feed.title} - ${generatedInstant.atOffset(ZoneOffset.UTC).toLocalDate()}"
-                link = "${appProperties.feed.baseUrl}/episodes/${Path.of(episode.audioFilePath).fileName}"
+                title = "$feedTitle - ${generatedInstant.atOffset(ZoneOffset.UTC).toLocalDate()}"
+                link = "${appProperties.feed.baseUrl}/episodes/${podcast.id}/${Path.of(episode.audioFilePath).fileName}"
                 publishedDate = Date.from(generatedInstant)
                 description = SyndContentImpl().apply {
                     type = "text/plain"
                     value = episode.scriptText.take(500) + "..."
                 }
                 enclosures = listOf(SyndEnclosureImpl().apply {
-                    url = "${appProperties.feed.baseUrl}/episodes/${Path.of(episode.audioFilePath).fileName}"
+                    url = "${appProperties.feed.baseUrl}/episodes/${podcast.id}/${Path.of(episode.audioFilePath).fileName}"
                     type = "audio/mpeg"
-                    length = Files.size(Path.of(episode.audioFilePath))
+                    length = try {
+                        Files.size(Path.of(episode.audioFilePath))
+                    } catch (_: Exception) {
+                        0L
+                    }
                 })
             }
         }
@@ -56,7 +64,7 @@ class FeedGenerator(
         SyndFeedOutput().output(feed, writer)
         val xml = writer.toString()
 
-        log.info("Generated RSS feed with {} episodes", episodes.size)
+        log.info("Generated RSS feed for podcast {} with {} episodes", podcast.id, episodes.size)
         return xml
     }
 }

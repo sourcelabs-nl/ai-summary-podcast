@@ -1,6 +1,5 @@
 package com.aisummarypodcast.source
 
-import com.aisummarypodcast.config.SourceEntry
 import com.aisummarypodcast.store.ArticleRepository
 import com.aisummarypodcast.store.Source
 import com.aisummarypodcast.store.SourceRepository
@@ -19,19 +18,15 @@ class SourcePoller(
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    fun poll(sourceEntry: SourceEntry) {
-        log.info("Polling source: {} ({})", sourceEntry.id, sourceEntry.type)
-
-        val source = sourceRepository.findById(sourceEntry.id).orElseGet {
-            sourceRepository.save(Source(id = sourceEntry.id, type = sourceEntry.type, url = sourceEntry.url))
-        }
+    fun poll(source: Source) {
+        log.info("Polling source: {} ({})", source.id, source.type)
 
         try {
-            val articles = when (sourceEntry.type) {
-                "rss" -> rssFeedFetcher.fetch(sourceEntry.url, sourceEntry.id, source.lastSeenId)
-                "website" -> listOfNotNull(websiteFetcher.fetch(sourceEntry.url, sourceEntry.id))
+            val articles = when (source.type) {
+                "rss" -> rssFeedFetcher.fetch(source.url, source.id, source.lastSeenId)
+                "website" -> listOfNotNull(websiteFetcher.fetch(source.url, source.id))
                 else -> {
-                    log.warn("Unknown source type: {}", sourceEntry.type)
+                    log.warn("Unknown source type: {}", source.type)
                     emptyList()
                 }
             }
@@ -41,7 +36,7 @@ class SourcePoller(
 
             for (article in articles) {
                 val hash = sha256(article.body)
-                if (articleRepository.findByContentHash(hash) != null) continue
+                if (articleRepository.findBySourceIdAndContentHash(source.id, hash) != null) continue
 
                 articleRepository.save(article.copy(contentHash = hash))
                 savedCount++
@@ -54,9 +49,9 @@ class SourcePoller(
             }
 
             sourceRepository.save(source.copy(lastPolled = Instant.now().toString(), lastSeenId = latestTimestamp))
-            log.info("Source {} polled: {} new articles saved", sourceEntry.id, savedCount)
+            log.info("Source {} polled: {} new articles saved", source.id, savedCount)
         } catch (e: Exception) {
-            log.error("Error polling source {}: {}", sourceEntry.id, e.message, e)
+            log.error("Error polling source {}: {}", source.id, e.message, e)
             sourceRepository.save(source.copy(lastPolled = Instant.now().toString()))
         }
     }

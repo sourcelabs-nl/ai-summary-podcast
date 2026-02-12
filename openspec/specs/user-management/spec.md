@@ -1,7 +1,13 @@
-## ADDED Requirements
+# Capability: User Management
+
+## Purpose
+
+User registration and lifecycle management, providing identity for podcast ownership and API key storage.
+
+## Requirements
 
 ### Requirement: User entity with UUID identity
-The system SHALL store users in a `users` database table with columns: `id` (TEXT, primary key, UUID) and `name` (TEXT, NOT NULL). The `id` SHALL be generated as a UUID v4 upon creation.
+The system SHALL store users in a `users` database table with columns: `id` (TEXT, primary key, UUID), `name` (TEXT, NOT NULL), and `version` (BIGINT, NOT NULL, DEFAULT 0). The `id` SHALL be generated as a UUID v4 upon creation. Entities with pre-populated String `@Id` fields SHALL use a `@Version` field so Spring Data JDBC can distinguish new entities (version=null) from existing ones, ensuring `save()` performs an INSERT rather than an UPDATE.
 
 #### Scenario: Create a new user
 - **WHEN** a `POST /users` request is received with a JSON body containing `name`

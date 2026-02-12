@@ -3,8 +3,10 @@ package com.aisummarypodcast.tts
 import com.aisummarypodcast.config.AppProperties
 import com.aisummarypodcast.store.Episode
 import com.aisummarypodcast.store.EpisodeRepository
+import com.aisummarypodcast.store.Podcast
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
+import java.nio.file.Files
 import java.nio.file.Path
 import java.time.Instant
 import java.time.ZoneOffset
@@ -21,17 +23,19 @@ class TtsPipeline(
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    fun generate(script: String): Episode {
+    fun generate(script: String, podcast: Podcast): Episode {
         val chunks = TextChunker.chunk(script)
-        log.info("Script split into {} chunks", chunks.size)
+        log.info("Script split into {} chunks for podcast {}", chunks.size, podcast.id)
 
-        val audioChunks = ttsService.generateAudio(chunks)
+        val audioChunks = ttsService.generateAudio(chunks, podcast)
 
         val timestamp = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")
             .withZone(ZoneOffset.UTC)
             .format(Instant.now())
         val fileName = "briefing-$timestamp.mp3"
-        val outputPath = Path.of(appProperties.episodes.directory, fileName)
+        val podcastDir = Path.of(appProperties.episodes.directory, podcast.id)
+        Files.createDirectories(podcastDir)
+        val outputPath = podcastDir.resolve(fileName)
 
         audioConcatenator.concatenate(audioChunks, outputPath)
 
@@ -39,6 +43,7 @@ class TtsPipeline(
 
         val episode = episodeRepository.save(
             Episode(
+                podcastId = podcast.id,
                 generatedAt = Instant.now().toString(),
                 scriptText = script,
                 audioFilePath = outputPath.toString(),
@@ -46,7 +51,7 @@ class TtsPipeline(
             )
         )
 
-        log.info("Episode generated: {} ({} seconds)", fileName, duration)
+        log.info("Episode generated for podcast {}: {} ({} seconds)", podcast.id, fileName, duration)
         return episode
     }
 }

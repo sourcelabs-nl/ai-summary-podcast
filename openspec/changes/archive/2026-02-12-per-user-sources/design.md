@@ -165,7 +165,8 @@ User, API key, podcast, and source management via REST:
 ```sql
 CREATE TABLE users (
     id TEXT PRIMARY KEY,
-    name TEXT NOT NULL
+    name TEXT NOT NULL,
+    version BIGINT NOT NULL DEFAULT 0
 );
 
 CREATE TABLE user_api_keys (
@@ -187,7 +188,8 @@ CREATE TABLE podcasts (
     target_words INTEGER,
     cron TEXT DEFAULT '0 0 6 * * *',
     custom_instructions TEXT,
-    last_generated_at TEXT
+    last_generated_at TEXT,
+    version BIGINT NOT NULL DEFAULT 0
 );
 
 CREATE TABLE sources (
@@ -198,7 +200,8 @@ CREATE TABLE sources (
     poll_interval_minutes INTEGER NOT NULL DEFAULT 60,
     enabled INTEGER NOT NULL DEFAULT 1,
     last_polled TEXT,
-    last_seen_id TEXT
+    last_seen_id TEXT,
+    version BIGINT NOT NULL DEFAULT 0
 );
 
 CREATE TABLE articles (

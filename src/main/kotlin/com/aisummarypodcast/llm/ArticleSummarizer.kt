@@ -3,21 +3,24 @@ package com.aisummarypodcast.llm
 import com.aisummarypodcast.config.AppProperties
 import com.aisummarypodcast.store.Article
 import com.aisummarypodcast.store.ArticleRepository
+import com.aisummarypodcast.store.Podcast
 import org.slf4j.LoggerFactory
-import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.openai.OpenAiChatOptions
 import org.springframework.stereotype.Component
 
 @Component
 class ArticleSummarizer(
-    private val chatClient: ChatClient,
     private val articleRepository: ArticleRepository,
-    private val appProperties: AppProperties
+    private val appProperties: AppProperties,
+    private val chatClientFactory: ChatClientFactory
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    fun summarize(articles: List<Article>): List<Article> {
+    fun summarize(articles: List<Article>, podcast: Podcast): List<Article> {
+        val chatClient = chatClientFactory.createForPodcast(podcast)
+        val model = podcast.llmModel ?: appProperties.llm.cheapModel
+
         return articles.map { article ->
             try {
                 val prompt = """
@@ -31,7 +34,7 @@ class ArticleSummarizer(
                     .user(prompt)
                     .options(
                         OpenAiChatOptions.builder()
-                            .model(appProperties.llm.cheapModel)
+                            .model(model)
                             .temperature(0.3)
                             .build()
                     )

@@ -36,6 +36,15 @@ Three main entities stored in SQLite (or PostgreSQL):
 - **FFmpeg** — Audio chunk concatenation
 - **SQLite/PostgreSQL** — Persistent storage
 
+## Running the Application
+
+Use the provided scripts to start and stop the application:
+
+- **Start:** `./start.sh` — runs the app in the background, logs to `app.log`, PID stored in `.app.pid`
+- **Stop:** `./stop.sh` — gracefully stops the app (force-kills after 10s timeout)
+
+Required environment variables: `OPENROUTER_API_KEY`, `OPENAI_API_KEY`, `APP_ENCRYPTION_MASTER_KEY`.
+
 ## Source Configuration
 
 Sources are defined in YAML/JSON with fields: `id`, `type` (rss/website/twitter/reddit/youtube), `url`, `poll_interval_minutes`, `enabled`. A `topic` field defines the interest area for LLM relevance filtering.

@@ -1,6 +1,4 @@
 spring:
-  config:
-    import: classpath:sources.yaml
   application:
     name: ai-summary-podcast
   ai:
@@ -26,6 +24,8 @@ spring:
       mode: always
 
 app:
+  encryption:
+    master-key: ${APP_ENCRYPTION_MASTER_KEY}
   llm:
     cheap-model: anthropic/claude-haiku-4.5
   briefing:
@@ -33,7 +33,7 @@ app:
     target-words: 1500
   episodes:
     directory: ./data/episodes
-    retention-days: 30
+    retention-days: 365
   feed:
     base-url: http://localhost:8080
     title: AI Summary Podcast

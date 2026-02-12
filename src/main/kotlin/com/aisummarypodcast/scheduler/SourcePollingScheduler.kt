@@ -1,6 +1,5 @@
 package com.aisummarypodcast.scheduler
 
-import com.aisummarypodcast.config.SourceProperties
 import com.aisummarypodcast.source.SourcePoller
 import com.aisummarypodcast.store.SourceRepository
 import org.slf4j.LoggerFactory
@@ -11,7 +10,6 @@ import java.time.temporal.ChronoUnit
 
 @Component
 class SourcePollingScheduler(
-    private val sourceProperties: SourceProperties,
     private val sourcePoller: SourcePoller,
     private val sourceRepository: SourceRepository
 ) {
@@ -20,15 +18,14 @@ class SourcePollingScheduler(
 
     @Scheduled(fixedDelay = 60_000)
     fun pollSources() {
-        val enabledSources = sourceProperties.entries.filter { it.enabled }
-        log.debug("Checking {} enabled sources for polling", enabledSources.size)
+        val allSources = sourceRepository.findAll().filter { it.enabled }
+        log.debug("Checking {} enabled sources for polling", allSources.count())
 
-        for (sourceEntry in enabledSources) {
-            val source = sourceRepository.findById(sourceEntry.id).orElse(null)
-            val lastPolled = source?.lastPolled?.let { Instant.parse(it) }
+        for (source in allSources) {
+            val lastPolled = source.lastPolled?.let { Instant.parse(it) }
 
-            if (lastPolled == null || lastPolled.plus(sourceEntry.pollIntervalMinutes.toLong(), ChronoUnit.MINUTES).isBefore(Instant.now())) {
-                sourcePoller.poll(sourceEntry)
+            if (lastPolled == null || lastPolled.plus(source.pollIntervalMinutes.toLong(), ChronoUnit.MINUTES).isBefore(Instant.now())) {
+                sourcePoller.poll(source)
             }
         }
     }

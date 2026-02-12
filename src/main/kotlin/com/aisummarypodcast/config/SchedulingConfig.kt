@@ -6,5 +6,5 @@ import org.springframework.scheduling.annotation.EnableScheduling
 
 @Configuration
 @EnableScheduling
-@EnableConfigurationProperties(AppProperties::class, SourceProperties::class)
+@EnableConfigurationProperties(AppProperties::class)
 class SchedulingConfig
