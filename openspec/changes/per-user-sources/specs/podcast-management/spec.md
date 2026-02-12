@@ -1,0 +1,64 @@
+## ADDED Requirements
+
+### Requirement: Podcast entity scoped to user
+The system SHALL store podcasts in a `podcasts` database table with columns: `id` (TEXT, primary key, UUID), `user_id` (TEXT, FK to users, NOT NULL), `name` (TEXT, NOT NULL), and `topic` (TEXT, NOT NULL). The `id` SHALL be generated as a UUID v4 upon creation. A user MAY have multiple podcasts, each with a different topic.
+
+#### Scenario: Create a podcast
+- **WHEN** a `POST /users/{userId}/podcasts` request is received with a JSON body containing `name` and `topic`
+- **THEN** the system creates a podcast record linked to the user with a generated UUID and returns the created podcast with HTTP 201
+
+#### Scenario: Create podcast for non-existing user
+- **WHEN** a `POST /users/{userId}/podcasts` request is received for a user that does not exist
+- **THEN** the system returns HTTP 404
+
+#### Scenario: Create podcast with missing fields
+- **WHEN** a `POST /users/{userId}/podcasts` request is received without `name` or `topic`
+- **THEN** the system returns HTTP 400 with a validation error message
+
+### Requirement: List podcasts for a user
+The system SHALL provide an endpoint to retrieve all podcasts belonging to a specific user.
+
+#### Scenario: List user's podcasts
+- **WHEN** a `GET /users/{userId}/podcasts` request is received for an existing user
+- **THEN** the system returns HTTP 200 with a JSON array of the user's podcasts (id, name, topic)
+
+#### Scenario: List podcasts for non-existing user
+- **WHEN** a `GET /users/{userId}/podcasts` request is received for a user that does not exist
+- **THEN** the system returns HTTP 404
+
+#### Scenario: List podcasts when user has none
+- **WHEN** a `GET /users/{userId}/podcasts` request is received for a user with no podcasts
+- **THEN** the system returns HTTP 200 with an empty JSON array
+
+### Requirement: Get single podcast
+The system SHALL provide an endpoint to retrieve a specific podcast by ID, scoped to the owning user.
+
+#### Scenario: Get existing podcast
+- **WHEN** a `GET /users/{userId}/podcasts/{podcastId}` request is received for an existing podcast owned by the user
+- **THEN** the system returns HTTP 200 with the podcast's details (id, name, topic)
+
+#### Scenario: Get non-existing podcast
+- **WHEN** a `GET /users/{userId}/podcasts/{podcastId}` request is received for a podcast that does not exist or belongs to a different user
+- **THEN** the system returns HTTP 404
+
+### Requirement: Update podcast
+The system SHALL allow updating a podcast's `name` and `topic` fields.
+
+#### Scenario: Update podcast name and topic
+- **WHEN** a `PUT /users/{userId}/podcasts/{podcastId}` request is received with a JSON body containing `name` and/or `topic`
+- **THEN** the system updates the podcast record and returns HTTP 200 with the updated podcast
+
+#### Scenario: Update non-existing podcast
+- **WHEN** a `PUT /users/{userId}/podcasts/{podcastId}` request is received for a podcast that does not exist or belongs to a different user
+- **THEN** the system returns HTTP 404
+
+### Requirement: Delete podcast with cascade
+The system SHALL allow deleting a podcast, which MUST cascade-delete all of the podcast's sources, associated articles, episodes, and audio files on disk.
+
+#### Scenario: Delete existing podcast
+- **WHEN** a `DELETE /users/{userId}/podcasts/{podcastId}` request is received for an existing podcast owned by the user
+- **THEN** the system deletes the podcast, all its sources, all articles belonging to those sources, all its episodes, removes associated audio files from disk, and returns HTTP 204
+
+#### Scenario: Delete non-existing podcast
+- **WHEN** a `DELETE /users/{userId}/podcasts/{podcastId}` request is received for a podcast that does not exist or belongs to a different user
+- **THEN** the system returns HTTP 404
