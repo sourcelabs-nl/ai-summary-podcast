@@ -2,6 +2,8 @@
 data/
 .DS_Store
 .claude/
+.app.pid
+app.log
 
 HELP.md
 target/
