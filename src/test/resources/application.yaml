@@ -1,0 +1,35 @@
+spring:
+  application:
+    name: ai-summary-podcast
+  autoconfigure:
+    exclude:
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiChatAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiEmbeddingAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiImageAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiAudioSpeechAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiAudioTranscriptionAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiModerationAutoConfiguration
+      - org.springframework.ai.model.chat.client.autoconfigure.ChatClientAutoConfiguration
+  datasource:
+    url: jdbc:sqlite:file:testdb?mode=memory&cache=shared
+    driver-class-name: org.sqlite.JDBC
+  flyway:
+    baseline-on-migrate: true
+    baseline-version: 0
+
+app:
+  encryption:
+    master-key: dGVzdC1rZXktZm9yLXVuaXQtdGVzdHMtb25seQ==
+  llm:
+    cheap-model: anthropic/claude-haiku-4.5
+  briefing:
+    target-words: 1500
+  episodes:
+    directory: ./data/test-episodes
+    retention-days: 365
+  source:
+    max-article-age-days: 7
+  feed:
+    base-url: http://localhost:8080
+    title: AI Summary Podcast
+    description: AI-generated audio briefings from your favourite content sources

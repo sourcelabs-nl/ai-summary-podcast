@@ -57,3 +57,14 @@ The system SHALL initialize the SQLite database schema using Flyway versioned mi
 #### Scenario: Upgrade from schema.sql-based initialization
 - **WHEN** the application starts on a database previously initialized by `schema.sql` (no `flyway_schema_history` table)
 - **THEN** Flyway baselines the database and applies `V1__baseline.sql` without data loss
+
+### Requirement: Test database isolation
+Tests SHALL use a separate in-memory SQLite database (`jdbc:sqlite:file:testdb?mode=memory&cache=shared`) via a test-specific `src/test/resources/application.yaml`. Tests SHALL NEVER connect to the production database file. The test configuration SHALL also use a dummy encryption master key and a separate episodes directory.
+
+#### Scenario: Spring Boot tests use in-memory database
+- **WHEN** a `@SpringBootTest` test runs
+- **THEN** it connects to the in-memory SQLite database, not the production file at `./data/ai-summary-podcast.db`
+
+#### Scenario: Test data does not persist between test runs
+- **WHEN** the test suite completes
+- **THEN** all test data is discarded with the in-memory database
