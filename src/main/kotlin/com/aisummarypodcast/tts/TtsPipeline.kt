@@ -29,17 +29,7 @@ class TtsPipeline(
 
         val audioChunks = ttsService.generateAudio(chunks, podcast)
 
-        val timestamp = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")
-            .withZone(ZoneOffset.UTC)
-            .format(Instant.now())
-        val fileName = "briefing-$timestamp.mp3"
-        val podcastDir = Path.of(appProperties.episodes.directory, podcast.id)
-        Files.createDirectories(podcastDir)
-        val outputPath = podcastDir.resolve(fileName)
-
-        audioConcatenator.concatenate(audioChunks, outputPath)
-
-        val duration = audioDuration.calculate(outputPath)
+        val (outputPath, duration) = generateAudioFile(audioChunks, podcast)
 
         val episode = episodeRepository.save(
             Episode(
@@ -51,7 +41,42 @@ class TtsPipeline(
             )
         )
 
-        log.info("Episode generated for podcast {}: {} ({} seconds)", podcast.id, fileName, duration)
+        log.info("Episode generated for podcast {}: {} ({} seconds)", podcast.id, outputPath.fileName, duration)
         return episode
+    }
+
+    fun generateForExistingEpisode(episode: Episode, podcast: Podcast): Episode {
+        val chunks = TextChunker.chunk(episode.scriptText)
+        log.info("Script split into {} chunks for episode {} (podcast {})", chunks.size, episode.id, podcast.id)
+
+        val audioChunks = ttsService.generateAudio(chunks, podcast)
+
+        val (outputPath, duration) = generateAudioFile(audioChunks, podcast)
+
+        val updated = episodeRepository.save(
+            episode.copy(
+                status = "GENERATED",
+                audioFilePath = outputPath.toString(),
+                durationSeconds = duration
+            )
+        )
+
+        log.info("Episode {} audio generated for podcast {}: {} ({} seconds)", episode.id, podcast.id, outputPath.fileName, duration)
+        return updated
+    }
+
+    private fun generateAudioFile(audioChunks: List<ByteArray>, podcast: Podcast): Pair<Path, Int> {
+        val timestamp = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")
+            .withZone(ZoneOffset.UTC)
+            .format(Instant.now())
+        val fileName = "briefing-$timestamp.mp3"
+        val podcastDir = Path.of(appProperties.episodes.directory, podcast.id)
+        Files.createDirectories(podcastDir)
+        val outputPath = podcastDir.resolve(fileName)
+
+        audioConcatenator.concatenate(audioChunks, outputPath)
+
+        val duration = audioDuration.calculate(outputPath)
+        return Pair(outputPath, duration)
     }
 }

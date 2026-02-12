@@ -13,7 +13,7 @@ flowchart LR
     E --> F[RSS Feed]
 ```
 
-1. **Source Poller** — Periodically fetches new content from configured RSS feeds and websites.
+1. **Source Poller** — Periodically fetches new content from configured RSS feeds and websites. Articles older than a configurable threshold (default 7 days) are automatically discarded to keep briefings current.
 2. **LLM Processing** — Filters articles for relevance, summarizes each one, and composes a briefing script. Uses an OpenAI-compatible API (e.g. OpenRouter).
 3. **TTS Generation** — Converts the script to speech via OpenAI TTS, chunking at sentence boundaries and concatenating with FFmpeg.
 4. **Podcast Feed** — Serves an RSS 2.0 feed with `<enclosure>` tags so any podcast app can subscribe.
@@ -106,6 +106,8 @@ DELETE /users/{userId}/podcasts/{podcastId}/sources/{sourceId}  — Delete sourc
 ```
 
 Sources can be of type `rss` or `website`. Each source has a configurable `pollIntervalMinutes` and can be toggled with `enabled`.
+
+Articles older than `app.source.max-article-age-days` (default: 7) are skipped during ingestion and periodically cleaned up. This prevents stale content from appearing in briefings when adding a new source with a large backlog.
 
 ### Provider Configuration
 

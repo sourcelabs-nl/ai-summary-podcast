@@ -9,6 +9,7 @@ data class Episode(
     val podcastId: String,
     val generatedAt: String,
     val scriptText: String,
-    val audioFilePath: String,
-    val durationSeconds: Int
+    val status: String = "GENERATED",
+    val audioFilePath: String? = null,
+    val durationSeconds: Int? = null
 )

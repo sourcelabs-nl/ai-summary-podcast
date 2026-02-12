@@ -8,7 +8,9 @@ data class AppProperties(
     val briefing: BriefingProperties,
     val episodes: EpisodesProperties,
     val feed: FeedProperties,
-    val encryption: EncryptionProperties
+    val encryption: EncryptionProperties,
+    val llmCache: LlmCacheProperties = LlmCacheProperties(),
+    val source: SourceProperties = SourceProperties()
 )
 
 data class EncryptionProperties(
@@ -32,4 +34,12 @@ data class FeedProperties(
     val baseUrl: String = "http://localhost:8080",
     val title: String = "AI Summary Podcast",
     val description: String = "AI-generated audio briefings from your favourite content sources"
+)
+
+data class LlmCacheProperties(
+    val maxAgeDays: Int? = null
+)
+
+data class SourceProperties(
+    val maxArticleAgeDays: Int = 7
 )

@@ -85,7 +85,8 @@ class BriefingComposer(
             - In the introduction, mention the podcast name, its topic, and today's date
             - Subtly and sparingly attribute information to its source (e.g., "according to TechCrunch") — do not over-cite
             - End with a sign-off
-            - Do NOT include any stage directions, sound effects, section headers (like [Opening], [Closing], [Transition]), or non-spoken text$languageInstruction$customInstructionsBlock
+            - Do NOT include any stage directions, sound effects, section headers (like [Opening], [Closing], [Transition]), or non-spoken text
+            - Do NOT include any meta-commentary, notes, or disclaimers about the script itself$languageInstruction$customInstructionsBlock
 
             Article summaries:
             $summaryBlock
@@ -93,7 +94,10 @@ class BriefingComposer(
     }
 
     internal fun stripSectionHeaders(script: String): String =
-        script.replace(Regex("(?m)^\\[.+?]\\s*\\n"), "")
+        script
+            .replace(Regex("(?m)^\\[.+?]\\s*\\n"), "")
+            .replace(Regex("\\s*\\((?:Dit script|This script|Note:|Disclaimer:)[^)]*\\)\\s*$"), "")
+            .trim()
 
     internal fun extractDomain(url: String): String =
         try {

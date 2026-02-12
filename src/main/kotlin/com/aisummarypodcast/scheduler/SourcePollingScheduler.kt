@@ -1,6 +1,8 @@
 package com.aisummarypodcast.scheduler
 
+import com.aisummarypodcast.config.AppProperties
 import com.aisummarypodcast.source.SourcePoller
+import com.aisummarypodcast.store.ArticleRepository
 import com.aisummarypodcast.store.SourceRepository
 import org.slf4j.LoggerFactory
 import org.springframework.scheduling.annotation.Scheduled
@@ -11,13 +13,17 @@ import java.time.temporal.ChronoUnit
 @Component
 class SourcePollingScheduler(
     private val sourcePoller: SourcePoller,
-    private val sourceRepository: SourceRepository
+    private val sourceRepository: SourceRepository,
+    private val articleRepository: ArticleRepository,
+    private val appProperties: AppProperties
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
     @Scheduled(fixedDelay = 60_000)
     fun pollSources() {
+        cleanupOldArticles()
+
         val allSources = sourceRepository.findAll().filter { it.enabled }
         log.debug("Checking {} enabled sources for polling", allSources.count())
 
@@ -28,5 +34,10 @@ class SourcePollingScheduler(
                 sourcePoller.poll(source)
             }
         }
+    }
+
+    private fun cleanupOldArticles() {
+        val cutoff = Instant.now().minus(appProperties.source.maxArticleAgeDays.toLong(), ChronoUnit.DAYS)
+        articleRepository.deleteOldUnprocessedArticles(cutoff.toString())
     }
 }

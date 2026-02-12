@@ -43,11 +43,11 @@ class UserProviderConfigController(
         return ResponseEntity.ok().build<Void>()
     }
 
-    @DeleteMapping("/{category}")
-    fun delete(@PathVariable userId: String, @PathVariable category: String): ResponseEntity<*> {
+    @DeleteMapping("/{category}/{provider}")
+    fun delete(@PathVariable userId: String, @PathVariable category: String, @PathVariable provider: String): ResponseEntity<*> {
         val parsedCategory = parseCategory(category) ?: return invalidCategoryResponse()
         userService.findById(userId) ?: return ResponseEntity.notFound().build<Void>()
-        if (!providerConfigService.deleteConfig(userId, parsedCategory)) return ResponseEntity.notFound().build<Void>()
+        if (!providerConfigService.deleteConfig(userId, parsedCategory, provider)) return ResponseEntity.notFound().build<Void>()
         return ResponseEntity.noContent().build<Void>()
     }
 

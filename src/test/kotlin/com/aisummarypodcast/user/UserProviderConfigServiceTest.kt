@@ -22,7 +22,7 @@ class UserProviderConfigServiceTest {
     @Test
     fun `resolveConfig returns decrypted key and stored base URL when present`() {
         val config = UserProviderConfig(userId, "openrouter", ApiKeyCategory.LLM, "https://custom.api/v1", "encrypted-value")
-        every { repository.findByUserIdAndCategory(userId, ApiKeyCategory.LLM) } returns config
+        every { repository.findByUserIdAndCategory(userId, ApiKeyCategory.LLM) } returns listOf(config)
         every { encryptor.decrypt("encrypted-value") } returns "sk-real-key"
 
         val result = service.resolveConfig(userId, ApiKeyCategory.LLM)
@@ -34,7 +34,7 @@ class UserProviderConfigServiceTest {
     @Test
     fun `resolveConfig uses provider default URL when base URL is null`() {
         val config = UserProviderConfig(userId, "openrouter", ApiKeyCategory.LLM, null, "encrypted-value")
-        every { repository.findByUserIdAndCategory(userId, ApiKeyCategory.LLM) } returns config
+        every { repository.findByUserIdAndCategory(userId, ApiKeyCategory.LLM) } returns listOf(config)
         every { encryptor.decrypt("encrypted-value") } returns "sk-real-key"
 
         val result = service.resolveConfig(userId, ApiKeyCategory.LLM)
@@ -46,7 +46,7 @@ class UserProviderConfigServiceTest {
     @Test
     fun `resolveConfig returns null apiKey for Ollama provider with no key`() {
         val config = UserProviderConfig(userId, "ollama", ApiKeyCategory.LLM, null, null)
-        every { repository.findByUserIdAndCategory(userId, ApiKeyCategory.LLM) } returns config
+        every { repository.findByUserIdAndCategory(userId, ApiKeyCategory.LLM) } returns listOf(config)
 
         val result = service.resolveConfig(userId, ApiKeyCategory.LLM)
 
@@ -55,8 +55,21 @@ class UserProviderConfigServiceTest {
     }
 
     @Test
-    fun `resolveConfig queries repository when no user config exists`() {
-        every { repository.findByUserIdAndCategory(userId, ApiKeyCategory.LLM) } returns null
+    fun `resolveConfig picks first config when multiple exist for category`() {
+        val config1 = UserProviderConfig(userId, "openrouter", ApiKeyCategory.LLM, null, "enc-or")
+        val config2 = UserProviderConfig(userId, "ollama", ApiKeyCategory.LLM, null, null)
+        every { repository.findByUserIdAndCategory(userId, ApiKeyCategory.LLM) } returns listOf(config1, config2)
+        every { encryptor.decrypt("enc-or") } returns "sk-or-key"
+
+        val result = service.resolveConfig(userId, ApiKeyCategory.LLM)
+
+        assertEquals("sk-or-key", result?.apiKey)
+        assertEquals("https://openrouter.ai/api", result?.baseUrl)
+    }
+
+    @Test
+    fun `resolveConfig falls back to env var when no user config exists`() {
+        every { repository.findByUserIdAndCategory(userId, ApiKeyCategory.LLM) } returns emptyList()
 
         service.resolveConfig(userId, ApiKeyCategory.LLM)
 
@@ -103,19 +116,19 @@ class UserProviderConfigServiceTest {
     }
 
     @Test
-    fun `deleteConfig delegates to repository by category`() {
-        every { repository.deleteByUserIdAndCategory(userId, ApiKeyCategory.LLM) } returns 1
+    fun `deleteConfig delegates to repository by category and provider`() {
+        every { repository.deleteByUserIdAndCategoryAndProvider(userId, ApiKeyCategory.LLM, "openrouter") } returns 1
 
-        val result = service.deleteConfig(userId, ApiKeyCategory.LLM)
+        val result = service.deleteConfig(userId, ApiKeyCategory.LLM, "openrouter")
 
         assertEquals(true, result)
     }
 
     @Test
     fun `deleteConfig returns false when nothing deleted`() {
-        every { repository.deleteByUserIdAndCategory(userId, ApiKeyCategory.TTS) } returns 0
+        every { repository.deleteByUserIdAndCategoryAndProvider(userId, ApiKeyCategory.TTS, "openai") } returns 0
 
-        val result = service.deleteConfig(userId, ApiKeyCategory.TTS)
+        val result = service.deleteConfig(userId, ApiKeyCategory.TTS, "openai")
 
         assertEquals(false, result)
     }

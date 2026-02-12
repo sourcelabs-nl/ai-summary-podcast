@@ -90,6 +90,13 @@ The system SHALL compose all individual summaries into a single coherent briefin
 - **WHEN** a briefing is composed for a podcast with language `"en"`
 - **THEN** no additional language instruction is added to the prompt and the date is formatted in English
 
+### Requirement: Summary preservation during processing
+The system SHALL preserve article summaries when marking articles as processed. After the summarization step produces summaries, the pipeline SHALL use the summarized articles (not the original unsummarized articles) when setting `is_processed` = true, ensuring the summary field is not overwritten with null.
+
+#### Scenario: Summary preserved when article marked as processed
+- **WHEN** an article is summarized and then marked as processed
+- **THEN** the saved article has both `is_processed` = true and the summary field populated
+
 ### Requirement: Model switching per LLM call
 The system SHALL use a single ChatClient instance and override the model per call via `OpenAiChatOptions`. The relevance filtering and summarization steps SHALL use the configured cheap model. The briefing composition step SHALL use the configured capable model.
 

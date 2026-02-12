@@ -1,5 +1,6 @@
 package com.aisummarypodcast.source
 
+import com.aisummarypodcast.config.AppProperties
 import com.aisummarypodcast.store.ArticleRepository
 import com.aisummarypodcast.store.Source
 import com.aisummarypodcast.store.SourceRepository
@@ -7,13 +8,15 @@ import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import java.security.MessageDigest
 import java.time.Instant
+import java.time.temporal.ChronoUnit
 
 @Component
 class SourcePoller(
     private val rssFeedFetcher: RssFeedFetcher,
     private val websiteFetcher: WebsiteFetcher,
     private val articleRepository: ArticleRepository,
-    private val sourceRepository: SourceRepository
+    private val sourceRepository: SourceRepository,
+    private val appProperties: AppProperties
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -34,7 +37,14 @@ class SourcePoller(
             var latestTimestamp = source.lastSeenId
             var savedCount = 0
 
+            val maxAgeCutoff = Instant.now().minus(appProperties.source.maxArticleAgeDays.toLong(), ChronoUnit.DAYS)
+
             for (article in articles) {
+                if (article.publishedAt != null && Instant.parse(article.publishedAt).isBefore(maxAgeCutoff)) {
+                    log.debug("Skipping old article '{}' (published {})", article.title, article.publishedAt)
+                    continue
+                }
+
                 val hash = sha256(article.body)
                 if (articleRepository.findBySourceIdAndContentHash(source.id, hash) != null) continue
 

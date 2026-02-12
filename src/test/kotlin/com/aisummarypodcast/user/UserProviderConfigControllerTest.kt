@@ -157,6 +157,25 @@ class UserProviderConfigControllerTest {
     }
 
     @Test
+    fun `GET lists multiple providers per category`() {
+        every { userService.findById(userId) } returns user
+        every { providerConfigService.listConfigs(userId) } returns listOf(
+            UserProviderConfig(userId = userId, provider = "openrouter", category = ApiKeyCategory.LLM, baseUrl = null, encryptedApiKey = "enc1"),
+            UserProviderConfig(userId = userId, provider = "ollama", category = ApiKeyCategory.LLM, baseUrl = null, encryptedApiKey = null)
+        )
+        every { providerConfigService.resolveDefaultUrl("openrouter") } returns "https://openrouter.ai/api"
+        every { providerConfigService.resolveDefaultUrl("ollama") } returns "http://localhost:11434"
+
+        mockMvc.perform(get("/users/$userId/api-keys"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.length()").value(2))
+            .andExpect(jsonPath("$[0].category").value("LLM"))
+            .andExpect(jsonPath("$[0].provider").value("openrouter"))
+            .andExpect(jsonPath("$[1].category").value("LLM"))
+            .andExpect(jsonPath("$[1].provider").value("ollama"))
+    }
+
+    @Test
     fun `GET returns empty array when no configs`() {
         every { userService.findById(userId) } returns user
         every { providerConfigService.listConfigs(userId) } returns emptyList()
@@ -175,17 +194,17 @@ class UserProviderConfigControllerTest {
     }
 
     @Test
-    fun `DELETE with valid category returns 204`() {
+    fun `DELETE with valid category and provider returns 204`() {
         every { userService.findById(userId) } returns user
-        every { providerConfigService.deleteConfig(userId, ApiKeyCategory.LLM) } returns true
+        every { providerConfigService.deleteConfig(userId, ApiKeyCategory.LLM, "openrouter") } returns true
 
-        mockMvc.perform(delete("/users/$userId/api-keys/LLM"))
+        mockMvc.perform(delete("/users/$userId/api-keys/LLM/openrouter"))
             .andExpect(status().isNoContent)
     }
 
     @Test
     fun `DELETE with invalid category returns 400 with error message`() {
-        mockMvc.perform(delete("/users/$userId/api-keys/INVALID"))
+        mockMvc.perform(delete("/users/$userId/api-keys/INVALID/openrouter"))
             .andExpect(status().isBadRequest)
             .andExpect(jsonPath("$.error").value("Invalid category. Must be one of: LLM, TTS"))
     }
@@ -193,9 +212,17 @@ class UserProviderConfigControllerTest {
     @Test
     fun `DELETE non-existing config returns 404`() {
         every { userService.findById(userId) } returns user
-        every { providerConfigService.deleteConfig(userId, ApiKeyCategory.TTS) } returns false
+        every { providerConfigService.deleteConfig(userId, ApiKeyCategory.TTS, "openai") } returns false
 
-        mockMvc.perform(delete("/users/$userId/api-keys/TTS"))
+        mockMvc.perform(delete("/users/$userId/api-keys/TTS/openai"))
+            .andExpect(status().isNotFound)
+    }
+
+    @Test
+    fun `DELETE for non-existing user returns 404`() {
+        every { userService.findById(userId) } returns null
+
+        mockMvc.perform(delete("/users/$userId/api-keys/LLM/openrouter"))
             .andExpect(status().isNotFound)
     }
 

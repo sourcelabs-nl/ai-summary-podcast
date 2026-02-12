@@ -18,4 +18,8 @@ interface ArticleRepository : CrudRepository<Article, Long> {
     @Modifying
     @Query("DELETE FROM articles WHERE source_id = :sourceId")
     fun deleteBySourceId(sourceId: String)
+
+    @Modifying
+    @Query("DELETE FROM articles WHERE published_at IS NOT NULL AND published_at < :cutoff AND is_processed = 0")
+    fun deleteOldUnprocessedArticles(cutoff: String)
 }

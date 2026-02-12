@@ -38,11 +38,12 @@ class UserProviderConfigService(
     fun listConfigs(userId: String): List<UserProviderConfig> =
         repository.findByUserId(userId)
 
-    fun deleteConfig(userId: String, category: ApiKeyCategory): Boolean =
-        repository.deleteByUserIdAndCategory(userId, category) > 0
+    fun deleteConfig(userId: String, category: ApiKeyCategory, provider: String): Boolean =
+        repository.deleteByUserIdAndCategoryAndProvider(userId, category, provider) > 0
 
     fun resolveConfig(userId: String, category: ApiKeyCategory): ProviderConfig? {
-        val config = repository.findByUserIdAndCategory(userId, category)
+        val configs = repository.findByUserIdAndCategory(userId, category)
+        val config = configs.firstOrNull()
         if (config != null) {
             val apiKey = config.encryptedApiKey?.let { apiKeyEncryptor.decrypt(it) }
             val baseUrl = config.baseUrl ?: resolveDefaultUrl(config.provider)

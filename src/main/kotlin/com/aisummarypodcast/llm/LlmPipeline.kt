@@ -44,7 +44,7 @@ class LlmPipeline(
         log.info("Composing briefing script for podcast {}", podcast.id)
         val script = briefingComposer.compose(summarized, podcast)
 
-        for (article in relevant) {
+        for (article in summarized) {
             articleRepository.save(article.copy(isProcessed = true))
         }
 

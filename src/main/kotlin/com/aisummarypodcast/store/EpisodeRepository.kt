@@ -7,4 +7,10 @@ interface EpisodeRepository : CrudRepository<Episode, Long> {
 
     @Query("SELECT * FROM episodes WHERE podcast_id = :podcastId")
     fun findByPodcastId(podcastId: String): List<Episode>
+
+    @Query("SELECT * FROM episodes WHERE podcast_id = :podcastId AND status = :status")
+    fun findByPodcastIdAndStatus(podcastId: String, status: String): List<Episode>
+
+    @Query("SELECT * FROM episodes WHERE podcast_id = :podcastId AND status IN (:statuses)")
+    fun findByPodcastIdAndStatusIn(podcastId: String, statuses: List<String>): List<Episode>
 }

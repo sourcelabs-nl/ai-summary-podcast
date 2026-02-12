@@ -1,6 +1,8 @@
 package com.aisummarypodcast.scheduler
 
 import com.aisummarypodcast.llm.LlmPipeline
+import com.aisummarypodcast.store.Episode
+import com.aisummarypodcast.store.EpisodeRepository
 import com.aisummarypodcast.store.PodcastRepository
 import com.aisummarypodcast.tts.TtsPipeline
 import org.slf4j.LoggerFactory
@@ -15,7 +17,8 @@ import java.time.ZoneOffset
 class BriefingGenerationScheduler(
     private val podcastRepository: PodcastRepository,
     private val llmPipeline: LlmPipeline,
-    private val ttsPipeline: TtsPipeline
+    private val ttsPipeline: TtsPipeline,
+    private val episodeRepository: EpisodeRepository
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -53,16 +56,39 @@ class BriefingGenerationScheduler(
     private fun generateBriefing(podcastId: String) {
         val podcast = podcastRepository.findById(podcastId).orElse(null) ?: return
 
+        if (podcast.requireReview && hasPendingOrApprovedEpisode(podcastId)) {
+            log.info("Podcast {} has a pending/approved episode — skipping generation", podcastId)
+            return
+        }
+
         val script = llmPipeline.run(podcast)
         if (script == null) {
             log.info("No briefing script generated for podcast {} — nothing to synthesize", podcastId)
-            // Still update lastGeneratedAt so we don't retry immediately
             podcastRepository.save(podcast.copy(lastGeneratedAt = Instant.now().toString()))
             return
         }
 
-        val episode = ttsPipeline.generate(script, podcast)
-        podcastRepository.save(podcast.copy(lastGeneratedAt = Instant.now().toString()))
-        log.info("Briefing generation complete for podcast {}: episode {} ({} seconds)", podcastId, episode.id, episode.durationSeconds)
+        if (podcast.requireReview) {
+            episodeRepository.save(
+                Episode(
+                    podcastId = podcastId,
+                    generatedAt = Instant.now().toString(),
+                    scriptText = script,
+                    status = "PENDING_REVIEW"
+                )
+            )
+            podcastRepository.save(podcast.copy(lastGeneratedAt = Instant.now().toString()))
+            log.info("Script ready for review for podcast {}", podcastId)
+        } else {
+            val episode = ttsPipeline.generate(script, podcast)
+            podcastRepository.save(podcast.copy(lastGeneratedAt = Instant.now().toString()))
+            log.info("Briefing generation complete for podcast {}: episode {} ({} seconds)", podcastId, episode.id, episode.durationSeconds)
+        }
+    }
+
+    private fun hasPendingOrApprovedEpisode(podcastId: String): Boolean {
+        return episodeRepository.findByPodcastIdAndStatusIn(
+            podcastId, listOf("PENDING_REVIEW", "APPROVED")
+        ).isNotEmpty()
     }
 }

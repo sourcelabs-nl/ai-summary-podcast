@@ -1,6 +1,7 @@
 package com.aisummarypodcast.llm
 
 import com.aisummarypodcast.store.ApiKeyCategory
+import com.aisummarypodcast.store.LlmCacheRepository
 import com.aisummarypodcast.store.Podcast
 import com.aisummarypodcast.user.UserProviderConfigService
 import org.springframework.ai.chat.client.ChatClient
@@ -13,7 +14,8 @@ import java.time.Duration
 
 @Component
 class ChatClientFactory(
-    private val providerConfigService: UserProviderConfigService
+    private val providerConfigService: UserProviderConfigService,
+    private val llmCacheRepository: LlmCacheRepository
 ) {
 
     fun createForPodcast(podcast: Podcast): ChatClient {
@@ -33,6 +35,7 @@ class ChatClientFactory(
         val chatModel = OpenAiChatModel.builder()
             .openAiApi(openAiApi)
             .build()
-        return ChatClient.builder(chatModel).build()
+        val cachingModel = CachingChatModel(chatModel, llmCacheRepository)
+        return ChatClient.builder(cachingModel).build()
     }
 }

@@ -20,20 +20,20 @@ class UserProviderConfigRepository(private val jdbcTemplate: JdbcTemplate) {
     fun findByUserId(userId: String): List<UserProviderConfig> =
         jdbcTemplate.query("SELECT * FROM user_provider_configs WHERE user_id = ?", rowMapper, userId)
 
-    fun findByUserIdAndCategory(userId: String, category: ApiKeyCategory): UserProviderConfig? =
+    fun findByUserIdAndCategory(userId: String, category: ApiKeyCategory): List<UserProviderConfig> =
         jdbcTemplate.query(
             "SELECT * FROM user_provider_configs WHERE user_id = ? AND category = ?",
             rowMapper, userId, category.name
-        ).firstOrNull()
+        )
 
     fun save(config: UserProviderConfig) {
         jdbcTemplate.update(
             """
             INSERT INTO user_provider_configs (user_id, provider, category, base_url, encrypted_api_key) VALUES (?, ?, ?, ?, ?)
-            ON CONFLICT (user_id, category) DO UPDATE SET provider = ?, base_url = ?, encrypted_api_key = ?
+            ON CONFLICT (user_id, category, provider) DO UPDATE SET base_url = ?, encrypted_api_key = ?
             """.trimIndent(),
             config.userId, config.provider, config.category.name, config.baseUrl, config.encryptedApiKey,
-            config.provider, config.baseUrl, config.encryptedApiKey
+            config.baseUrl, config.encryptedApiKey
         )
     }
 
@@ -41,6 +41,6 @@ class UserProviderConfigRepository(private val jdbcTemplate: JdbcTemplate) {
         jdbcTemplate.update("DELETE FROM user_provider_configs WHERE user_id = ?", userId)
     }
 
-    fun deleteByUserIdAndCategory(userId: String, category: ApiKeyCategory): Int =
-        jdbcTemplate.update("DELETE FROM user_provider_configs WHERE user_id = ? AND category = ?", userId, category.name)
+    fun deleteByUserIdAndCategoryAndProvider(userId: String, category: ApiKeyCategory, provider: String): Int =
+        jdbcTemplate.update("DELETE FROM user_provider_configs WHERE user_id = ? AND category = ? AND provider = ?", userId, category.name, provider)
 }

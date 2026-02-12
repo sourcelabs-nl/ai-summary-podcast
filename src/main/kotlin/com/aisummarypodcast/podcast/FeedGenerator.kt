@@ -37,23 +37,24 @@ class FeedGenerator(
             language = podcast.language
         }
 
-        val episodes = episodeRepository.findByPodcastId(podcast.id).sortedByDescending { it.generatedAt }
+        val episodes = episodeRepository.findByPodcastIdAndStatus(podcast.id, "GENERATED").sortedByDescending { it.generatedAt }
 
-        feed.entries = episodes.map { episode ->
+        feed.entries = episodes.mapNotNull { episode ->
+            val audioPath = episode.audioFilePath ?: return@mapNotNull null
             SyndEntryImpl().apply {
                 val generatedInstant = Instant.parse(episode.generatedAt)
                 title = "$feedTitle - ${generatedInstant.atOffset(ZoneOffset.UTC).toLocalDate()}"
-                link = "${appProperties.feed.baseUrl}/episodes/${podcast.id}/${Path.of(episode.audioFilePath).fileName}"
+                link = "${appProperties.feed.baseUrl}/episodes/${podcast.id}/${Path.of(audioPath).fileName}"
                 publishedDate = Date.from(generatedInstant)
                 description = SyndContentImpl().apply {
                     type = "text/plain"
                     value = episode.scriptText.take(500) + "..."
                 }
                 enclosures = listOf(SyndEnclosureImpl().apply {
-                    url = "${appProperties.feed.baseUrl}/episodes/${podcast.id}/${Path.of(episode.audioFilePath).fileName}"
+                    url = "${appProperties.feed.baseUrl}/episodes/${podcast.id}/${Path.of(audioPath).fileName}"
                     type = "audio/mpeg"
                     length = try {
-                        Files.size(Path.of(episode.audioFilePath))
+                        Files.size(Path.of(audioPath))
                     } catch (_: Exception) {
                         0L
                     }

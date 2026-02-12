@@ -19,7 +19,8 @@ data class CreatePodcastRequest(
     val style: String? = null,
     val targetWords: Int? = null,
     val cron: String? = null,
-    val customInstructions: String? = null
+    val customInstructions: String? = null,
+    val requireReview: Boolean? = null
 )
 
 data class UpdatePodcastRequest(
@@ -32,7 +33,8 @@ data class UpdatePodcastRequest(
     val style: String? = null,
     val targetWords: Int? = null,
     val cron: String? = null,
-    val customInstructions: String? = null
+    val customInstructions: String? = null,
+    val requireReview: Boolean? = null
 )
 
 data class PodcastResponse(
@@ -48,6 +50,7 @@ data class PodcastResponse(
     val targetWords: Int?,
     val cron: String,
     val customInstructions: String?,
+    val requireReview: Boolean,
     val lastGeneratedAt: String?
 )
 
@@ -57,7 +60,8 @@ class PodcastController(
     private val podcastService: PodcastService,
     private val userService: UserService,
     private val llmPipeline: LlmPipeline,
-    private val ttsPipeline: TtsPipeline
+    private val ttsPipeline: TtsPipeline,
+    private val episodeRepository: com.aisummarypodcast.store.EpisodeRepository
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -85,7 +89,8 @@ class PodcastController(
                 style = request.style ?: "news-briefing",
                 targetWords = request.targetWords,
                 cron = request.cron ?: "0 0 6 * * *",
-                customInstructions = request.customInstructions
+                customInstructions = request.customInstructions,
+                requireReview = request.requireReview ?: false
             )
         )
         return ResponseEntity.created(URI.create("/users/$userId/podcasts/${podcast.id}"))
@@ -130,7 +135,8 @@ class PodcastController(
                 style = request.style ?: existing.style,
                 targetWords = request.targetWords ?: existing.targetWords,
                 cron = request.cron ?: existing.cron,
-                customInstructions = request.customInstructions ?: existing.customInstructions
+                customInstructions = request.customInstructions ?: existing.customInstructions,
+                requireReview = request.requireReview ?: existing.requireReview
             )
         ) ?: return ResponseEntity.notFound().build()
         return ResponseEntity.ok(updated.toResponse())
@@ -146,24 +152,47 @@ class PodcastController(
     }
 
     @PostMapping("/{podcastId}/generate")
-    fun generate(@PathVariable userId: String, @PathVariable podcastId: String): ResponseEntity<String> {
+    fun generate(@PathVariable userId: String, @PathVariable podcastId: String): ResponseEntity<Any> {
         userService.findById(userId) ?: return ResponseEntity.notFound().build()
         val podcast = podcastService.findById(podcastId) ?: return ResponseEntity.notFound().build()
         if (podcast.userId != userId) return ResponseEntity.notFound().build()
+
+        if (podcast.requireReview) {
+            val pending = episodeRepository.findByPodcastIdAndStatusIn(
+                podcastId, listOf("PENDING_REVIEW", "APPROVED")
+            )
+            if (pending.isNotEmpty()) {
+                return ResponseEntity.status(409).body(mapOf("error" to "A pending or approved episode already exists. Approve or discard it first."))
+            }
+        }
 
         log.info("Manual briefing generation triggered for podcast {}", podcastId)
         val script = llmPipeline.run(podcast)
             ?: return ResponseEntity.ok("No relevant articles to process")
 
+        if (podcast.requireReview) {
+            val episode = episodeRepository.save(
+                com.aisummarypodcast.store.Episode(
+                    podcastId = podcastId,
+                    generatedAt = Instant.now().toString(),
+                    scriptText = script,
+                    status = "PENDING_REVIEW"
+                )
+            )
+            podcastService.update(podcastId, podcast.copy(lastGeneratedAt = Instant.now().toString()))
+            return ResponseEntity.ok(mapOf("message" to "Script ready for review", "episodeId" to episode.id))
+        }
+
         val episode = ttsPipeline.generate(script, podcast)
         podcastService.update(podcastId, podcast.copy(lastGeneratedAt = Instant.now().toString()))
-        return ResponseEntity.ok("Episode generated: ${episode.id} (${episode.durationSeconds}s)")
+        return ResponseEntity.ok(mapOf("message" to "Episode generated: ${episode.id} (${episode.durationSeconds}s)"))
     }
 
     private fun com.aisummarypodcast.store.Podcast.toResponse() = PodcastResponse(
         id = id, userId = userId, name = name, topic = topic,
         language = language, llmModel = llmModel, ttsVoice = ttsVoice, ttsSpeed = ttsSpeed,
         style = style, targetWords = targetWords, cron = cron,
-        customInstructions = customInstructions, lastGeneratedAt = lastGeneratedAt
+        customInstructions = customInstructions, requireReview = requireReview,
+        lastGeneratedAt = lastGeneratedAt
     )
 }
