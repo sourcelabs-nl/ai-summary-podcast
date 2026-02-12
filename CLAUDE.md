@@ -52,3 +52,16 @@ Use **MockK** (not Mockito) for all Kotlin tests. For Spring integration tests, 
 ## Source Configuration
 
 Sources are defined in YAML/JSON with fields: `id`, `type` (rss/website/twitter/reddit/youtube), `url`, `poll_interval_minutes`, `enabled`. A `topic` field defines the interest area for LLM relevance filtering.
+
+## README Structure
+
+When updating `README.md`, maintain the following section order and structure. Do not remove, reorder, or rename sections. New sections may be added at the end before "Running Tests".
+
+1. **Title + description** — `# AI Summary Podcast` followed by a one-paragraph project summary.
+2. **How It Works** — Mermaid flowchart of the pipeline stages, followed by a numbered list explaining each stage. Ends with a note on per-user podcast customization.
+3. **Prerequisites** — Bulleted list of required tools and services (Java version, FFmpeg, LLM provider options, TTS API key).
+4. **Setup** — Step-by-step instructions: `.env` file creation with required variables, key generation command, explanation of fallback vs per-user provider config.
+   - **Using Ollama instead of OpenRouter** — Subsection with Ollama-specific setup (pull model, configure user provider via API).
+   - Start/stop commands (`./start.sh`, `./stop.sh`) and direct run command (`./mvnw spring-boot:run`).
+   - Note on default port and data directory.
+5. **Running Tests** — Test command (`./mvnw test`) and note on MockK usage.
