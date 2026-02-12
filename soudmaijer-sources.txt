@@ -1,7 +1,0 @@
-Jeroen Dee (https://aishepherd.nl/feed.xml)
-Jeroen Gordijn (https://inspired-it.nl/rss.xml)
-Jeroen Gordijn (https://inspired-it.nl/moments-rss.xml)
-Simon Willison (https://simonwillison.net)
-Jesse Vincent (https://blog.fsck.com)
-Geoffrey Huntley (https://ghuntley.com)
-Steve Yegge (https://steve-yegge.medium.com)

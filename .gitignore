@@ -4,6 +4,7 @@ data/
 .claude/
 .app.pid
 app.log
+soudmaijer-sources.txt
 
 HELP.md
 target/
