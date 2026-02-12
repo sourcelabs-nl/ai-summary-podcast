@@ -1,21 +1,15 @@
 spring:
   application:
     name: ai-summary-podcast
-  ai:
-    openai:
-      api-key: ${OPENROUTER_API_KEY}
-      base-url: https://openrouter.ai/api
-      chat:
-        options:
-          model: anthropic/claude-sonnet-4.5
-      audio:
-        speech:
-          api-key: ${OPENAI_API_KEY}
-          base-url: https://api.openai.com
-          options:
-            model: tts-1-hd
-            voice: alloy
-            response-format: mp3
+  autoconfigure:
+    exclude:
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiChatAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiEmbeddingAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiImageAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiAudioSpeechAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiAudioTranscriptionAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiModerationAutoConfiguration
+      - org.springframework.ai.model.chat.client.autoconfigure.ChatClientAutoConfiguration
   datasource:
     url: jdbc:sqlite:./data/ai-summary-podcast.db
     driver-class-name: org.sqlite.JDBC
