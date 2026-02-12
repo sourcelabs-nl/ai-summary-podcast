@@ -1,4 +1,7 @@
 .env
+data/
+.DS_Store
+.claude/
 
 HELP.md
 target/

@@ -1,0 +1,40 @@
+spring:
+  config:
+    import: classpath:sources.yaml
+  application:
+    name: ai-summary-podcast
+  ai:
+    openai:
+      api-key: ${OPENROUTER_API_KEY}
+      base-url: https://openrouter.ai/api
+      chat:
+        options:
+          model: anthropic/claude-sonnet-4.5
+      audio:
+        speech:
+          api-key: ${OPENAI_API_KEY}
+          base-url: https://api.openai.com
+          options:
+            model: tts-1-hd
+            voice: alloy
+            response-format: mp3
+  datasource:
+    url: jdbc:sqlite:./data/ai-summary-podcast.db
+    driver-class-name: org.sqlite.JDBC
+  sql:
+    init:
+      mode: always
+
+app:
+  llm:
+    cheap-model: anthropic/claude-haiku-4.5
+  briefing:
+    cron: "0 0 6 * * *"
+    target-words: 1500
+  episodes:
+    directory: ./data/episodes
+    retention-days: 30
+  feed:
+    base-url: http://localhost:8080
+    title: AI Summary Podcast
+    description: AI-generated audio briefings from your favourite content sources

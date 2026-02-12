@@ -1,0 +1,41 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Session Startup
+
+When starting a new session, read `llms.txt` in the project root. It contains links to the latest documentation for the core technologies (Spring Boot, Spring AI, Kotlin). Use these links to look up API usage and syntax when needed during implementation.
+
+## Project Overview
+
+AI Summary Podcast is a self-hosted pipeline that monitors content sources (RSS feeds, websites, Twitter/X, Reddit, YouTube), filters and summarizes relevant content using an LLM, converts summaries to audio via TTS, and delivers them as a podcast feed (RSS 2.0) consumable by any podcast app.
+
+The project is in its early stages — `proposal.md` contains the full architectural design. No implementation language has been chosen yet.
+
+## Architecture (Four-Stage Pipeline)
+
+1. **Source Poller** — Scheduled polling of configured sources (RSS, website scraping, Twitter/X API, Reddit API, YouTube RSS/transcripts). Extracts clean article text.
+2. **LLM Processing** — Three sequential calls via OpenRouter (OpenAI-compatible API):
+   - Relevance filtering (cheap model, e.g. Haiku/GPT-4o-mini)
+   - Per-article summarization
+   - Briefing script composition (capable model, e.g. Sonnet/GPT-4o)
+3. **TTS Generation** — Text-to-speech via OpenAI TTS / ElevenLabs / Google Cloud TTS. Chunks text at sentence boundaries, concatenates audio with FFmpeg.
+4. **Podcast Feed + File Server** — Generates RSS 2.0 XML with `<enclosure>` tags, serves MP3s over HTTPS.
+
+## Data Model
+
+Three main entities stored in SQLite (or PostgreSQL):
+- `sources` — Configuration and polling state (last_polled, last_seen_id)
+- `articles` — Raw content with deduplication via content_hash, relevance/processing flags
+- `episodes` — Generated briefings with script text, audio file path, duration
+
+## External Dependencies
+
+- **OpenRouter API** — LLM access (relevance filtering, summarization, script composition)
+- **TTS API** — Audio generation (OpenAI TTS, ElevenLabs, or Google Cloud TTS)
+- **FFmpeg** — Audio chunk concatenation
+- **SQLite/PostgreSQL** — Persistent storage
+
+## Source Configuration
+
+Sources are defined in YAML/JSON with fields: `id`, `type` (rss/website/twitter/reddit/youtube), `url`, `poll_interval_minutes`, `enabled`. A `topic` field defines the interest area for LLM relevance filtering.
