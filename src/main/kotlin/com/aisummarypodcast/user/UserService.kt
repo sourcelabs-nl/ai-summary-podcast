@@ -1,7 +1,7 @@
 package com.aisummarypodcast.user
 
 import com.aisummarypodcast.store.User
-import com.aisummarypodcast.store.UserApiKeyRepository
+import com.aisummarypodcast.store.UserProviderConfigRepository
 import com.aisummarypodcast.store.UserRepository
 import org.springframework.stereotype.Service
 import java.util.UUID
@@ -10,7 +10,7 @@ import java.util.UUID
 class UserService(
     private val userRepository: UserRepository,
     private val podcastService: com.aisummarypodcast.podcast.PodcastService,
-    private val userApiKeyRepository: UserApiKeyRepository
+    private val providerConfigRepository: UserProviderConfigRepository
 ) {
 
     fun create(name: String): User {
@@ -30,7 +30,7 @@ class UserService(
     fun delete(userId: String): Boolean {
         val user = findById(userId) ?: return false
         podcastService.deleteAllByUserId(userId)
-        userApiKeyRepository.deleteByUserId(userId)
+        providerConfigRepository.deleteByUserId(userId)
         userRepository.delete(user)
         return true
     }

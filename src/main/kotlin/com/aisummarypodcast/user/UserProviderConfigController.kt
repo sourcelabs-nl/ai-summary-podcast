@@ -4,35 +4,42 @@ import com.aisummarypodcast.store.ApiKeyCategory
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 
-data class SetApiKeyRequest(val apiKey: String, val provider: String)
-data class ApiKeyResponse(val category: String, val provider: String)
+data class SetProviderConfigRequest(val provider: String, val apiKey: String? = null, val baseUrl: String? = null)
+data class ProviderConfigResponse(val category: String, val provider: String, val baseUrl: String)
 data class ErrorResponse(val error: String)
 
 @RestController
 @RequestMapping("/users/{userId}/api-keys")
-class UserApiKeyController(
-    private val userApiKeyService: UserApiKeyService,
+class UserProviderConfigController(
+    private val providerConfigService: UserProviderConfigService,
     private val userService: UserService
 ) {
 
     @GetMapping
-    fun list(@PathVariable userId: String): ResponseEntity<List<ApiKeyResponse>> {
+    fun list(@PathVariable userId: String): ResponseEntity<List<ProviderConfigResponse>> {
         userService.findById(userId) ?: return ResponseEntity.notFound().build()
-        val keys = userApiKeyService.listKeys(userId)
-        return ResponseEntity.ok(keys.map { ApiKeyResponse(category = it.category.name, provider = it.provider) })
+        val configs = providerConfigService.listConfigs(userId)
+        return ResponseEntity.ok(configs.map { config ->
+            val resolvedBaseUrl = config.baseUrl ?: providerConfigService.resolveDefaultUrl(config.provider)
+            ProviderConfigResponse(category = config.category.name, provider = config.provider, baseUrl = resolvedBaseUrl)
+        })
     }
 
     @PutMapping("/{category}")
     fun set(
         @PathVariable userId: String,
         @PathVariable category: String,
-        @RequestBody request: SetApiKeyRequest
+        @RequestBody request: SetProviderConfigRequest
     ): ResponseEntity<*> {
         val parsedCategory = parseCategory(category) ?: return invalidCategoryResponse()
         userService.findById(userId) ?: return ResponseEntity.notFound().build<Void>()
-        if (request.apiKey.isBlank()) return ResponseEntity.badRequest().build<Void>()
-        if (request.provider.isBlank()) return ResponseEntity.badRequest().build<Void>()
-        userApiKeyService.setKey(userId, parsedCategory, request.provider, request.apiKey)
+        if (request.provider.isBlank()) return ResponseEntity.badRequest()
+            .body(ErrorResponse("Provider is required"))
+        if (request.baseUrl == null && !providerConfigService.hasDefaultUrl(request.provider)) {
+            return ResponseEntity.badRequest()
+                .body(ErrorResponse("Base URL is required for provider '${request.provider}'. Known providers with defaults: ${UserProviderConfigService.PROVIDER_DEFAULT_URLS.keys.joinToString(", ")}"))
+        }
+        providerConfigService.setConfig(userId, parsedCategory, request.provider, request.apiKey, request.baseUrl)
         return ResponseEntity.ok().build<Void>()
     }
 
@@ -40,7 +47,7 @@ class UserApiKeyController(
     fun delete(@PathVariable userId: String, @PathVariable category: String): ResponseEntity<*> {
         val parsedCategory = parseCategory(category) ?: return invalidCategoryResponse()
         userService.findById(userId) ?: return ResponseEntity.notFound().build<Void>()
-        if (!userApiKeyService.deleteKey(userId, parsedCategory)) return ResponseEntity.notFound().build<Void>()
+        if (!providerConfigService.deleteConfig(userId, parsedCategory)) return ResponseEntity.notFound().build<Void>()
         return ResponseEntity.noContent().build<Void>()
     }
 

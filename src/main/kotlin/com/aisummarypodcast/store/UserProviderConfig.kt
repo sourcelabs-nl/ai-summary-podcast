@@ -6,10 +6,11 @@ enum class ApiKeyCategory {
     LLM, TTS
 }
 
-@Table("user_api_keys")
-data class UserApiKey(
+@Table("user_provider_configs")
+data class UserProviderConfig(
     val userId: String,
     val provider: String,
     val category: ApiKeyCategory,
-    val encryptedApiKey: String
+    val baseUrl: String? = null,
+    val encryptedApiKey: String? = null
 )

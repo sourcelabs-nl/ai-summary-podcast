@@ -2,7 +2,7 @@ package com.aisummarypodcast.llm
 
 import com.aisummarypodcast.store.ApiKeyCategory
 import com.aisummarypodcast.store.Podcast
-import com.aisummarypodcast.user.UserApiKeyService
+import com.aisummarypodcast.user.UserProviderConfigService
 import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.openai.OpenAiChatModel
 import org.springframework.ai.openai.api.OpenAiApi
@@ -11,16 +11,16 @@ import org.springframework.stereotype.Component
 
 @Component
 class ChatClientFactory(
-    private val userApiKeyService: UserApiKeyService
+    private val providerConfigService: UserProviderConfigService
 ) {
 
     fun createForPodcast(podcast: Podcast): ChatClient {
-        val apiKey = userApiKeyService.resolveKey(podcast.userId, ApiKeyCategory.LLM)
-            ?: throw IllegalStateException("No API key available for category 'LLM'. Configure a user API key or set the OPENROUTER_API_KEY environment variable.")
+        val config = providerConfigService.resolveConfig(podcast.userId, ApiKeyCategory.LLM)
+            ?: throw IllegalStateException("No provider config available for category 'LLM'. Configure a user provider or set the OPENROUTER_API_KEY environment variable.")
 
         val openAiApi = OpenAiApi.builder()
-            .apiKey(apiKey)
-            .baseUrl("https://openrouter.ai/api")
+            .apiKey(config.apiKey ?: "")
+            .baseUrl(config.baseUrl)
             .build()
         val chatModel = OpenAiChatModel.builder()
             .openAiApi(openAiApi)
