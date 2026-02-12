@@ -20,7 +20,6 @@ data class LlmProperties(
 )
 
 data class BriefingProperties(
-    val cron: String = "0 0 6 * * *",
     val targetWords: Int = 1500
 )
 

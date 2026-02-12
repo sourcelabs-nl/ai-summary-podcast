@@ -41,9 +41,6 @@ class UserProviderConfigService(
     fun deleteConfig(userId: String, category: ApiKeyCategory): Boolean =
         repository.deleteByUserIdAndCategory(userId, category) > 0
 
-    fun deleteAllByUserId(userId: String) =
-        repository.deleteByUserId(userId)
-
     fun resolveConfig(userId: String, category: ApiKeyCategory): ProviderConfig? {
         val config = repository.findByUserIdAndCategory(userId, category)
         if (config != null) {

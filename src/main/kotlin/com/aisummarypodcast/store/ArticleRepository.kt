@@ -12,8 +12,6 @@ interface ArticleRepository : CrudRepository<Article, Long> {
     @Query("SELECT * FROM articles WHERE is_relevant = 1 AND is_processed = 0 AND source_id IN (:sourceIds)")
     fun findRelevantUnprocessedBySourceIds(sourceIds: List<String>): List<Article>
 
-    fun findByContentHash(contentHash: String): Article?
-
     @Query("SELECT * FROM articles WHERE source_id = :sourceId AND content_hash = :contentHash")
     fun findBySourceIdAndContentHash(sourceId: String, contentHash: String): Article?
 

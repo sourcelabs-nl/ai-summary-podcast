@@ -23,7 +23,6 @@ app:
   llm:
     cheap-model: anthropic/claude-haiku-4.5
   briefing:
-    cron: "0 0 6 * * *"
     target-words: 1500
   episodes:
     directory: ./data/episodes
