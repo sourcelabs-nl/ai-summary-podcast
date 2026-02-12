@@ -6,6 +6,10 @@ import com.aisummarypodcast.store.Podcast
 import org.slf4j.LoggerFactory
 import org.springframework.ai.openai.OpenAiChatOptions
 import org.springframework.stereotype.Component
+import java.net.URI
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 @Component
 class BriefingComposer(
@@ -29,23 +33,32 @@ class BriefingComposer(
         val stylePrompt = stylePrompts[style] ?: stylePrompts["news-briefing"]!!
 
         val summaryBlock = articles.mapIndexed { index, article ->
-            "${index + 1}. ${article.title}\n${article.summary}"
+            val source = extractDomain(article.url)
+            "${index + 1}. [$source] ${article.title}\n${article.summary}"
         }.joinToString("\n\n")
 
         val customInstructionsBlock = podcast.customInstructions?.let {
             "\n\nAdditional instructions: $it"
         } ?: ""
 
+        val currentDate = LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, MMMM d, yyyy", Locale.ENGLISH))
+
         val prompt = """
             $stylePrompt
 
             Compose the following article summaries into a coherent, engaging monologue suitable for a podcast episode.
 
+            Podcast: ${podcast.name}
+            Topic: ${podcast.topic}
+            Date: $currentDate
+
             Requirements:
             - Use natural spoken language, not written style
             - Include smooth transitions between topics
             - Target approximately $targetWords words
-            - Start with a brief introduction and end with a sign-off
+            - In the introduction, mention the podcast name, its topic, and today's date
+            - Subtly and sparingly attribute information to its source (e.g., "according to TechCrunch") — do not over-cite
+            - End with a sign-off
             - Do NOT include any stage directions, sound effects, section headers (like [Opening], [Closing], [Transition]), or non-spoken text$customInstructionsBlock
 
             Article summaries:
@@ -71,4 +84,11 @@ class BriefingComposer(
 
     internal fun stripSectionHeaders(script: String): String =
         script.replace(Regex("(?m)^\\[.+?]\\s*\\n"), "")
+
+    internal fun extractDomain(url: String): String =
+        try {
+            URI(url).host?.removePrefix("www.") ?: url
+        } catch (_: Exception) {
+            url
+        }
 }

@@ -1,6 +1,7 @@
 package com.aisummarypodcast.llm
 
 import com.aisummarypodcast.config.AppProperties
+import com.aisummarypodcast.store.Article
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
@@ -44,5 +45,65 @@ class BriefingComposerTest {
         val input = "Welcome to today's briefing.\nHere are the top stories.\n"
         val result = composer.stripSectionHeaders(input)
         assertEquals(input, result)
+    }
+
+    @Test
+    fun `extractDomain extracts domain from standard URL`() {
+        assertEquals("techcrunch.com", composer.extractDomain("https://techcrunch.com/2026/02/12/example"))
+    }
+
+    @Test
+    fun `extractDomain strips www prefix`() {
+        assertEquals("theverge.com", composer.extractDomain("https://www.theverge.com/article"))
+    }
+
+    @Test
+    fun `extractDomain handles URL without path`() {
+        assertEquals("example.com", composer.extractDomain("https://example.com"))
+    }
+
+    @Test
+    fun `extractDomain returns original string for invalid URL`() {
+        assertEquals("not-a-url", composer.extractDomain("not-a-url"))
+    }
+
+    @Test
+    fun `extractDomain handles http URL`() {
+        assertEquals("blog.example.org", composer.extractDomain("http://blog.example.org/posts/123"))
+    }
+
+    @Test
+    fun `summary block includes source domain`() {
+        val articles = listOf(
+            Article(
+                id = 1,
+                sourceId = "src-1",
+                title = "AI Breakthrough",
+                body = "body",
+                url = "https://techcrunch.com/2026/02/12/ai",
+                contentHash = "hash1",
+                summary = "A major AI breakthrough was announced."
+            ),
+            Article(
+                id = 2,
+                sourceId = "src-2",
+                title = "New Chip",
+                body = "body",
+                url = "https://www.theverge.com/chip",
+                contentHash = "hash2",
+                summary = "A new chip was unveiled."
+            )
+        )
+
+        val block = articles.mapIndexed { index, article ->
+            val source = composer.extractDomain(article.url)
+            "${index + 1}. [$source] ${article.title}\n${article.summary}"
+        }.joinToString("\n\n")
+
+        assertEquals(
+            "1. [techcrunch.com] AI Breakthrough\nA major AI breakthrough was announced.\n\n" +
+                "2. [theverge.com] New Chip\nA new chip was unveiled.",
+            block
+        )
     }
 }
