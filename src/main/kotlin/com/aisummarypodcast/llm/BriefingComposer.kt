@@ -1,6 +1,7 @@
 package com.aisummarypodcast.llm
 
 import com.aisummarypodcast.config.AppProperties
+import com.aisummarypodcast.podcast.SupportedLanguage
 import com.aisummarypodcast.store.Article
 import com.aisummarypodcast.store.Podcast
 import org.slf4j.LoggerFactory
@@ -28,9 +29,28 @@ class BriefingComposer(
 
     fun compose(articles: List<Article>, podcast: Podcast): String {
         val chatClient = chatClientFactory.createForPodcast(podcast)
+        val prompt = buildPrompt(articles, podcast)
+
+        val promptBuilder = chatClient.prompt()
+            .user(prompt)
+
+        val model = podcast.llmModel
+        if (model != null) {
+            promptBuilder.options(OpenAiChatOptions.builder().model(model).build())
+        }
+
+        val rawScript = promptBuilder.call()
+            .content() ?: throw IllegalStateException("Empty response from LLM for briefing composition")
+
+        val script = stripSectionHeaders(rawScript)
+
+        log.info("Composed briefing script: {} words from {} articles (style: {})", script.split("\\s+".toRegex()).size, articles.size, podcast.style)
+        return script
+    }
+
+    internal fun buildPrompt(articles: List<Article>, podcast: Podcast): String {
         val targetWords = podcast.targetWords ?: appProperties.briefing.targetWords
-        val style = podcast.style
-        val stylePrompt = stylePrompts[style] ?: stylePrompts["news-briefing"]!!
+        val stylePrompt = stylePrompts[podcast.style] ?: stylePrompts["news-briefing"]!!
 
         val summaryBlock = articles.mapIndexed { index, article ->
             val source = extractDomain(article.url)
@@ -41,9 +61,15 @@ class BriefingComposer(
             "\n\nAdditional instructions: $it"
         } ?: ""
 
-        val currentDate = LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, MMMM d, yyyy", Locale.ENGLISH))
+        val locale = SupportedLanguage.fromCode(podcast.language)?.toLocale() ?: Locale.ENGLISH
+        val currentDate = LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, MMMM d, yyyy", locale))
 
-        val prompt = """
+        val languageInstruction = if (podcast.language != "en") {
+            val langName = SupportedLanguage.fromCode(podcast.language)?.displayName ?: "English"
+            "\n            - Write the entire script in $langName"
+        } else ""
+
+        return """
             $stylePrompt
 
             Compose the following article summaries into a coherent, engaging monologue suitable for a podcast episode.
@@ -59,27 +85,11 @@ class BriefingComposer(
             - In the introduction, mention the podcast name, its topic, and today's date
             - Subtly and sparingly attribute information to its source (e.g., "according to TechCrunch") — do not over-cite
             - End with a sign-off
-            - Do NOT include any stage directions, sound effects, section headers (like [Opening], [Closing], [Transition]), or non-spoken text$customInstructionsBlock
+            - Do NOT include any stage directions, sound effects, section headers (like [Opening], [Closing], [Transition]), or non-spoken text$languageInstruction$customInstructionsBlock
 
             Article summaries:
             $summaryBlock
         """.trimIndent()
-
-        val promptBuilder = chatClient.prompt()
-            .user(prompt)
-
-        val model = podcast.llmModel
-        if (model != null) {
-            promptBuilder.options(OpenAiChatOptions.builder().model(model).build())
-        }
-
-        val rawScript = promptBuilder.call()
-            .content() ?: throw IllegalStateException("Empty response from LLM for briefing composition")
-
-        val script = stripSectionHeaders(rawScript)
-
-        log.info("Composed briefing script: {} words from {} articles (style: {})", script.split("\\s+".toRegex()).size, articles.size, style)
-        return script
     }
 
     internal fun stripSectionHeaders(script: String): String =

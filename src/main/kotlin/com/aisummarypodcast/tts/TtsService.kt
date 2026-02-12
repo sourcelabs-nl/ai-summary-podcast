@@ -18,7 +18,7 @@ class TtsService(
     private val log = LoggerFactory.getLogger(javaClass)
 
     fun generateAudio(chunks: List<String>, podcast: Podcast): List<ByteArray> {
-        log.info("Generating TTS audio for {} chunks (voice: {}, speed: {})", chunks.size, podcast.ttsVoice, podcast.ttsSpeed)
+        log.info("Generating TTS audio for {} chunks (voice: {}, speed: {}, language: {})", chunks.size, podcast.ttsVoice, podcast.ttsSpeed, podcast.language)
 
         val speechModel = createSpeechModel(podcast)
 

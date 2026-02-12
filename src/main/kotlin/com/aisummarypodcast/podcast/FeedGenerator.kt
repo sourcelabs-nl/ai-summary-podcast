@@ -34,6 +34,7 @@ class FeedGenerator(
             title = feedTitle
             link = appProperties.feed.baseUrl
             description = appProperties.feed.description
+            language = podcast.language
         }
 
         val episodes = episodeRepository.findByPodcastId(podcast.id).sortedByDescending { it.generatedAt }

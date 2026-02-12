@@ -1,14 +1,19 @@
 package com.aisummarypodcast.llm
 
 import com.aisummarypodcast.config.AppProperties
+import com.aisummarypodcast.config.BriefingProperties
 import com.aisummarypodcast.store.Article
+import com.aisummarypodcast.store.Podcast
+import io.mockk.every
 import io.mockk.mockk
-import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 
 class BriefingComposerTest {
 
-    private val appProperties = mockk<AppProperties>()
+    private val appProperties = mockk<AppProperties>().also {
+        every { it.briefing } returns BriefingProperties(targetWords = 1500)
+    }
     private val chatClientFactory = mockk<ChatClientFactory>()
     private val composer = BriefingComposer(appProperties, chatClientFactory)
 
@@ -105,5 +110,45 @@ class BriefingComposerTest {
                 "2. [theverge.com] New Chip\nA new chip was unveiled.",
             block
         )
+    }
+
+    private val sampleArticles = listOf(
+        Article(
+            id = 1, sourceId = "src-1", title = "AI News",
+            body = "body", url = "https://techcrunch.com/ai",
+            contentHash = "hash1", summary = "AI summary."
+        )
+    )
+
+    @Test
+    fun `buildPrompt includes language instruction for non-English podcast`() {
+        val podcast = Podcast(id = "p1", userId = "u1", name = "Tech NL", topic = "tech", language = "nl")
+        val prompt = composer.buildPrompt(sampleArticles, podcast)
+        assertTrue(prompt.contains("Write the entire script in Dutch"), "Expected Dutch language instruction in prompt")
+    }
+
+    @Test
+    fun `buildPrompt does not include language instruction for English podcast`() {
+        val podcast = Podcast(id = "p1", userId = "u1", name = "Tech EN", topic = "tech", language = "en")
+        val prompt = composer.buildPrompt(sampleArticles, podcast)
+        assertFalse(prompt.contains("Write the entire script in"), "Expected no language instruction for English")
+    }
+
+    @Test
+    fun `buildPrompt formats date in podcast language locale`() {
+        val podcast = Podcast(id = "p1", userId = "u1", name = "Tech FR", topic = "tech", language = "fr")
+        val prompt = composer.buildPrompt(sampleArticles, podcast)
+        val dateLine = prompt.lines().find { it.trim().startsWith("Date:") }
+        assertNotNull(dateLine, "Expected a Date line in the prompt")
+        val englishDays = listOf("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
+        val containsEnglishDay = englishDays.any { dateLine!!.contains(it) }
+        assertFalse(containsEnglishDay, "Expected French date formatting, but found English day name in: $dateLine")
+    }
+
+    @Test
+    fun `buildPrompt includes language instruction for French podcast`() {
+        val podcast = Podcast(id = "p1", userId = "u1", name = "Tech FR", topic = "tech", language = "fr")
+        val prompt = composer.buildPrompt(sampleArticles, podcast)
+        assertTrue(prompt.contains("Write the entire script in French"))
     }
 }

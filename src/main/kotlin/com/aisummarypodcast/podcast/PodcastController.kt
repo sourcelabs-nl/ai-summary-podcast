@@ -12,6 +12,7 @@ import java.time.Instant
 data class CreatePodcastRequest(
     val name: String,
     val topic: String,
+    val language: String? = null,
     val llmModel: String? = null,
     val ttsVoice: String? = null,
     val ttsSpeed: Double? = null,
@@ -24,6 +25,7 @@ data class CreatePodcastRequest(
 data class UpdatePodcastRequest(
     val name: String,
     val topic: String,
+    val language: String? = null,
     val llmModel: String? = null,
     val ttsVoice: String? = null,
     val ttsSpeed: Double? = null,
@@ -38,6 +40,7 @@ data class PodcastResponse(
     val userId: String,
     val name: String,
     val topic: String,
+    val language: String,
     val llmModel: String?,
     val ttsVoice: String,
     val ttsSpeed: Double,
@@ -60,8 +63,12 @@ class PodcastController(
     private val log = LoggerFactory.getLogger(javaClass)
 
     @PostMapping
-    fun create(@PathVariable userId: String, @RequestBody request: CreatePodcastRequest): ResponseEntity<PodcastResponse> {
+    fun create(@PathVariable userId: String, @RequestBody request: CreatePodcastRequest): ResponseEntity<Any> {
         userService.findById(userId) ?: return ResponseEntity.notFound().build()
+        val language = request.language ?: "en"
+        if (!SupportedLanguage.isSupported(language)) {
+            return ResponseEntity.badRequest().body(mapOf("error" to "Unsupported language: $language"))
+        }
         val podcast = podcastService.create(
             userId = userId,
             name = request.name,
@@ -71,6 +78,7 @@ class PodcastController(
                 userId = userId,
                 name = request.name,
                 topic = request.topic,
+                language = language,
                 llmModel = request.llmModel,
                 ttsVoice = request.ttsVoice ?: "nova",
                 ttsSpeed = request.ttsSpeed ?: 1.0,
@@ -103,15 +111,19 @@ class PodcastController(
         @PathVariable userId: String,
         @PathVariable podcastId: String,
         @RequestBody request: UpdatePodcastRequest
-    ): ResponseEntity<PodcastResponse> {
+    ): ResponseEntity<Any> {
         userService.findById(userId) ?: return ResponseEntity.notFound().build()
         val existing = podcastService.findById(podcastId) ?: return ResponseEntity.notFound().build()
         if (existing.userId != userId) return ResponseEntity.notFound().build()
+        if (request.language != null && !SupportedLanguage.isSupported(request.language)) {
+            return ResponseEntity.badRequest().body(mapOf("error" to "Unsupported language: ${request.language}"))
+        }
         val updated = podcastService.update(
             podcastId,
             existing.copy(
                 name = request.name,
                 topic = request.topic,
+                language = request.language ?: existing.language,
                 llmModel = request.llmModel ?: existing.llmModel,
                 ttsVoice = request.ttsVoice ?: existing.ttsVoice,
                 ttsSpeed = request.ttsSpeed ?: existing.ttsSpeed,
@@ -150,7 +162,7 @@ class PodcastController(
 
     private fun com.aisummarypodcast.store.Podcast.toResponse() = PodcastResponse(
         id = id, userId = userId, name = name, topic = topic,
-        llmModel = llmModel, ttsVoice = ttsVoice, ttsSpeed = ttsSpeed,
+        language = language, llmModel = llmModel, ttsVoice = ttsVoice, ttsSpeed = ttsSpeed,
         style = style, targetWords = targetWords, cron = cron,
         customInstructions = customInstructions, lastGeneratedAt = lastGeneratedAt
     )

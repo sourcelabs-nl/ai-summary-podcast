@@ -11,6 +11,7 @@ data class Podcast(
     val name: String,
     val topic: String,
     val llmModel: String? = null,
+    val language: String = "en",
     val ttsVoice: String = "nova",
     val ttsSpeed: Double = 1.0,
     val style: String = "news-briefing",

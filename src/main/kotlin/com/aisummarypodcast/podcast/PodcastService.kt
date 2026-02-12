@@ -25,6 +25,7 @@ class PodcastService(
             userId = userId,
             name = name,
             topic = topic,
+            language = podcast?.language ?: "en",
             llmModel = podcast?.llmModel,
             ttsVoice = podcast?.ttsVoice ?: "nova",
             ttsSpeed = podcast?.ttsSpeed ?: 1.0,
@@ -45,6 +46,7 @@ class PodcastService(
         val updated = existing.copy(
             name = updates.name,
             topic = updates.topic,
+            language = updates.language,
             llmModel = updates.llmModel,
             ttsVoice = updates.ttsVoice,
             ttsSpeed = updates.ttsSpeed,
