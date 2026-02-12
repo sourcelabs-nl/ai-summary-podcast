@@ -18,7 +18,7 @@ class UserProviderConfigService(
         val PROVIDER_DEFAULT_URLS = mapOf(
             "openrouter" to "https://openrouter.ai/api",
             "openai" to "https://api.openai.com",
-            "ollama" to "http://localhost:11434/v1"
+            "ollama" to "http://localhost:11434"
         )
     }
 

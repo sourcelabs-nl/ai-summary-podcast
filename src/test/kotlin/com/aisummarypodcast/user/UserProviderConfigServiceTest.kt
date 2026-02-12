@@ -51,7 +51,7 @@ class UserProviderConfigServiceTest {
         val result = service.resolveConfig(userId, ApiKeyCategory.LLM)
 
         assertNull(result?.apiKey)
-        assertEquals("http://localhost:11434/v1", result?.baseUrl)
+        assertEquals("http://localhost:11434", result?.baseUrl)
     }
 
     @Test

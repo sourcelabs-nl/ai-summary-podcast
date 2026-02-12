@@ -6,8 +6,10 @@ import com.aisummarypodcast.user.UserProviderConfigService
 import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.openai.OpenAiChatModel
 import org.springframework.ai.openai.api.OpenAiApi
+import org.springframework.http.client.SimpleClientHttpRequestFactory
 import org.springframework.stereotype.Component
-
+import org.springframework.web.client.RestClient
+import java.time.Duration
 
 @Component
 class ChatClientFactory(
@@ -18,9 +20,15 @@ class ChatClientFactory(
         val config = providerConfigService.resolveConfig(podcast.userId, ApiKeyCategory.LLM)
             ?: throw IllegalStateException("No provider config available for category 'LLM'. Configure a user provider or set the OPENROUTER_API_KEY environment variable.")
 
+        val requestFactory = SimpleClientHttpRequestFactory().apply {
+            setReadTimeout(Duration.ofMinutes(5))
+        }
+        val restClientBuilder = RestClient.builder().requestFactory(requestFactory)
+
         val openAiApi = OpenAiApi.builder()
             .apiKey(config.apiKey ?: "")
             .baseUrl(config.baseUrl)
+            .restClientBuilder(restClientBuilder)
             .build()
         val chatModel = OpenAiChatModel.builder()
             .openAiApi(openAiApi)
