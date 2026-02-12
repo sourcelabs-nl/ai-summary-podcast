@@ -11,6 +11,7 @@ class UserApiKeyRepository(private val jdbcTemplate: JdbcTemplate) {
         UserApiKey(
             userId = rs.getString("user_id"),
             provider = rs.getString("provider"),
+            category = ApiKeyCategory.valueOf(rs.getString("category")),
             encryptedApiKey = rs.getString("encrypted_api_key")
         )
     }
@@ -18,17 +19,20 @@ class UserApiKeyRepository(private val jdbcTemplate: JdbcTemplate) {
     fun findByUserId(userId: String): List<UserApiKey> =
         jdbcTemplate.query("SELECT * FROM user_api_keys WHERE user_id = ?", rowMapper, userId)
 
-    fun findByUserIdAndProvider(userId: String, provider: String): UserApiKey? =
-        jdbcTemplate.query("SELECT * FROM user_api_keys WHERE user_id = ? AND provider = ?", rowMapper, userId, provider)
-            .firstOrNull()
+    fun findByUserIdAndCategory(userId: String, category: ApiKeyCategory): UserApiKey? =
+        jdbcTemplate.query(
+            "SELECT * FROM user_api_keys WHERE user_id = ? AND category = ?",
+            rowMapper, userId, category.name
+        ).firstOrNull()
 
     fun save(key: UserApiKey) {
         jdbcTemplate.update(
             """
-            INSERT INTO user_api_keys (user_id, provider, encrypted_api_key) VALUES (?, ?, ?)
-            ON CONFLICT (user_id, provider) DO UPDATE SET encrypted_api_key = ?
+            INSERT INTO user_api_keys (user_id, provider, category, encrypted_api_key) VALUES (?, ?, ?, ?)
+            ON CONFLICT (user_id, category) DO UPDATE SET provider = ?, encrypted_api_key = ?
             """.trimIndent(),
-            key.userId, key.provider, key.encryptedApiKey, key.encryptedApiKey
+            key.userId, key.provider, key.category.name, key.encryptedApiKey,
+            key.provider, key.encryptedApiKey
         )
     }
 
@@ -36,6 +40,6 @@ class UserApiKeyRepository(private val jdbcTemplate: JdbcTemplate) {
         jdbcTemplate.update("DELETE FROM user_api_keys WHERE user_id = ?", userId)
     }
 
-    fun deleteByUserIdAndProvider(userId: String, provider: String): Int =
-        jdbcTemplate.update("DELETE FROM user_api_keys WHERE user_id = ? AND provider = ?", userId, provider)
+    fun deleteByUserIdAndCategory(userId: String, category: ApiKeyCategory): Int =
+        jdbcTemplate.update("DELETE FROM user_api_keys WHERE user_id = ? AND category = ?", userId, category.name)
 }

@@ -45,6 +45,10 @@ Use the provided scripts to start and stop the application:
 
 Required environment variables: `OPENROUTER_API_KEY`, `OPENAI_API_KEY`, `APP_ENCRYPTION_MASTER_KEY`.
 
+## Testing
+
+Use **MockK** (not Mockito) for all Kotlin tests. For Spring integration tests, use `@MockkBean` from the `springmockk` library (`com.ninja-squad:springmockk`) to inject mocks into the Spring context.
+
 ## Source Configuration
 
 Sources are defined in YAML/JSON with fields: `id`, `type` (rss/website/twitter/reddit/youtube), `url`, `poll_interval_minutes`, `enabled`. A `topic` field defines the interest area for LLM relevance filtering.

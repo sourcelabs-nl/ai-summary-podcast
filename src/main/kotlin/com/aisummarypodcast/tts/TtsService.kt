@@ -1,5 +1,6 @@
 package com.aisummarypodcast.tts
 
+import com.aisummarypodcast.store.ApiKeyCategory
 import com.aisummarypodcast.store.Podcast
 import com.aisummarypodcast.user.UserApiKeyService
 import org.slf4j.LoggerFactory
@@ -34,8 +35,8 @@ class TtsService(
     }
 
     private fun createSpeechModel(podcast: Podcast): OpenAiAudioSpeechModel {
-        val apiKey = userApiKeyService.resolveKey(podcast.userId, "openai")
-            ?: throw IllegalStateException("No API key available for provider 'openai'. Configure a user API key or set the OPENAI_API_KEY environment variable.")
+        val apiKey = userApiKeyService.resolveKey(podcast.userId, ApiKeyCategory.TTS)
+            ?: throw IllegalStateException("No API key available for category 'TTS'. Configure a user API key or set the OPENAI_API_KEY environment variable.")
 
         val audioApi = OpenAiAudioApi.builder()
             .apiKey(apiKey)
