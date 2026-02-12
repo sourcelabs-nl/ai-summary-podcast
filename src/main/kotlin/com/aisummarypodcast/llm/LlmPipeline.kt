@@ -8,8 +8,7 @@ import org.springframework.stereotype.Component
 
 @Component
 class LlmPipeline(
-    private val relevanceFilter: RelevanceFilter,
-    private val articleSummarizer: ArticleSummarizer,
+    private val articleProcessor: ArticleProcessor,
     private val briefingComposer: BriefingComposer,
     private val articleRepository: ArticleRepository,
     private val sourceRepository: SourceRepository
@@ -26,29 +25,26 @@ class LlmPipeline(
 
         val unfiltered = articleRepository.findUnfilteredBySourceIds(sourceIds)
         if (unfiltered.isEmpty()) {
-            log.info("No unfiltered articles for podcast {}", podcast.id)
-        } else {
-            log.info("Filtering {} articles for relevance (podcast {})", unfiltered.size, podcast.id)
-            relevanceFilter.filter(unfiltered, podcast)
-        }
-
-        val relevant = articleRepository.findRelevantUnprocessedBySourceIds(sourceIds)
-        if (relevant.isEmpty()) {
-            log.info("No relevant unprocessed articles for podcast {} — skipping briefing generation", podcast.id)
+            log.info("No unfiltered articles for podcast {} — skipping briefing generation", podcast.id)
             return null
         }
 
-        log.info("Summarizing {} relevant articles for podcast {}", relevant.size, podcast.id)
-        val summarized = articleSummarizer.summarize(relevant, podcast)
+        log.info("Processing {} articles for podcast {}", unfiltered.size, podcast.id)
+        val processed = articleProcessor.process(unfiltered, podcast)
+
+        if (processed.isEmpty()) {
+            log.info("No relevant articles for podcast {} — skipping briefing generation", podcast.id)
+            return null
+        }
 
         log.info("Composing briefing script for podcast {}", podcast.id)
-        val script = briefingComposer.compose(summarized, podcast)
+        val script = briefingComposer.compose(processed, podcast)
 
-        for (article in summarized) {
+        for (article in processed) {
             articleRepository.save(article.copy(isProcessed = true))
         }
 
-        log.info("LLM pipeline complete for podcast {}: {} articles processed into briefing", podcast.id, relevant.size)
+        log.info("LLM pipeline complete for podcast {}: {} articles processed into briefing", podcast.id, processed.size)
         return script
     }
 }

@@ -2,12 +2,12 @@
 
 ## Purpose
 
-Three-step LLM pipeline for filtering, summarizing, and composing articles into briefing scripts using Spring AI and OpenRouter.
+Two-step LLM pipeline for processing articles (combined relevance filtering and summarization) and composing briefing scripts using Spring AI and OpenRouter.
 
 ## Requirements
 
-### Requirement: Three-step LLM pipeline
-The system SHALL process unprocessed articles through a three-step sequential LLM pipeline via Spring AI's ChatClient connected to OpenRouter: (1) relevance filtering, (2) per-article summarization, (3) briefing script composition. The pipeline SHALL be triggered by the `BriefingGenerationScheduler` on a configurable cron schedule.
+### Requirement: Two-step LLM pipeline
+The system SHALL process unprocessed articles through a two-step sequential LLM pipeline via Spring AI's ChatClient connected to OpenRouter: (1) combined relevance filtering and summarization, (2) briefing script composition. The pipeline SHALL be triggered by the `BriefingGenerationScheduler` on a configurable cron schedule.
 
 #### Scenario: Full pipeline produces a briefing script
 - **WHEN** the pipeline runs and there are unprocessed, relevant articles
@@ -17,31 +17,24 @@ The system SHALL process unprocessed articles through a three-step sequential LL
 - **WHEN** the pipeline runs and there are no articles with `is_processed` = false
 - **THEN** no LLM calls are made and no briefing is generated
 
-### Requirement: Relevance filtering
-The system SHALL send each unprocessed article's title and first 500 words, along with the configured topic, to the LLM. The LLM SHALL return a structured response with a relevance score (1-5) and a one-sentence justification. Articles scoring below 3 SHALL be marked as `is_relevant` = false. Articles scoring 3 or above SHALL be marked as `is_relevant` = true. This step SHALL use a cheap, fast model (configurable, e.g., `anthropic/claude-3-haiku`). Articles MAY be batched into a single LLM call.
+### Requirement: Combined article processing
+The system SHALL process each unfiltered article through a single LLM call that performs both relevance scoring and conditional summarization. The prompt SHALL include the podcast topic and the full article body. The LLM SHALL return a structured JSON response containing a relevance score (integer 1-5), a one-sentence justification, and an optional 2-3 sentence summary. The summary SHALL only be included when the relevance score is >= 3. Articles scoring below 3 SHALL be marked as `is_relevant` = false with no summary. Articles scoring 3 or above SHALL be marked as `is_relevant` = true with the summary populated. This step SHALL use the configured cheap model.
 
-#### Scenario: Article scored as relevant
-- **WHEN** an article about "new GPT-5 model capabilities" is filtered with topic "AI engineering"
-- **THEN** the article receives a score of 3 or above and is marked `is_relevant` = true
+#### Scenario: Relevant article scored and summarized in one call
+- **WHEN** an article about "new GPT-5 model capabilities" is processed with topic "AI engineering"
+- **THEN** the article receives a score of 3 or above, is marked `is_relevant` = true, and has a 2-3 sentence summary populated
 
-#### Scenario: Article scored as irrelevant
-- **WHEN** an article about "best pizza recipes" is filtered with topic "AI engineering"
-- **THEN** the article receives a score below 3 and is marked `is_relevant` = false
+#### Scenario: Irrelevant article scored without summary
+- **WHEN** an article about "best pizza recipes" is processed with topic "AI engineering"
+- **THEN** the article receives a score below 3, is marked `is_relevant` = false, and has no summary
+
+#### Scenario: Summary ignored when score is below threshold
+- **WHEN** the LLM returns a score of 2 but includes a summary in the response
+- **THEN** the system marks `is_relevant` = false and does not persist the summary
 
 #### Scenario: Structured output parsing
-- **WHEN** the LLM returns a relevance response
-- **THEN** the response is deserialized into a `RelevanceResult` data class using Spring AI's entity mapping
-
-### Requirement: Per-article summarization
-The system SHALL generate a 2-3 sentence summary for each article marked as relevant and not yet processed. Each summary SHALL capture the key information from the article.
-
-#### Scenario: Relevant article summarized
-- **WHEN** an article with `is_relevant` = true is passed to the summarization step
-- **THEN** a 2-3 sentence summary is generated and associated with the article
-
-#### Scenario: Irrelevant articles skipped
-- **WHEN** articles with `is_relevant` = false exist
-- **THEN** they are not sent to the summarization step
+- **WHEN** the LLM returns a combined response
+- **THEN** the response is deserialized into an `ArticleProcessingResult` data class with fields `score`, `justification`, and optional `summary`
 
 ### Requirement: Briefing script composition
 The system SHALL compose all individual summaries into a single coherent briefing script. The prompt SHALL include the current date (human-readable format), the podcast name, and the podcast topic as context. The prompt SHALL instruct the LLM to mention the podcast name, topic, and current date in the introduction. Each article in the summary block SHALL include the source domain name (extracted from the article URL). The prompt SHALL instruct the LLM to subtly and sparingly attribute information to its source throughout the script. The prompt SHALL instruct the LLM to use natural spoken language (not written style), include transitions between topics, and target approximately the configured word count (default: 1500 words for ~10 minutes of audio). The prompt SHALL explicitly prohibit bracketed section headers (e.g., `[Opening]`, `[Closing]`, `[Transition]`), stage directions, sound effects, and any other non-spoken text. After receiving the LLM response, the system SHALL sanitize the script by removing any lines consisting solely of bracketed headers (pattern: lines matching `[...]` with no other content). This step SHALL use a more capable model (configurable, e.g., `anthropic/claude-sonnet-4-20250514`). When the podcast's language is not English, the prompt SHALL instruct the LLM to write the entire script in the specified language. The current date in the prompt SHALL be formatted using the locale corresponding to the podcast's language.
@@ -98,10 +91,10 @@ The system SHALL preserve article summaries when marking articles as processed. 
 - **THEN** the saved article has both `is_processed` = true and the summary field populated
 
 ### Requirement: Model switching per LLM call
-The system SHALL use a single ChatClient instance and override the model per call via `OpenAiChatOptions`. The relevance filtering and summarization steps SHALL use the configured cheap model. The briefing composition step SHALL use the configured capable model.
+The system SHALL use a single ChatClient instance and override the model per call via `OpenAiChatOptions`. The combined article processing step SHALL use the configured cheap model. The briefing composition step SHALL use the configured capable model.
 
-#### Scenario: Relevance filter uses cheap model
-- **WHEN** the relevance filter step makes an LLM call
+#### Scenario: Article processing uses cheap model
+- **WHEN** the article processing step makes an LLM call
 - **THEN** the call uses the cheap model configured in application properties
 
 #### Scenario: Briefing composition uses capable model

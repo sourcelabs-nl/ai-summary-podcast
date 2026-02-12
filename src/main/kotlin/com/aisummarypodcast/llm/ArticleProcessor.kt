@@ -5,14 +5,17 @@ import com.aisummarypodcast.store.Article
 import com.aisummarypodcast.store.ArticleRepository
 import com.aisummarypodcast.store.Podcast
 import org.slf4j.LoggerFactory
-import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.openai.OpenAiChatOptions
 import org.springframework.stereotype.Component
 
-data class RelevanceResult(val score: Int = 0, val justification: String = "")
+data class ArticleProcessingResult(
+    val score: Int = 0,
+    val justification: String = "",
+    val summary: String? = null
+)
 
 @Component
-class RelevanceFilter(
+class ArticleProcessor(
     private val articleRepository: ArticleRepository,
     private val appProperties: AppProperties,
     private val chatClientFactory: ChatClientFactory
@@ -20,22 +23,21 @@ class RelevanceFilter(
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    fun filter(articles: List<Article>, podcast: Podcast): List<Article> {
+    fun process(articles: List<Article>, podcast: Podcast): List<Article> {
         val chatClient = chatClientFactory.createForPodcast(podcast)
         val model = podcast.llmModel ?: appProperties.llm.cheapModel
 
         return articles.mapNotNull { article ->
             try {
-                val textPreview = article.body.take(2000)
                 val prompt = """
-                    You are a relevance filter. Given the topic of interest and an article, rate the article's relevance on a scale of 1-5.
+                    You are a relevance filter and summarizer. Given the topic of interest and an article, rate the article's relevance on a scale of 1-5. If the score is 3 or above, also provide a 2-3 sentence summary capturing the key information.
 
                     Topic of interest: ${podcast.topic}
 
                     Article title: ${article.title}
-                    Article text: $textPreview
+                    Article text: ${article.body}
 
-                    Respond with a JSON object containing "score" (integer 1-5) and "justification" (one sentence).
+                    Respond with a JSON object containing "score" (integer 1-5), "justification" (one sentence), and "summary" (2-3 sentences, only if score >= 3, otherwise omit or set to null).
                 """.trimIndent()
 
                 val result = chatClient.prompt()
@@ -47,16 +49,18 @@ class RelevanceFilter(
                             .build()
                     )
                     .call()
-                    .entity(RelevanceResult::class.java)
+                    .entity(ArticleProcessingResult::class.java)
 
                 val isRelevant = result != null && result.score >= 3
-                articleRepository.save(article.copy(isRelevant = isRelevant))
+                val summary = if (isRelevant) result?.summary else null
+                val updated = article.copy(isRelevant = isRelevant, summary = summary)
+                articleRepository.save(updated)
 
                 log.info("Article '{}' scored {} - {}", article.title, result?.score, result?.justification)
 
-                if (isRelevant) article.copy(isRelevant = true) else null
+                if (isRelevant) updated else null
             } catch (e: Exception) {
-                log.error("Error filtering article '{}': {}", article.title, e.message, e)
+                log.error("Error processing article '{}': {}", article.title, e.message, e)
                 null
             }
         }
