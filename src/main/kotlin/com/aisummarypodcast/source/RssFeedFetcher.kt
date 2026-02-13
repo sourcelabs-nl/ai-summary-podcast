@@ -3,6 +3,7 @@ package com.aisummarypodcast.source
 import com.aisummarypodcast.store.Article
 import com.rometools.rome.io.SyndFeedInput
 import com.rometools.rome.io.XmlReader
+import org.jsoup.Jsoup
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import java.net.URI
@@ -27,9 +28,10 @@ class RssFeedFetcher {
             }
             .mapNotNull { entry ->
                 val title = entry.title ?: return@mapNotNull null
-                val body = entry.contents.firstOrNull()?.value
+                val rawBody = entry.contents.firstOrNull()?.value
                     ?: entry.description?.value
                     ?: return@mapNotNull null
+                val body = Jsoup.parse(rawBody).text()
                 val link = entry.link ?: entry.uri ?: return@mapNotNull null
                 val publishedAt = (entry.publishedDate ?: entry.updatedDate)?.toInstant()?.toString()
 

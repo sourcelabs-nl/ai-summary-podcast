@@ -18,6 +18,7 @@ data class Podcast(
     val targetWords: Int? = null,
     val cron: String = "0 0 6 * * *",
     val customInstructions: String? = null,
+    val relevanceThreshold: Int = 5,
     val requireReview: Boolean = false,
     val lastGeneratedAt: String? = null,
     @Version val version: Long? = null

@@ -15,7 +15,8 @@ data class PipelineResult(
 
 @Component
 class LlmPipeline(
-    private val articleProcessor: ArticleProcessor,
+    private val relevanceScorer: RelevanceScorer,
+    private val articleSummarizer: ArticleSummarizer,
     private val briefingComposer: BriefingComposer,
     private val modelResolver: ModelResolver,
     private val articleRepository: ArticleRepository,
@@ -31,34 +32,44 @@ class LlmPipeline(
             return null
         }
 
-        val unfiltered = articleRepository.findUnfilteredBySourceIds(sourceIds)
-        if (unfiltered.isEmpty()) {
-            log.info("[LLM] No unfiltered articles for podcast {} — skipping briefing generation", podcast.id)
-            return null
-        }
-
         val filterModelDef = modelResolver.resolve(podcast, "filter")
         val composeModelDef = modelResolver.resolve(podcast, "compose")
+        val threshold = podcast.relevanceThreshold
 
-        log.info("[LLM] Processing {} articles for podcast {}", unfiltered.size, podcast.id)
-        val (processed, articleDuration) = measureTimedValue {
-            articleProcessor.process(unfiltered, podcast, filterModelDef)
+        // Stage 1: Score unscored articles
+        val unscored = articleRepository.findUnscoredBySourceIds(sourceIds)
+        if (unscored.isNotEmpty()) {
+            log.info("[LLM] Scoring {} articles for podcast {}", unscored.size, podcast.id)
+            val (_, scoringDuration) = measureTimedValue {
+                relevanceScorer.score(unscored, podcast, filterModelDef)
+            }
+            log.info("[LLM] Scoring complete — {} articles in {}", unscored.size, scoringDuration)
         }
-        val relevantCount = processed.size
-        log.info("[LLM] Article processing complete — {} articles in {} ({} relevant)", unfiltered.size, articleDuration, relevantCount)
 
-        if (processed.isEmpty()) {
-            log.info("[LLM] No relevant articles for podcast {} — skipping briefing generation", podcast.id)
+        // Stage 2: Summarize relevant unsummarized articles (word count filtering done in ArticleSummarizer)
+        val unsummarized = articleRepository.findRelevantUnsummarizedBySourceIds(sourceIds, threshold)
+        if (unsummarized.isNotEmpty()) {
+            log.info("[LLM] Summarizing {} relevant articles for podcast {}", unsummarized.size, podcast.id)
+            val (_, summarizationDuration) = measureTimedValue {
+                articleSummarizer.summarize(unsummarized, podcast, filterModelDef)
+            }
+            log.info("[LLM] Summarization complete — {} articles in {}", unsummarized.size, summarizationDuration)
+        }
+
+        // Stage 3: Compose briefing from all relevant unprocessed articles
+        val toCompose = articleRepository.findRelevantUnprocessedBySourceIds(sourceIds, threshold)
+        if (toCompose.isEmpty()) {
+            log.info("[LLM] No relevant unprocessed articles for podcast {} — skipping briefing generation", podcast.id)
             return null
         }
 
-        val script = briefingComposer.compose(processed, podcast, composeModelDef)
+        val script = briefingComposer.compose(toCompose, podcast, composeModelDef)
 
-        for (article in processed) {
+        for (article in toCompose) {
             articleRepository.save(article.copy(isProcessed = true))
         }
 
-        log.info("[LLM] Pipeline complete for podcast {}: {} articles processed into briefing", podcast.id, processed.size)
+        log.info("[LLM] Pipeline complete for podcast {}: {} articles processed into briefing", podcast.id, toCompose.size)
         return PipelineResult(
             script = script,
             filterModel = filterModelDef.model,

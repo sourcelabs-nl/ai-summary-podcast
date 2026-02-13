@@ -9,12 +9,11 @@ import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.springframework.ai.chat.client.ChatClient
 
-class ArticleProcessorTest {
+class RelevanceScorerTest {
 
     private val articleRepository = mockk<ArticleRepository> {
         every { save(any()) } answers { firstArg() }
@@ -25,13 +24,13 @@ class ArticleProcessorTest {
 
     private val filterModelDef = ModelDefinition(provider = "openrouter", model = "test-model")
 
-    private val processor = ArticleProcessor(articleRepository, modelResolver, chatClientFactory)
+    private val scorer = RelevanceScorer(articleRepository, modelResolver, chatClientFactory)
 
     private val podcast = Podcast(id = "p1", userId = "u1", name = "Tech Daily", topic = "AI engineering")
 
-    private fun mockLlmResponse(result: ArticleProcessingResult) {
+    private fun mockLlmResponse(result: RelevanceScoringResult) {
         val callResponseSpec = mockk<ChatClient.CallResponseSpec>()
-        every { callResponseSpec.entity(ArticleProcessingResult::class.java) } returns result
+        every { callResponseSpec.entity(RelevanceScoringResult::class.java) } returns result
 
         val chatClientRequestSpec = mockk<ChatClient.ChatClientRequestSpec>()
         every { chatClientRequestSpec.user(any<String>()) } returns chatClientRequestSpec
@@ -43,72 +42,46 @@ class ArticleProcessorTest {
     }
 
     @Test
-    fun `relevant article gets score and summary`() {
+    fun `article receives relevance score and is persisted`() {
         val article = Article(
             id = 1, sourceId = "s1", title = "GPT-5 Released", body = "OpenAI released GPT-5 today.",
             url = "https://example.com/1", contentHash = "hash1"
         )
-        mockLlmResponse(
-            ArticleProcessingResult(score = 4, justification = "Directly about AI", summary = "GPT-5 was released by OpenAI.")
-        )
+        mockLlmResponse(RelevanceScoringResult(score = 8, justification = "Directly about AI"))
 
-        val result = processor.process(listOf(article), podcast, filterModelDef)
+        val result = scorer.score(listOf(article), podcast, filterModelDef)
 
         assertEquals(1, result.size)
-        assertEquals(true, result[0].isRelevant)
-        assertEquals("GPT-5 was released by OpenAI.", result[0].summary)
+        assertEquals(8, result[0].relevanceScore)
 
         val saved = slot<Article>()
         verify { articleRepository.save(capture(saved)) }
-        assertEquals(true, saved.captured.isRelevant)
-        assertEquals("GPT-5 was released by OpenAI.", saved.captured.summary)
+        assertEquals(8, saved.captured.relevanceScore)
     }
 
     @Test
-    fun `irrelevant article gets score only, no summary`() {
+    fun `low scoring article is still persisted with score`() {
         val article = Article(
             id = 2, sourceId = "s1", title = "Best Pizza Recipes", body = "Here are the best pizza recipes.",
             url = "https://example.com/2", contentHash = "hash2"
         )
-        mockLlmResponse(
-            ArticleProcessingResult(score = 1, justification = "Not about AI")
-        )
+        mockLlmResponse(RelevanceScoringResult(score = 1, justification = "Not about AI"))
 
-        val result = processor.process(listOf(article), podcast, filterModelDef)
+        val result = scorer.score(listOf(article), podcast, filterModelDef)
 
-        assertTrue(result.isEmpty())
-
-        val saved = slot<Article>()
-        verify { articleRepository.save(capture(saved)) }
-        assertEquals(false, saved.captured.isRelevant)
-        assertNull(saved.captured.summary)
-    }
-
-    @Test
-    fun `summary ignored when score below threshold even if LLM returns one`() {
-        val article = Article(
-            id = 3, sourceId = "s1", title = "Cooking with AI", body = "AI-powered cooking app.",
-            url = "https://example.com/3", contentHash = "hash3"
-        )
-        mockLlmResponse(
-            ArticleProcessingResult(score = 2, justification = "Tangentially related", summary = "An AI cooking app was launched.")
-        )
-
-        val result = processor.process(listOf(article), podcast, filterModelDef)
-
-        assertTrue(result.isEmpty())
+        assertEquals(1, result.size)
+        assertEquals(1, result[0].relevanceScore)
 
         val saved = slot<Article>()
         verify { articleRepository.save(capture(saved)) }
-        assertEquals(false, saved.captured.isRelevant)
-        assertNull(saved.captured.summary)
+        assertEquals(1, saved.captured.relevanceScore)
     }
 
     @Test
     fun `LLM error returns empty list and does not save`() {
         val article = Article(
-            id = 4, sourceId = "s1", title = "Some Article", body = "body",
-            url = "https://example.com/4", contentHash = "hash4"
+            id = 3, sourceId = "s1", title = "Some Article", body = "body",
+            url = "https://example.com/3", contentHash = "hash3"
         )
 
         val chatClientRequestSpec = mockk<ChatClient.ChatClientRequestSpec>()
@@ -118,9 +91,23 @@ class ArticleProcessorTest {
         every { chatClient.prompt() } returns chatClientRequestSpec
         every { chatClientFactory.createForModel(podcast.userId, filterModelDef) } returns chatClient
 
-        val result = processor.process(listOf(article), podcast, filterModelDef)
+        val result = scorer.score(listOf(article), podcast, filterModelDef)
 
         assertTrue(result.isEmpty())
         verify(exactly = 0) { articleRepository.save(any()) }
+    }
+
+    @Test
+    fun `score of zero is persisted`() {
+        val article = Article(
+            id = 4, sourceId = "s1", title = "Completely Off Topic", body = "Unrelated content.",
+            url = "https://example.com/4", contentHash = "hash4"
+        )
+        mockLlmResponse(RelevanceScoringResult(score = 0, justification = "Completely unrelated"))
+
+        val result = scorer.score(listOf(article), podcast, filterModelDef)
+
+        assertEquals(1, result.size)
+        assertEquals(0, result[0].relevanceScore)
     }
 }

@@ -60,7 +60,8 @@ class BriefingComposer(
 
         val summaryBlock = articles.mapIndexed { index, article ->
             val source = extractDomain(article.url)
-            "${index + 1}. [$source] ${article.title}\n${article.summary}"
+            val content = article.summary ?: article.body
+            "${index + 1}. [$source] ${article.title}\n$content"
         }.joinToString("\n\n")
 
         val customInstructionsBlock = podcast.customInstructions?.let {

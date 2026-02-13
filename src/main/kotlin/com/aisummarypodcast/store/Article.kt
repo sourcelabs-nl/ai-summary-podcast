@@ -12,7 +12,7 @@ data class Article(
     val url: String,
     val publishedAt: String? = null,
     val contentHash: String,
-    val isRelevant: Boolean? = null,
+    val relevanceScore: Int? = null,
     val isProcessed: Boolean = false,
     val summary: String? = null
 )

@@ -152,4 +152,58 @@ class BriefingComposerTest {
         val prompt = composer.buildPrompt(sampleArticles, podcast)
         assertTrue(prompt.contains("Write the entire script in French"))
     }
+
+    @Test
+    fun `buildPrompt uses summary when available`() {
+        val podcast = Podcast(id = "p1", userId = "u1", name = "Test", topic = "tech")
+        val articles = listOf(
+            Article(
+                id = 1, sourceId = "s1", title = "Long Article",
+                body = "This is the full article body that is quite long.",
+                url = "https://example.com/1", contentHash = "h1",
+                summary = "This is the summary."
+            )
+        )
+        val prompt = composer.buildPrompt(articles, podcast)
+        assertTrue(prompt.contains("This is the summary."))
+        assertFalse(prompt.contains("This is the full article body"))
+    }
+
+    @Test
+    fun `buildPrompt uses body when summary is null`() {
+        val podcast = Podcast(id = "p1", userId = "u1", name = "Test", topic = "tech")
+        val articles = listOf(
+            Article(
+                id = 1, sourceId = "s1", title = "Short Article",
+                body = "Short article body content.",
+                url = "https://example.com/1", contentHash = "h1",
+                summary = null
+            )
+        )
+        val prompt = composer.buildPrompt(articles, podcast)
+        assertTrue(prompt.contains("Short article body content."))
+    }
+
+    @Test
+    fun `buildPrompt handles mixed summary and body articles`() {
+        val podcast = Podcast(id = "p1", userId = "u1", name = "Test", topic = "tech")
+        val articles = listOf(
+            Article(
+                id = 1, sourceId = "s1", title = "Long Article",
+                body = "Long body text.",
+                url = "https://example.com/1", contentHash = "h1",
+                summary = "Summary of long article."
+            ),
+            Article(
+                id = 2, sourceId = "s1", title = "Short Article",
+                body = "Short body text.",
+                url = "https://example.com/2", contentHash = "h2",
+                summary = null
+            )
+        )
+        val prompt = composer.buildPrompt(articles, podcast)
+        assertTrue(prompt.contains("Summary of long article."))
+        assertTrue(prompt.contains("Short body text."))
+        assertFalse(prompt.contains("Long body text."))
+    }
 }

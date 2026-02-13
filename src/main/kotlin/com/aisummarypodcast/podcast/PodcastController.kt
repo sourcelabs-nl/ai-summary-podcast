@@ -20,6 +20,7 @@ data class CreatePodcastRequest(
     val targetWords: Int? = null,
     val cron: String? = null,
     val customInstructions: String? = null,
+    val relevanceThreshold: Int? = null,
     val requireReview: Boolean? = null
 )
 
@@ -34,6 +35,7 @@ data class UpdatePodcastRequest(
     val targetWords: Int? = null,
     val cron: String? = null,
     val customInstructions: String? = null,
+    val relevanceThreshold: Int? = null,
     val requireReview: Boolean? = null
 )
 
@@ -50,6 +52,7 @@ data class PodcastResponse(
     val targetWords: Int?,
     val cron: String,
     val customInstructions: String?,
+    val relevanceThreshold: Int,
     val requireReview: Boolean,
     val lastGeneratedAt: String?
 )
@@ -90,6 +93,7 @@ class PodcastController(
                 targetWords = request.targetWords,
                 cron = request.cron ?: "0 0 6 * * *",
                 customInstructions = request.customInstructions,
+                relevanceThreshold = request.relevanceThreshold ?: 5,
                 requireReview = request.requireReview ?: false
             )
         )
@@ -136,6 +140,7 @@ class PodcastController(
                 targetWords = request.targetWords ?: existing.targetWords,
                 cron = request.cron ?: existing.cron,
                 customInstructions = request.customInstructions ?: existing.customInstructions,
+                relevanceThreshold = request.relevanceThreshold ?: existing.relevanceThreshold,
                 requireReview = request.requireReview ?: existing.requireReview
             )
         ) ?: return ResponseEntity.notFound().build()
@@ -199,7 +204,7 @@ class PodcastController(
         id = id, userId = userId, name = name, topic = topic,
         language = language, llmModels = llmModels, ttsVoice = ttsVoice, ttsSpeed = ttsSpeed,
         style = style, targetWords = targetWords, cron = cron,
-        customInstructions = customInstructions, requireReview = requireReview,
-        lastGeneratedAt = lastGeneratedAt
+        customInstructions = customInstructions, relevanceThreshold = relevanceThreshold,
+        requireReview = requireReview, lastGeneratedAt = lastGeneratedAt
     )
 }

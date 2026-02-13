@@ -1,10 +1,4 @@
-# Capability: LLM Processing
-
-## Purpose
-
-Three-stage LLM pipeline for processing articles (relevance scoring, conditional summarization, briefing script composition) using Spring AI and OpenRouter.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Two-step LLM pipeline
 The system SHALL process unscored articles through a three-stage sequential LLM pipeline: (1) relevance scoring, (2) conditional summarization, (3) briefing script composition. The pipeline SHALL be triggered by the `BriefingGenerationScheduler` on a configurable cron schedule.
@@ -28,6 +22,44 @@ Both the scoring and summarization stages SHALL use the model resolved for the `
 #### Scenario: No relevant articles after scoring
 - **WHEN** all scored articles have `relevance_score` below the podcast's `relevanceThreshold`
 - **THEN** no summarization or composition LLM calls are made and no briefing is generated
+
+## ADDED Requirements
+
+### Requirement: Relevance scoring stage
+The system SHALL score each unscored article on a scale of 0-10 for relevance to the podcast's topic. The LLM prompt SHALL request a JSON response containing `score` (integer 0-10) and `justification` (one sentence explaining the score). The system SHALL persist the `relevance_score` on the article immediately after scoring. Articles are considered relevant if their score is greater than or equal to the podcast's `relevanceThreshold`.
+
+#### Scenario: Article scored as highly relevant
+- **WHEN** an article about "new GPT-5 release" is scored against topic "artificial intelligence"
+- **THEN** the article receives a relevance_score of 8-10 and the score is persisted
+
+#### Scenario: Article scored as irrelevant
+- **WHEN** an article about "celebrity gossip" is scored against topic "artificial intelligence"
+- **THEN** the article receives a relevance_score of 0-2 and the score is persisted
+
+#### Scenario: Score persisted immediately
+- **WHEN** an article is scored
+- **THEN** the `relevance_score` is saved to the database before the next article is scored
+
+### Requirement: Conditional summarization stage
+The system SHALL summarize relevant articles only when the article body word count is greater than or equal to the global `app.llm.summarization-min-words` threshold (default: 500). Articles below this threshold SHALL NOT be summarized — their original body text will be used directly by the briefing composer. The summarization prompt SHALL request a 2-3 sentence summary capturing the key information. The summary SHALL be persisted on the article immediately after generation.
+
+#### Scenario: Long article is summarized
+- **WHEN** a relevant article has a body of 1200 words and the summarization threshold is 500
+- **THEN** the article is summarized into 2-3 sentences and the summary is persisted
+
+#### Scenario: Short article skips summarization
+- **WHEN** a relevant article has a body of 300 words and the summarization threshold is 500
+- **THEN** the article is NOT summarized and its `summary` field remains null
+
+#### Scenario: Article at exact threshold is summarized
+- **WHEN** a relevant article has a body of exactly 500 words and the summarization threshold is 500
+- **THEN** the article is summarized
+
+#### Scenario: Custom global threshold respected
+- **WHEN** `app.llm.summarization-min-words` is configured to 800
+- **THEN** only articles with 800 or more words are summarized
+
+## MODIFIED Requirements
 
 ### Requirement: Briefing script composition
 The system SHALL compose all relevant articles into a single coherent briefing script. For each article, the composer SHALL use the article's `summary` if available, or the article's `body` if no summary exists (short articles). The prompt SHALL include the current date (human-readable format), the podcast name, and the podcast topic as context. The prompt SHALL instruct the LLM to mention the podcast name, topic, and current date in the introduction. Each article in the summary block SHALL include the source domain name (extracted from the article URL). The prompt SHALL instruct the LLM to subtly and sparingly attribute information to its source throughout the script. The prompt SHALL instruct the LLM to use natural spoken language (not written style), include transitions between topics, and target approximately the configured word count (default: 1500 words for ~10 minutes of audio). The prompt SHALL explicitly prohibit bracketed section headers (e.g., `[Opening]`, `[Closing]`, `[Transition]`), stage directions, sound effects, and any other non-spoken text. After receiving the LLM response, the system SHALL sanitize the script by removing any lines consisting solely of bracketed headers (pattern: lines matching `[...]` with no other content). This step SHALL use a more capable model (configurable, e.g., `anthropic/claude-sonnet-4-20250514`). When the podcast's language is not English, the prompt SHALL instruct the LLM to write the entire script in the specified language. The current date in the prompt SHALL be formatted using the locale corresponding to the podcast's language.
@@ -113,37 +145,3 @@ The system SHALL resolve a named model for each pipeline stage via the model res
 #### Scenario: Pipeline fails if model name not in registry
 - **WHEN** the pipeline starts and a podcast's resolved model name is not found in the registry
 - **THEN** the pipeline fails immediately with an `IllegalArgumentException` before making any LLM calls
-
-### Requirement: Relevance scoring stage
-The system SHALL score each unscored article on a scale of 0-10 for relevance to the podcast's topic. The LLM prompt SHALL request a JSON response containing `score` (integer 0-10) and `justification` (one sentence explaining the score). The system SHALL persist the `relevance_score` on the article immediately after scoring. Articles are considered relevant if their score is greater than or equal to the podcast's `relevanceThreshold`.
-
-#### Scenario: Article scored as highly relevant
-- **WHEN** an article about "new GPT-5 release" is scored against topic "artificial intelligence"
-- **THEN** the article receives a relevance_score of 8-10 and the score is persisted
-
-#### Scenario: Article scored as irrelevant
-- **WHEN** an article about "celebrity gossip" is scored against topic "artificial intelligence"
-- **THEN** the article receives a relevance_score of 0-2 and the score is persisted
-
-#### Scenario: Score persisted immediately
-- **WHEN** an article is scored
-- **THEN** the `relevance_score` is saved to the database before the next article is scored
-
-### Requirement: Conditional summarization stage
-The system SHALL summarize relevant articles only when the article body word count is greater than or equal to the global `app.llm.summarization-min-words` threshold (default: 500). Articles below this threshold SHALL NOT be summarized — their original body text will be used directly by the briefing composer. The summarization prompt SHALL request a 2-3 sentence summary capturing the key information. The summary SHALL be persisted on the article immediately after generation.
-
-#### Scenario: Long article is summarized
-- **WHEN** a relevant article has a body of 1200 words and the summarization threshold is 500
-- **THEN** the article is summarized into 2-3 sentences and the summary is persisted
-
-#### Scenario: Short article skips summarization
-- **WHEN** a relevant article has a body of 300 words and the summarization threshold is 500
-- **THEN** the article is NOT summarized and its `summary` field remains null
-
-#### Scenario: Article at exact threshold is summarized
-- **WHEN** a relevant article has a body of exactly 500 words and the summarization threshold is 500
-- **THEN** the article is summarized
-
-#### Scenario: Custom global threshold respected
-- **WHEN** `app.llm.summarization-min-words` is configured to 800
-- **THEN** only articles with 800 or more words are summarized

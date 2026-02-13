@@ -18,22 +18,22 @@ The system SHALL persist source polling state in a `sources` SQLite table with c
 - **THEN** an entry is created with `last_polled` and `last_seen_id` set to null, and all discovered articles are treated as new
 
 ### Requirement: Article persistence with deduplication
-The system SHALL persist articles in an `articles` SQLite table with columns: `id` (auto-generated), `source_id` (text, foreign key), `title` (text), `body` (text), `url` (text), `published_at` (timestamp, nullable), `content_hash` (text, unique), `is_relevant` (boolean, nullable), and `is_processed` (boolean, default false). Deduplication SHALL be enforced via a unique constraint on `content_hash`.
+The system SHALL persist articles in an `articles` SQLite table with columns: `id` (auto-generated), `source_id` (text, foreign key), `title` (text), `body` (text), `url` (text), `published_at` (timestamp, nullable), `content_hash` (text, unique), `relevance_score` (integer, nullable), `is_processed` (boolean, default false), and `summary` (text, nullable). Deduplication SHALL be enforced via a unique constraint on `content_hash`. The `relevance_score` column stores a 0-10 integer score (null means unscored). Relevance is determined at pipeline runtime by comparing the score against a podcast-specific threshold, not stored as a boolean.
 
 #### Scenario: New article stored successfully
 - **WHEN** an article with a unique content hash is saved
-- **THEN** the article is persisted with `is_relevant` = null and `is_processed` = false
+- **THEN** the article is persisted with `relevance_score` = null, `summary` = null, and `is_processed` = false
 
 #### Scenario: Duplicate article rejected
 - **WHEN** an article with an already-existing content hash is saved
 - **THEN** the duplicate is silently ignored and the existing record remains unchanged
 
-#### Scenario: Article marked as relevant after filtering
-- **WHEN** the LLM relevance filter scores an article at 3 or above
-- **THEN** the article's `is_relevant` field is set to true
+#### Scenario: Article scored after relevance check
+- **WHEN** the LLM relevance scorer assigns a score of 7 to an article
+- **THEN** the article's `relevance_score` field is set to 7
 
 #### Scenario: Article marked as processed after briefing generation
-- **WHEN** an article's summary has been included in a generated briefing
+- **WHEN** an article's content has been included in a generated briefing
 - **THEN** the article's `is_processed` field is set to true
 
 ### Requirement: Episode persistence

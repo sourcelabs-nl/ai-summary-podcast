@@ -8,7 +8,6 @@ import com.aisummarypodcast.store.Source
 import com.aisummarypodcast.store.SourceRepository
 import io.mockk.every
 import io.mockk.mockk
-import io.mockk.slot
 import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
@@ -17,7 +16,8 @@ import org.junit.jupiter.api.Test
 
 class LlmPipelineTest {
 
-    private val articleProcessor = mockk<ArticleProcessor>()
+    private val relevanceScorer = mockk<RelevanceScorer>()
+    private val articleSummarizer = mockk<ArticleSummarizer>()
     private val briefingComposer = mockk<BriefingComposer>()
     private val modelResolver = mockk<ModelResolver>()
     private val articleRepository = mockk<ArticleRepository> {
@@ -29,10 +29,10 @@ class LlmPipelineTest {
     private val composeModelDef = ModelDefinition(provider = "openrouter", model = "anthropic/claude-sonnet-4")
 
     private val pipeline = LlmPipeline(
-        articleProcessor, briefingComposer, modelResolver, articleRepository, sourceRepository
+        relevanceScorer, articleSummarizer, briefingComposer, modelResolver, articleRepository, sourceRepository
     )
 
-    private val podcast = Podcast(id = "p1", userId = "u1", name = "Tech Daily", topic = "tech")
+    private val podcast = Podcast(id = "p1", userId = "u1", name = "Tech Daily", topic = "tech", relevanceThreshold = 5)
 
     @Test
     fun `returns null when podcast has no sources`() {
@@ -44,30 +44,15 @@ class LlmPipelineTest {
     }
 
     @Test
-    fun `returns null when no unfiltered articles exist`() {
-        every { sourceRepository.findByPodcastId("p1") } returns listOf(
-            Source(id = "s1", podcastId = "p1", type = "rss", url = "https://example.com/feed")
-        )
-        every { articleRepository.findUnfilteredBySourceIds(listOf("s1")) } returns emptyList()
-
-        val result = pipeline.run(podcast)
-
-        assertNull(result)
-    }
-
-    @Test
-    fun `returns null when no articles are relevant`() {
+    fun `returns null when no relevant unprocessed articles exist`() {
         val source = Source(id = "s1", podcastId = "p1", type = "rss", url = "https://example.com/feed")
-        val article = Article(
-            id = 1, sourceId = "s1", title = "Random Article", body = "body",
-            url = "https://example.com/1", contentHash = "hash1"
-        )
 
         every { sourceRepository.findByPodcastId("p1") } returns listOf(source)
-        every { articleRepository.findUnfilteredBySourceIds(listOf("s1")) } returns listOf(article)
         every { modelResolver.resolve(podcast, "filter") } returns filterModelDef
         every { modelResolver.resolve(podcast, "compose") } returns composeModelDef
-        every { articleProcessor.process(listOf(article), podcast, filterModelDef) } returns emptyList()
+        every { articleRepository.findUnscoredBySourceIds(listOf("s1")) } returns emptyList()
+        every { articleRepository.findRelevantUnsummarizedBySourceIds(listOf("s1"), 5) } returns emptyList()
+        every { articleRepository.findRelevantUnprocessedBySourceIds(listOf("s1"), 5) } returns emptyList()
 
         val result = pipeline.run(podcast)
 
@@ -75,20 +60,24 @@ class LlmPipelineTest {
     }
 
     @Test
-    fun `marks articles as processed with summaries preserved`() {
+    fun `scores unscored articles then summarizes and composes`() {
         val source = Source(id = "s1", podcastId = "p1", type = "rss", url = "https://example.com/feed")
-        val article = Article(
+        val unscoredArticle = Article(
             id = 1, sourceId = "s1", title = "AI News", body = "Article body",
             url = "https://example.com/ai", contentHash = "hash1"
         )
-        val processedArticle = article.copy(isRelevant = true, summary = "AI is advancing rapidly.")
+        val scoredArticle = unscoredArticle.copy(relevanceScore = 8)
+        val summarizedArticle = scoredArticle.copy(summary = "AI is advancing rapidly.")
 
         every { sourceRepository.findByPodcastId("p1") } returns listOf(source)
-        every { articleRepository.findUnfilteredBySourceIds(listOf("s1")) } returns listOf(article)
         every { modelResolver.resolve(podcast, "filter") } returns filterModelDef
         every { modelResolver.resolve(podcast, "compose") } returns composeModelDef
-        every { articleProcessor.process(listOf(article), podcast, filterModelDef) } returns listOf(processedArticle)
-        every { briefingComposer.compose(listOf(processedArticle), podcast, composeModelDef) } returns "Today in tech..."
+        every { articleRepository.findUnscoredBySourceIds(listOf("s1")) } returns listOf(unscoredArticle)
+        every { relevanceScorer.score(listOf(unscoredArticle), podcast, filterModelDef) } returns listOf(scoredArticle)
+        every { articleRepository.findRelevantUnsummarizedBySourceIds(listOf("s1"), 5) } returns listOf(scoredArticle)
+        every { articleSummarizer.summarize(listOf(scoredArticle), podcast, filterModelDef) } returns listOf(summarizedArticle)
+        every { articleRepository.findRelevantUnprocessedBySourceIds(listOf("s1"), 5) } returns listOf(summarizedArticle)
+        every { briefingComposer.compose(listOf(summarizedArticle), podcast, composeModelDef) } returns "Today in tech..."
 
         val result = pipeline.run(podcast)
 
@@ -97,32 +86,59 @@ class LlmPipelineTest {
         assertEquals("anthropic/claude-haiku-4.5", result.filterModel)
         assertEquals("anthropic/claude-sonnet-4", result.composeModel)
 
-        val savedArticle = slot<Article>()
-        verify { articleRepository.save(capture(savedArticle)) }
-        assertEquals(true, savedArticle.captured.isProcessed)
-        assertEquals("AI is advancing rapidly.", savedArticle.captured.summary)
+        verify { articleRepository.save(summarizedArticle.copy(isProcessed = true)) }
     }
 
     @Test
-    fun `processes unfiltered articles and passes results to briefing composer`() {
+    fun `marks articles as processed with summaries preserved`() {
         val source = Source(id = "s1", podcastId = "p1", type = "rss", url = "https://example.com/feed")
         val article = Article(
-            id = 1, sourceId = "s1", title = "News", body = "body",
-            url = "https://example.com/1", contentHash = "hash1"
+            id = 1, sourceId = "s1", title = "AI News", body = "Article body",
+            url = "https://example.com/ai", contentHash = "hash1",
+            relevanceScore = 8, summary = "AI is advancing rapidly."
         )
-        val processedArticle = article.copy(isRelevant = true, summary = "Summary text.")
 
         every { sourceRepository.findByPodcastId("p1") } returns listOf(source)
-        every { articleRepository.findUnfilteredBySourceIds(listOf("s1")) } returns listOf(article)
         every { modelResolver.resolve(podcast, "filter") } returns filterModelDef
         every { modelResolver.resolve(podcast, "compose") } returns composeModelDef
-        every { articleProcessor.process(listOf(article), podcast, filterModelDef) } returns listOf(processedArticle)
-        every { briefingComposer.compose(listOf(processedArticle), podcast, composeModelDef) } returns "Final script"
+        every { articleRepository.findUnscoredBySourceIds(listOf("s1")) } returns emptyList()
+        every { articleRepository.findRelevantUnsummarizedBySourceIds(listOf("s1"), 5) } returns emptyList()
+        every { articleRepository.findRelevantUnprocessedBySourceIds(listOf("s1"), 5) } returns listOf(article)
+        every { briefingComposer.compose(listOf(article), podcast, composeModelDef) } returns "Script text"
 
         val result = pipeline.run(podcast)
 
-        assertEquals("Final script", result!!.script)
-        verify { articleProcessor.process(listOf(article), podcast, filterModelDef) }
-        verify { briefingComposer.compose(listOf(processedArticle), podcast, composeModelDef) }
+        assertNotNull(result)
+
+        verify {
+            articleRepository.save(match {
+                it.isProcessed && it.summary == "AI is advancing rapidly." && it.relevanceScore == 8
+            })
+        }
+    }
+
+    @Test
+    fun `pipeline resumes from summarization when scoring already done`() {
+        val source = Source(id = "s1", podcastId = "p1", type = "rss", url = "https://example.com/feed")
+        val scoredArticle = Article(
+            id = 1, sourceId = "s1", title = "AI News", body = "Long article body ".repeat(50),
+            url = "https://example.com/ai", contentHash = "hash1", relevanceScore = 7
+        )
+
+        every { sourceRepository.findByPodcastId("p1") } returns listOf(source)
+        every { modelResolver.resolve(podcast, "filter") } returns filterModelDef
+        every { modelResolver.resolve(podcast, "compose") } returns composeModelDef
+        every { articleRepository.findUnscoredBySourceIds(listOf("s1")) } returns emptyList()
+        every { articleRepository.findRelevantUnsummarizedBySourceIds(listOf("s1"), 5) } returns listOf(scoredArticle)
+        every { articleSummarizer.summarize(listOf(scoredArticle), podcast, filterModelDef) } returns listOf(scoredArticle.copy(summary = "Summary."))
+        every { articleRepository.findRelevantUnprocessedBySourceIds(listOf("s1"), 5) } returns listOf(scoredArticle.copy(summary = "Summary."))
+        every { briefingComposer.compose(any(), podcast, composeModelDef) } returns "Briefing script"
+
+        val result = pipeline.run(podcast)
+
+        assertNotNull(result)
+        // Scorer should not be called since no unscored articles
+        verify(exactly = 0) { relevanceScorer.score(any(), any(), any()) }
+        verify { articleSummarizer.summarize(listOf(scoredArticle), podcast, filterModelDef) }
     }
 }
