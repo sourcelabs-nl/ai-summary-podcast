@@ -26,9 +26,12 @@ class CachingChatModelTest {
     private val cachingChatModel = CachingChatModel(delegate, llmCacheRepository)
 
     @Test
-    fun `cache miss delegates to wrapped model and stores result`() {
+    fun `cache miss delegates to wrapped model and stores result with tokens`() {
         val prompt = Prompt("Summarize this article", OpenAiChatOptions.builder().model("test-model").build())
-        val expectedResponse = ChatResponse(listOf(Generation(AssistantMessage("A summary"))))
+        val metadata = ChatResponseMetadata.builder()
+            .usage(DefaultUsage(200, 50))
+            .build()
+        val expectedResponse = ChatResponse(listOf(Generation(AssistantMessage("A summary"))), metadata)
 
         every { llmCacheRepository.findByPromptHashAndModel(any(), "test-model") } returns null
         every { delegate.call(prompt) } returns expectedResponse
@@ -42,17 +45,21 @@ class CachingChatModelTest {
         verify { llmCacheRepository.save(capture(savedSlot)) }
         assertEquals("A summary", savedSlot.captured.response)
         assertEquals("test-model", savedSlot.captured.model)
+        assertEquals(200, savedSlot.captured.inputTokens)
+        assertEquals(50, savedSlot.captured.outputTokens)
     }
 
     @Test
-    fun `cache hit returns cached response without delegating`() {
+    fun `cache hit returns cached response with cached token counts`() {
         val prompt = Prompt("Summarize this article", OpenAiChatOptions.builder().model("test-model").build())
         val cachedEntry = LlmCache(
             id = 1,
             promptHash = "somehash",
             model = "test-model",
             response = "Cached summary",
-            createdAt = "2026-01-01T00:00:00Z"
+            createdAt = "2026-01-01T00:00:00Z",
+            inputTokens = 300,
+            outputTokens = 75
         )
 
         every { llmCacheRepository.findByPromptHashAndModel(any(), "test-model") } returns cachedEntry
@@ -61,6 +68,10 @@ class CachingChatModelTest {
 
         assertEquals("Cached summary", result.result!!.output.text)
         verify(exactly = 0) { delegate.call(any<Prompt>()) }
+
+        val usage = TokenUsage.fromChatResponse(result)
+        assertEquals(300, usage.inputTokens)
+        assertEquals(75, usage.outputTokens)
     }
 
     @Test
@@ -125,11 +136,12 @@ class CachingChatModelTest {
     }
 
     @Test
-    fun `cache hit returns zero usage`() {
+    fun `cache hit with null tokens returns zero usage`() {
         val prompt = Prompt("Summarize", OpenAiChatOptions.builder().model("test-model").build())
         val cachedEntry = LlmCache(
             id = 1, promptHash = "hash", model = "test-model",
-            response = "Cached", createdAt = "2026-01-01T00:00:00Z"
+            response = "Cached", createdAt = "2026-01-01T00:00:00Z",
+            inputTokens = null, outputTokens = null
         )
 
         every { llmCacheRepository.findByPromptHashAndModel(any(), "test-model") } returns cachedEntry

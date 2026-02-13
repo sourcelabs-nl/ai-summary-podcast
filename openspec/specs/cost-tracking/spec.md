@@ -36,6 +36,21 @@ The system SHALL estimate TTS costs using a configurable `app.tts.cost-per-milli
 - **WHEN** `app.tts.cost-per-million-chars` is not set
 - **THEN** TTS estimated cost SHALL be null (character count is still tracked)
 
+### Requirement: Cost data stored on episodes from all generation paths
+The system SHALL store `llmInputTokens`, `llmOutputTokens`, and `llmCostCents` from the `PipelineResult` on every episode created, regardless of the generation path. This includes episodes created by the scheduler, episodes created via the manual generate endpoint (`POST /users/{userId}/podcasts/{podcastId}/generate`) both with and without review mode, and episodes created via direct TTS generation.
+
+#### Scenario: Scheduled generation stores cost data
+- **WHEN** the scheduler triggers briefing generation and the LLM pipeline returns a result
+- **THEN** the created episode has `llmInputTokens`, `llmOutputTokens`, and `llmCostCents` populated from the pipeline result
+
+#### Scenario: Manual generation with review stores cost data
+- **WHEN** a `POST /users/{userId}/podcasts/{podcastId}/generate` request triggers generation for a podcast with `requireReview = true`
+- **THEN** the created `PENDING_REVIEW` episode has `llmInputTokens`, `llmOutputTokens`, and `llmCostCents` populated from the pipeline result
+
+#### Scenario: Manual generation without review stores cost data
+- **WHEN** a `POST /users/{userId}/podcasts/{podcastId}/generate` request triggers generation for a podcast with `requireReview = false`
+- **THEN** the created episode has `llmInputTokens`, `llmOutputTokens`, and `llmCostCents` populated from the pipeline result
+
 ### Requirement: Cost data exposed in episode API response
 The episode API response SHALL include cost fields: `llmInputTokens`, `llmOutputTokens`, `llmCostCents`, `ttsCharacters`, `ttsCostCents`. All cost fields SHALL be nullable (null when data is not available, e.g. for episodes created before cost tracking was added).
 

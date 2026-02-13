@@ -46,6 +46,17 @@ Migration files SHALL follow Flyway's naming convention: `V{version}__{descripti
 - **WHEN** a developer creates a new migration file `V2__add_some_column.sql` in `db/migration/`
 - **THEN** Flyway applies it on the next application startup after V1 has been applied
 
+### Requirement: V11 migration adds token tracking to LLM cache
+The system SHALL include a migration file `V11__add_cache_token_tracking.sql` that adds `input_tokens` (INTEGER, nullable) and `output_tokens` (INTEGER, nullable) columns to the `llm_cache` table. These columns store the token usage from the original LLM response so that cache hits can reconstruct accurate usage metadata.
+
+#### Scenario: V11 migration adds token columns
+- **WHEN** Flyway applies `V11__add_cache_token_tracking.sql`
+- **THEN** the `llm_cache` table has `input_tokens` and `output_tokens` columns, both nullable integers
+
+#### Scenario: Existing cache entries have null tokens after migration
+- **WHEN** V11 is applied to a database with existing `llm_cache` entries
+- **THEN** those entries have `input_tokens = NULL` and `output_tokens = NULL`
+
 ### Requirement: Removal of Spring SQL init
 The system SHALL NOT use `spring.sql.init.mode` for schema initialization. The `schema.sql` file SHALL be removed from `src/main/resources/`. Flyway is the sole mechanism for schema management.
 

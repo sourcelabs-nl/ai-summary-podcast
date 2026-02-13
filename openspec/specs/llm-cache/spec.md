@@ -7,11 +7,11 @@ Persistent caching layer for LLM responses to eliminate redundant API calls when
 ## Requirements
 
 ### Requirement: Persistent LLM response cache
-The system SHALL maintain a persistent cache of LLM responses in SQLite. The cache table `llm_cache` SHALL have columns: `prompt_hash` (TEXT, part of composite PK), `model` (TEXT, part of composite PK), `response` (TEXT), `created_at` (TEXT, ISO-8601). The cache SHALL be created via a Flyway migration.
+The system SHALL maintain a persistent cache of LLM responses in SQLite. The cache table `llm_cache` SHALL have columns: `prompt_hash` (TEXT, part of composite PK), `model` (TEXT, part of composite PK), `response` (TEXT), `created_at` (TEXT, ISO-8601), `input_tokens` (INTEGER, nullable), and `output_tokens` (INTEGER, nullable). The cache SHALL be created via a Flyway migration (V5), with token columns added in a subsequent migration (V11).
 
 #### Scenario: Cache table exists after migration
-- **WHEN** the application starts with the Flyway migration applied
-- **THEN** the `llm_cache` table exists with columns `prompt_hash`, `model`, `response`, and `created_at`
+- **WHEN** the application starts with the Flyway migrations applied
+- **THEN** the `llm_cache` table exists with columns `prompt_hash`, `model`, `response`, `created_at`, `input_tokens`, and `output_tokens`
 
 ### Requirement: Cache key derivation
 The cache key SHALL be the SHA-256 hash of the string `"{model}:{promptText}"` where `model` is the LLM model identifier and `promptText` is the full user message text sent to the model. The composite key `(prompt_hash, model)` SHALL uniquely identify a cache entry.
@@ -37,19 +37,27 @@ The system SHALL implement caching as a `CachingChatModel` that decorates the `O
 - **WHEN** `ArticleSummarizer` calls `chatClient.prompt().user(prompt).call().content()`
 - **THEN** the call is transparently routed through `CachingChatModel` which checks the cache first
 
-### Requirement: Cache miss stores response
-The system SHALL store the LLM response text in the cache after a cache miss. The `created_at` field SHALL be set to the current UTC timestamp in ISO-8601 format. Subsequent calls with the same prompt hash and model SHALL return the cached response.
+### Requirement: Cache miss stores response and token usage
+The system SHALL store the LLM response text and token usage in the cache after a cache miss. The `created_at` field SHALL be set to the current UTC timestamp in ISO-8601 format. The `input_tokens` and `output_tokens` fields SHALL be populated from the delegate response's usage metadata (`promptTokens` and `completionTokens`). If usage metadata is not available, token fields SHALL be null. Subsequent calls with the same prompt hash and model SHALL return the cached response with cached token counts.
 
-#### Scenario: First call for a prompt stores result
-- **WHEN** an LLM call is made with a prompt that has no cache entry
-- **THEN** the LLM API is called, the response is returned to the caller, and a new cache entry is persisted
+#### Scenario: First call for a prompt stores result with tokens
+- **WHEN** an LLM call is made with a prompt that has no cache entry and the delegate response includes usage metadata (e.g., 500 input tokens, 100 output tokens)
+- **THEN** the LLM API is called, the response is returned to the caller, and a new cache entry is persisted with `input_tokens=500` and `output_tokens=100`
 
 #### Scenario: Second call for same prompt returns cached result
 - **WHEN** an LLM call is made with the same prompt and model as a previous call
 - **THEN** the cached response is returned without calling the LLM API
 
-### Requirement: Cache response reconstruction
-On cache hit, the system SHALL reconstruct a minimal `ChatResponse` containing only the cached text content as the assistant message. Metadata fields (token usage, finish reason) MAY be empty or default values.
+### Requirement: Cache response reconstruction with token usage
+On cache hit, the system SHALL reconstruct a `ChatResponse` containing the cached text content as the assistant message and a `DefaultUsage` populated from the cached `input_tokens` and `output_tokens` values. If cached token values are null (e.g., entries created before token tracking), the usage SHALL default to 0 for both input and output tokens.
+
+#### Scenario: Cached response includes token usage
+- **WHEN** a cached response is returned for a cache entry with `input_tokens=300` and `output_tokens=75`
+- **THEN** the reconstructed `ChatResponse` has usage metadata with `promptTokens=300` and `completionTokens=75`
+
+#### Scenario: Cached response with null tokens defaults to zero
+- **WHEN** a cached response is returned for a cache entry with null `input_tokens` and null `output_tokens`
+- **THEN** the reconstructed `ChatResponse` has usage metadata with `promptTokens=0` and `completionTokens=0`
 
 #### Scenario: Cached response usable with content() extraction
 - **WHEN** a cached response is returned

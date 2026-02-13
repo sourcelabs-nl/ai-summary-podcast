@@ -9,5 +9,7 @@ data class LlmCache(
     val promptHash: String,
     val model: String,
     val response: String,
-    val createdAt: String
+    val createdAt: String,
+    val inputTokens: Int? = null,
+    val outputTokens: Int? = null
 )

@@ -30,19 +30,22 @@ class CachingChatModel(
         val cached = llmCacheRepository.findByPromptHashAndModel(promptHash, model)
         if (cached != null) {
             log.debug("LLM cache hit for model={} hash={}", model, promptHash.take(12))
-            return reconstructResponse(cached.response)
+            return reconstructResponse(cached)
         }
 
         val response = delegate.call(prompt)
 
         val responseText = response.result?.output?.text
         if (responseText != null) {
+            val usage = response.metadata?.usage
             llmCacheRepository.save(
                 LlmCache(
                     promptHash = promptHash,
                     model = model,
                     response = responseText,
-                    createdAt = Instant.now().toString()
+                    createdAt = Instant.now().toString(),
+                    inputTokens = usage?.promptTokens?.toInt(),
+                    outputTokens = usage?.completionTokens?.toInt()
                 )
             )
             log.debug("LLM cache miss — stored for model={} hash={}", model, promptHash.take(12))
@@ -55,11 +58,14 @@ class CachingChatModel(
 
     override fun getDefaultOptions(): ChatOptions = delegate.defaultOptions
 
-    private fun reconstructResponse(text: String): ChatResponse {
+    private fun reconstructResponse(cached: LlmCache): ChatResponse {
         val metadata = ChatResponseMetadata.builder()
-            .usage(DefaultUsage(0, 0))
+            .usage(DefaultUsage(
+                cached.inputTokens ?: 0,
+                cached.outputTokens ?: 0
+            ))
             .build()
-        return ChatResponse(listOf(Generation(AssistantMessage(text))), metadata)
+        return ChatResponse(listOf(Generation(AssistantMessage(cached.response))), metadata)
     }
 
     private fun sha256(text: String): String {

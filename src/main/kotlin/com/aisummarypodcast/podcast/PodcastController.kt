@@ -183,7 +183,10 @@ class PodcastController(
                     scriptText = result.script,
                     status = "PENDING_REVIEW",
                     filterModel = result.filterModel,
-                    composeModel = result.composeModel
+                    composeModel = result.composeModel,
+                    llmInputTokens = result.llmInputTokens,
+                    llmOutputTokens = result.llmOutputTokens,
+                    llmCostCents = result.llmCostCents
                 )
             )
             podcastService.update(podcastId, podcast.copy(lastGeneratedAt = Instant.now().toString()))
@@ -193,7 +196,10 @@ class PodcastController(
         val episode = ttsPipeline.generate(result.script, podcast)
         val episodeWithModels = episode.copy(
             filterModel = result.filterModel,
-            composeModel = result.composeModel
+            composeModel = result.composeModel,
+            llmInputTokens = result.llmInputTokens,
+            llmOutputTokens = result.llmOutputTokens,
+            llmCostCents = result.llmCostCents
         )
         episodeRepository.save(episodeWithModels)
         podcastService.update(podcastId, podcast.copy(lastGeneratedAt = Instant.now().toString()))
