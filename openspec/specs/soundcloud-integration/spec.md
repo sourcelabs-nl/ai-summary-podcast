@@ -112,7 +112,7 @@ The `SoundCloudPublisher` SHALL implement the `EpisodePublisher` interface. It S
 - **THEN** the publisher throws an exception indicating the user must connect their SoundCloud account first
 
 ### Requirement: SoundCloud playlist creation
-The `SoundCloudClient` SHALL provide a `createPlaylist` method that creates a new public playlist on SoundCloud via `POST https://api.soundcloud.com/playlists` with the user's access token. The request SHALL include a JSON body with the playlist `title` and an initial list of `track` IDs. The method SHALL return the created playlist's ID.
+The `SoundCloudClient` SHALL provide a `createPlaylist` method that creates a new public playlist on SoundCloud via `POST https://api.soundcloud.com/playlists` with the user's access token. The request SHALL include a JSON body with the playlist `title` and an initial list of track IDs serialized as strings. The method SHALL return the created playlist's ID.
 
 #### Scenario: Create playlist with initial track
 - **WHEN** `createPlaylist` is called with title "The Daily AI Podcast" and track ID 2266108838
@@ -123,7 +123,7 @@ The `SoundCloudClient` SHALL provide a `createPlaylist` method that creates a ne
 - **THEN** the method throws an exception with the SoundCloud error details
 
 ### Requirement: SoundCloud add track to playlist
-The `SoundCloudClient` SHALL provide an `addTrackToPlaylist` method that adds a track to an existing SoundCloud playlist via `PUT https://api.soundcloud.com/playlists/{playlistId}` with the user's access token. The request SHALL include the updated list of track IDs. The method SHALL return the updated playlist response.
+The `SoundCloudClient` SHALL provide an `addTrackToPlaylist` method that adds a track to an existing SoundCloud playlist via `PUT https://api.soundcloud.com/playlists/{playlistId}` with the user's access token. The request SHALL include the track IDs serialized as strings. The method SHALL return the updated playlist response.
 
 #### Scenario: Add track to existing playlist
 - **WHEN** `addTrackToPlaylist` is called with playlist ID 12345 and track ID 6789
@@ -158,6 +158,9 @@ The system SHALL require SoundCloud OAuth application credentials configured via
 #### Scenario: SoundCloud credentials not configured
 - **WHEN** the application starts without SoundCloud credentials
 - **THEN** the SoundCloud OAuth and publishing endpoints SHALL return HTTP 503 indicating SoundCloud integration is not configured
+
+### Requirement: SoundCloudClient uses Spring-managed RestTemplate
+The `SoundCloudClient` SHALL use a `RestTemplate` built from Spring Boot's `RestTemplateBuilder` instead of a plain `RestTemplate()` constructor. This ensures proper auto-configured message converters (Jackson 3) are available.
 
 ### Requirement: Cascade delete OAuth connections with user
 When a user is deleted, all of the user's OAuth connections SHALL be deleted as part of the cascade.

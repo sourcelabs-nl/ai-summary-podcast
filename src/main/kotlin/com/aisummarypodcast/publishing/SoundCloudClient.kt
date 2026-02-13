@@ -8,6 +8,7 @@ import org.springframework.http.HttpMethod
 import org.springframework.http.MediaType
 import org.springframework.stereotype.Service
 import org.springframework.util.LinkedMultiValueMap
+import org.springframework.boot.restclient.RestTemplateBuilder
 import org.springframework.web.client.RestTemplate
 import tools.jackson.databind.PropertyNamingStrategies
 import tools.jackson.databind.annotation.JsonNaming
@@ -43,10 +44,10 @@ data class TrackUploadRequest(
 )
 
 @Service
-class SoundCloudClient {
+class SoundCloudClient(restTemplateBuilder: RestTemplateBuilder) {
 
     private val log = LoggerFactory.getLogger(javaClass)
-    private val restTemplate = RestTemplate()
+    private val restTemplate: RestTemplate = restTemplateBuilder.build()
 
     fun exchangeCodeForTokens(
         code: String,
@@ -138,7 +139,7 @@ class SoundCloudClient {
             "playlist" to mapOf(
                 "title" to title,
                 "sharing" to "public",
-                "tracks" to trackIds.map { mapOf("id" to it) }
+                "tracks" to trackIds.map { mapOf("id" to it.toString()) }
             )
         )
 
@@ -163,7 +164,7 @@ class SoundCloudClient {
     ): SoundCloudPlaylistResponse {
         val body = mapOf(
             "playlist" to mapOf(
-                "tracks" to trackIds.map { mapOf("id" to it) }
+                "tracks" to trackIds.map { mapOf("id" to it.toString()) }
             )
         )
 
