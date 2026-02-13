@@ -64,7 +64,7 @@ class SoundCloudClient {
 
         log.info("Exchanging authorization code for SoundCloud tokens")
         val response = restTemplate.postForEntity(
-            "https://api.soundcloud.com/oauth2/token",
+            "https://secure.soundcloud.com/oauth/token",
             HttpEntity(body, headers),
             SoundCloudTokenResponse::class.java
         )
@@ -89,7 +89,7 @@ class SoundCloudClient {
 
         log.info("Refreshing SoundCloud access token")
         val response = restTemplate.postForEntity(
-            "https://api.soundcloud.com/oauth2/token",
+            "https://secure.soundcloud.com/oauth/token",
             HttpEntity(body, headers),
             SoundCloudTokenResponse::class.java
         )

@@ -67,7 +67,7 @@ class SoundCloudOAuthController(
         val queryString = params.entries.joinToString("&") { (k, v) ->
             "$k=${URLEncoder.encode(v, Charsets.UTF_8)}"
         }
-        val authorizationUrl = "https://soundcloud.com/connect?$queryString"
+        val authorizationUrl = "https://secure.soundcloud.com/authorize?$queryString"
 
         return ResponseEntity.ok(AuthorizeResponse(authorizationUrl))
     }
