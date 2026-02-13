@@ -48,7 +48,8 @@ data class EpisodesProperties(
 data class FeedProperties(
     val baseUrl: String = "http://localhost:8080",
     val title: String = "AI Summary Podcast",
-    val description: String = "AI-generated audio briefings from your favourite content sources"
+    val description: String = "AI-generated audio briefings from your favourite content sources",
+    val staticBaseUrl: String? = null
 )
 
 data class LlmCacheProperties(

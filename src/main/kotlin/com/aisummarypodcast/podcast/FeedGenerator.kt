@@ -26,13 +26,14 @@ class FeedGenerator(
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    fun generate(podcast: Podcast, user: User): String {
+    fun generate(podcast: Podcast, user: User, baseUrl: String? = null): String {
+        val effectiveBaseUrl = baseUrl ?: appProperties.feed.baseUrl
         val feedTitle = "${appProperties.feed.title} - ${user.name} - ${podcast.name}"
 
         val feed = SyndFeedImpl().apply {
             feedType = "rss_2.0"
             title = feedTitle
-            link = appProperties.feed.baseUrl
+            link = effectiveBaseUrl
             description = appProperties.feed.description
             language = podcast.language
         }
@@ -44,14 +45,14 @@ class FeedGenerator(
             SyndEntryImpl().apply {
                 val generatedInstant = Instant.parse(episode.generatedAt)
                 title = "$feedTitle - ${generatedInstant.atOffset(ZoneOffset.UTC).toLocalDate()}"
-                link = "${appProperties.feed.baseUrl}/episodes/${podcast.id}/${Path.of(audioPath).fileName}"
+                link = "$effectiveBaseUrl/episodes/${podcast.id}/${Path.of(audioPath).fileName}"
                 publishedDate = Date.from(generatedInstant)
                 description = SyndContentImpl().apply {
                     type = "text/plain"
                     value = episode.scriptText.take(500) + "..."
                 }
                 enclosures = listOf(SyndEnclosureImpl().apply {
-                    url = "${appProperties.feed.baseUrl}/episodes/${podcast.id}/${Path.of(audioPath).fileName}"
+                    url = "$effectiveBaseUrl/episodes/${podcast.id}/${Path.of(audioPath).fileName}"
                     type = "audio/mpeg"
                     length = try {
                         Files.size(Path.of(audioPath))

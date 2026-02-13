@@ -15,7 +15,8 @@ import java.time.temporal.ChronoUnit
 class EpisodeCleanup(
     private val episodeRepository: EpisodeRepository,
     private val podcastRepository: PodcastRepository,
-    private val appProperties: AppProperties
+    private val appProperties: AppProperties,
+    private val staticFeedExporter: StaticFeedExporter
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -45,6 +46,7 @@ class EpisodeCleanup(
             }
 
             log.info("Cleaned up {} old episodes for podcast {}", oldEpisodes.size, podcast.id)
+            staticFeedExporter.export(podcast)
         }
     }
 }

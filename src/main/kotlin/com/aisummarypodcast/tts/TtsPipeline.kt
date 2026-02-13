@@ -2,6 +2,7 @@ package com.aisummarypodcast.tts
 
 import com.aisummarypodcast.config.AppProperties
 import com.aisummarypodcast.llm.CostEstimator
+import com.aisummarypodcast.podcast.StaticFeedExporter
 import com.aisummarypodcast.store.Episode
 import com.aisummarypodcast.store.EpisodeRepository
 import com.aisummarypodcast.store.Podcast
@@ -19,7 +20,8 @@ class TtsPipeline(
     private val audioConcatenator: AudioConcatenator,
     private val audioDuration: AudioDuration,
     private val episodeRepository: EpisodeRepository,
-    private val appProperties: AppProperties
+    private val appProperties: AppProperties,
+    private val staticFeedExporter: StaticFeedExporter
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -47,6 +49,7 @@ class TtsPipeline(
         )
 
         log.info("[TTS] Episode generated for podcast {}: {} ({} seconds)", podcast.id, outputPath.fileName, duration)
+        staticFeedExporter.export(podcast)
         return episode
     }
 
@@ -71,6 +74,7 @@ class TtsPipeline(
         )
 
         log.info("[TTS] Episode {} audio generated for podcast {}: {} ({} seconds)", episode.id, podcast.id, outputPath.fileName, duration)
+        staticFeedExporter.export(podcast)
         return updated
     }
 
