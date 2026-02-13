@@ -1,6 +1,7 @@
 package com.aisummarypodcast.podcast
 
 import com.aisummarypodcast.config.AppProperties
+import com.aisummarypodcast.store.EpisodePublicationRepository
 import com.aisummarypodcast.store.EpisodeRepository
 import com.aisummarypodcast.store.PodcastRepository
 import org.slf4j.LoggerFactory
@@ -16,7 +17,8 @@ class EpisodeCleanup(
     private val episodeRepository: EpisodeRepository,
     private val podcastRepository: PodcastRepository,
     private val appProperties: AppProperties,
-    private val staticFeedExporter: StaticFeedExporter
+    private val staticFeedExporter: StaticFeedExporter,
+    private val publicationRepository: EpisodePublicationRepository
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -42,6 +44,7 @@ class EpisodeCleanup(
                 } catch (e: Exception) {
                     log.error("Failed to delete MP3 file for episode {}: {}", episode.id, e.message)
                 }
+                publicationRepository.deleteByEpisodeId(episode.id!!)
                 episodeRepository.delete(episode)
             }
 

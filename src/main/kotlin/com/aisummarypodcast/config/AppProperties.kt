@@ -11,7 +11,8 @@ data class AppProperties(
     val encryption: EncryptionProperties,
     val llmCache: LlmCacheProperties = LlmCacheProperties(),
     val source: SourceProperties = SourceProperties(),
-    val tts: TtsProperties = TtsProperties()
+    val tts: TtsProperties = TtsProperties(),
+    val soundcloud: SoundCloudProperties = SoundCloudProperties()
 )
 
 data class EncryptionProperties(
@@ -62,4 +63,9 @@ data class SourceProperties(
 
 data class TtsProperties(
     val costPerMillionChars: Double? = null
+)
+
+data class SoundCloudProperties(
+    val clientId: String? = null,
+    val clientSecret: String? = null
 )

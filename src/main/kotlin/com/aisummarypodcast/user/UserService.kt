@@ -1,5 +1,6 @@
 package com.aisummarypodcast.user
 
+import com.aisummarypodcast.publishing.OAuthConnectionService
 import com.aisummarypodcast.store.User
 import com.aisummarypodcast.store.UserProviderConfigRepository
 import com.aisummarypodcast.store.UserRepository
@@ -10,7 +11,8 @@ import java.util.UUID
 class UserService(
     private val userRepository: UserRepository,
     private val podcastService: com.aisummarypodcast.podcast.PodcastService,
-    private val providerConfigRepository: UserProviderConfigRepository
+    private val providerConfigRepository: UserProviderConfigRepository,
+    private val oauthConnectionService: OAuthConnectionService
 ) {
 
     fun create(name: String): User {
@@ -31,6 +33,7 @@ class UserService(
         val user = findById(userId) ?: return false
         podcastService.deleteAllByUserId(userId)
         providerConfigRepository.deleteByUserId(userId)
+        oauthConnectionService.deleteByUserId(userId)
         userRepository.delete(user)
         return true
     }

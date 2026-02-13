@@ -129,6 +129,35 @@ app:
 
 When not set, the static feed uses the same `app.feed.base-url` as the dynamic endpoint. The dynamic HTTP feed at `/users/{userId}/podcasts/{podcastId}/feed.xml` remains available regardless.
 
+### Publishing to SoundCloud
+
+Episodes can be published to SoundCloud after generation. This requires a SoundCloud OAuth app and a connected user account.
+
+1. Set SoundCloud app credentials in `.env`:
+
+```
+APP_SOUNDCLOUD_CLIENT_ID=<your-soundcloud-client-id>
+APP_SOUNDCLOUD_CLIENT_SECRET=<your-soundcloud-client-secret>
+```
+
+2. Connect a user's SoundCloud account via the OAuth flow:
+
+```bash
+# Get the authorization URL
+curl http://localhost:8080/users/{userId}/oauth/soundcloud/authorize
+# → returns { "authorizationUrl": "https://soundcloud.com/connect?..." }
+
+# Open the URL in a browser, authorize, and the callback completes automatically
+```
+
+3. Publish an episode:
+
+```bash
+curl -X POST http://localhost:8080/users/{userId}/podcasts/{podcastId}/episodes/{episodeId}/publish/soundcloud
+```
+
+The track is uploaded with the podcast name + date as title, a description from the script, and tags from the podcast topic. Publication status (PENDING, PUBLISHED, FAILED) is tracked per episode and target.
+
 ### Example: Create a Customized Podcast
 
 ```bash
@@ -199,6 +228,22 @@ Sources can be of type `rss` or `website`. Each source has a configurable `pollI
 
 Articles older than `app.source.max-article-age-days` (default: 7) are skipped during ingestion and periodically cleaned up. This prevents stale content from appearing in briefings when adding a new source with a large backlog.
 
+### Publishing
+
+```
+POST   /users/{userId}/podcasts/{podcastId}/episodes/{episodeId}/publish/{target} — Publish episode to target
+GET    /users/{userId}/podcasts/{podcastId}/episodes/{episodeId}/publications     — List publications for episode
+```
+
+### SoundCloud OAuth
+
+```
+GET    /users/{userId}/oauth/soundcloud/authorize  — Get SoundCloud authorization URL
+GET    /oauth/soundcloud/callback                  — OAuth callback (handled automatically)
+GET    /users/{userId}/oauth/soundcloud/status      — Check connection status
+DELETE /users/{userId}/oauth/soundcloud             — Disconnect SoundCloud
+```
+
 ### Provider Configuration
 
 ```
@@ -230,7 +275,7 @@ OPENAI_API_KEY=<your-openai-key>
 
 Generate an encryption key: `openssl rand -base64 32`
 
-`APP_ENCRYPTION_MASTER_KEY` is required. `OPENROUTER_API_KEY` and `OPENAI_API_KEY` serve as global fallbacks for LLM and TTS respectively — they are used when a user has not configured their own provider keys via the API. Users can override these by setting per-user provider configs.
+`APP_ENCRYPTION_MASTER_KEY` is required. `OPENROUTER_API_KEY` and `OPENAI_API_KEY` serve as global fallbacks for LLM and TTS respectively — they are used when a user has not configured their own provider keys via the API. Users can override these by setting per-user provider configs. `APP_SOUNDCLOUD_CLIENT_ID` and `APP_SOUNDCLOUD_CLIENT_SECRET` are optional — only needed if you want to publish episodes to SoundCloud.
 
 ### Using Ollama instead of OpenRouter
 

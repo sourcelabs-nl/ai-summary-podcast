@@ -65,3 +65,7 @@ When updating `README.md`, maintain the following section order and structure. D
    - Start/stop commands (`./start.sh`, `./stop.sh`) and direct run command (`./mvnw spring-boot:run`).
    - Note on default port and data directory.
 5. **Running Tests** — Test command (`./mvnw test`) and note on MockK usage.
+
+## OpenSpec Workflow
+
+When archiving an OpenSpec change (`/opsx:archive`), always update `README.md` to reflect any new or changed capabilities introduced by the change. Follow the README Structure rules above when making updates. After completing the archive, always ask the user to commit the changes with `/conventional-commits:cc`.

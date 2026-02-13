@@ -48,3 +48,6 @@ app:
     base-url: http://localhost:8080
     title: AI Summary Podcast
     description: AI-generated audio briefings from your favourite content sources
+  soundcloud:
+    client-id: ${APP_SOUNDCLOUD_CLIENT_ID:}
+    client-secret: ${APP_SOUNDCLOUD_CLIENT_SECRET:}
