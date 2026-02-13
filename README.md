@@ -133,24 +133,32 @@ When not set, the static feed uses the same `app.feed.base-url` as the dynamic e
 
 Episodes can be published to SoundCloud after generation. This requires a SoundCloud OAuth app and a connected user account.
 
-1. Set SoundCloud app credentials in `.env`:
+1. **Register a SoundCloud app** at https://soundcloud.com/you/apps (must be logged in). Set the redirect URI to `http://localhost:8080/oauth/soundcloud/callback`.
+
+2. **Add credentials** to your `.env` file:
 
 ```
 APP_SOUNDCLOUD_CLIENT_ID=<your-soundcloud-client-id>
 APP_SOUNDCLOUD_CLIENT_SECRET=<your-soundcloud-client-secret>
 ```
 
-2. Connect a user's SoundCloud account via the OAuth flow:
+3. **Restart the app** so it picks up the new environment variables.
+
+4. **Connect your SoundCloud account** via the OAuth flow:
 
 ```bash
 # Get the authorization URL
 curl http://localhost:8080/users/{userId}/oauth/soundcloud/authorize
-# → returns { "authorizationUrl": "https://soundcloud.com/connect?..." }
+# → returns { "authorizationUrl": "https://secure.soundcloud.com/authorize?..." }
 
-# Open the URL in a browser, authorize, and the callback completes automatically
+# Open the URL in a browser, log in and authorize the app
+# The callback completes automatically and stores your tokens
+
+# Verify the connection
+curl http://localhost:8080/users/{userId}/oauth/soundcloud/status
 ```
 
-3. Publish an episode:
+5. **Publish an episode** (must be in `GENERATED` status):
 
 ```bash
 curl -X POST http://localhost:8080/users/{userId}/podcasts/{podcastId}/episodes/{episodeId}/publish/soundcloud
