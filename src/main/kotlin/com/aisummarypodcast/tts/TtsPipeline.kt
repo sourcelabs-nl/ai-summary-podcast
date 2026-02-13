@@ -24,8 +24,9 @@ class TtsPipeline(
     private val log = LoggerFactory.getLogger(javaClass)
 
     fun generate(script: String, podcast: Podcast): Episode {
+        log.info("[TTS] Starting audio generation for podcast {}", podcast.id)
         val chunks = TextChunker.chunk(script)
-        log.info("Script split into {} chunks for podcast {}", chunks.size, podcast.id)
+        log.info("[TTS] Script split into {} chunks for podcast {}", chunks.size, podcast.id)
 
         val audioChunks = ttsService.generateAudio(chunks, podcast)
 
@@ -41,13 +42,14 @@ class TtsPipeline(
             )
         )
 
-        log.info("Episode generated for podcast {}: {} ({} seconds)", podcast.id, outputPath.fileName, duration)
+        log.info("[TTS] Episode generated for podcast {}: {} ({} seconds)", podcast.id, outputPath.fileName, duration)
         return episode
     }
 
     fun generateForExistingEpisode(episode: Episode, podcast: Podcast): Episode {
+        log.info("[TTS] Starting audio generation for episode {} (podcast {})", episode.id, podcast.id)
         val chunks = TextChunker.chunk(episode.scriptText)
-        log.info("Script split into {} chunks for episode {} (podcast {})", chunks.size, episode.id, podcast.id)
+        log.info("[TTS] Script split into {} chunks for episode {} (podcast {})", chunks.size, episode.id, podcast.id)
 
         val audioChunks = ttsService.generateAudio(chunks, podcast)
 
@@ -61,7 +63,7 @@ class TtsPipeline(
             )
         )
 
-        log.info("Episode {} audio generated for podcast {}: {} ({} seconds)", episode.id, podcast.id, outputPath.fileName, duration)
+        log.info("[TTS] Episode {} audio generated for podcast {}: {} ({} seconds)", episode.id, podcast.id, outputPath.fileName, duration)
         return updated
     }
 

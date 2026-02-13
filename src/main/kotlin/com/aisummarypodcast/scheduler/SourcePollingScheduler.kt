@@ -25,7 +25,7 @@ class SourcePollingScheduler(
         cleanupOldArticles()
 
         val allSources = sourceRepository.findAll().filter { it.enabled }
-        log.debug("Checking {} enabled sources for polling", allSources.count())
+        log.info("[Polling] Checking {} enabled sources", allSources.count())
 
         for (source in allSources) {
             val lastPolled = source.lastPolled?.let { Instant.parse(it) }

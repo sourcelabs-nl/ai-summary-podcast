@@ -22,14 +22,14 @@ class SourcePoller(
     private val log = LoggerFactory.getLogger(javaClass)
 
     fun poll(source: Source) {
-        log.info("Polling source: {} ({})", source.id, source.type)
+        log.info("[Polling] Polling source: {} ({})", source.id, source.type)
 
         try {
             val articles = when (source.type) {
                 "rss" -> rssFeedFetcher.fetch(source.url, source.id, source.lastSeenId)
                 "website" -> listOfNotNull(websiteFetcher.fetch(source.url, source.id))
                 else -> {
-                    log.warn("Unknown source type: {}", source.type)
+                    log.warn("[Polling] Unknown source type: {}", source.type)
                     emptyList()
                 }
             }
@@ -41,7 +41,7 @@ class SourcePoller(
 
             for (article in articles) {
                 if (article.publishedAt != null && Instant.parse(article.publishedAt).isBefore(maxAgeCutoff)) {
-                    log.debug("Skipping old article '{}' (published {})", article.title, article.publishedAt)
+                    log.debug("[Polling] Skipping old article '{}' (published {})", article.title, article.publishedAt)
                     continue
                 }
 
@@ -59,9 +59,9 @@ class SourcePoller(
             }
 
             sourceRepository.save(source.copy(lastPolled = Instant.now().toString(), lastSeenId = latestTimestamp))
-            log.info("Source {} polled: {} new articles saved", source.id, savedCount)
+            log.info("[Polling] Source {} polled: {} new articles saved", source.id, savedCount)
         } catch (e: Exception) {
-            log.error("Error polling source {}: {}", source.id, e.message, e)
+            log.error("[Polling] Error polling source {}: {}", source.id, e.message, e)
             sourceRepository.save(source.copy(lastPolled = Instant.now().toString()))
         }
     }

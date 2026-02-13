@@ -12,6 +12,7 @@ import java.net.URI
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlin.time.measureTimedValue
 
 @Component
 class BriefingComposer(
@@ -35,18 +36,21 @@ class BriefingComposer(
     }
 
     fun compose(articles: List<Article>, podcast: Podcast, composeModelDef: ModelDefinition): String {
+        log.info("[LLM] Composing briefing from {} articles (style: {})", articles.size, podcast.style)
         val chatClient = chatClientFactory.createForModel(podcast.userId, composeModelDef)
         val prompt = buildPrompt(articles, podcast)
 
-        val rawScript = chatClient.prompt()
-            .user(prompt)
-            .options(OpenAiChatOptions.builder().model(composeModelDef.model).build())
-            .call()
-            .content() ?: throw IllegalStateException("Empty response from LLM for briefing composition")
+        val (script, elapsed) = measureTimedValue {
+            val rawScript = chatClient.prompt()
+                .user(prompt)
+                .options(OpenAiChatOptions.builder().model(composeModelDef.model).build())
+                .call()
+                .content() ?: throw IllegalStateException("Empty response from LLM for briefing composition")
 
-        val script = stripSectionHeaders(rawScript)
+            stripSectionHeaders(rawScript)
+        }
 
-        log.info("Composed briefing script: {} words from {} articles (style: {})", script.split("\\s+".toRegex()).size, articles.size, podcast.style)
+        log.info("[LLM] Briefing composed — {} words in {}", script.split("\\s+".toRegex()).size, elapsed)
         return script
     }
 

@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneOffset
+import kotlin.time.TimeSource
 
 @Component
 class BriefingGenerationScheduler(
@@ -44,26 +45,29 @@ class BriefingGenerationScheduler(
                 }
 
                 if (nextExecution != null && !nextExecution.isAfter(now)) {
-                    log.info("Podcast {} is due for briefing generation", podcast.id)
+                    log.info("[Pipeline] Podcast {} is due for briefing generation", podcast.id)
                     generateBriefing(podcast.id)
                 }
             } catch (e: Exception) {
-                log.error("Error checking/generating briefing for podcast {}: {}", podcast.id, e.message, e)
+                log.error("[Pipeline] Error checking/generating briefing for podcast {}: {}", podcast.id, e.message, e)
             }
         }
     }
 
     private fun generateBriefing(podcastId: String) {
+        log.info("[Pipeline] Starting briefing generation for podcast {}", podcastId)
+        val mark = TimeSource.Monotonic.markNow()
+
         val podcast = podcastRepository.findById(podcastId).orElse(null) ?: return
 
         if (podcast.requireReview && hasPendingOrApprovedEpisode(podcastId)) {
-            log.info("Podcast {} has a pending/approved episode — skipping generation", podcastId)
+            log.info("[Pipeline] Podcast {} has a pending/approved episode — skipping generation ({})", podcastId, mark.elapsedNow())
             return
         }
 
         val result = llmPipeline.run(podcast)
         if (result == null) {
-            log.info("No briefing script generated for podcast {} — nothing to synthesize", podcastId)
+            log.info("[Pipeline] No briefing script generated for podcast {} — nothing to synthesize ({})", podcastId, mark.elapsedNow())
             podcastRepository.save(podcast.copy(lastGeneratedAt = Instant.now().toString()))
             return
         }
@@ -80,7 +84,7 @@ class BriefingGenerationScheduler(
                 )
             )
             podcastRepository.save(podcast.copy(lastGeneratedAt = Instant.now().toString()))
-            log.info("Script ready for review for podcast {}", podcastId)
+            log.info("[Pipeline] Script ready for review for podcast {} — total {}", podcastId, mark.elapsedNow())
         } else {
             val episode = ttsPipeline.generate(result.script, podcast)
             val episodeWithModels = episode.copy(
@@ -89,7 +93,7 @@ class BriefingGenerationScheduler(
             )
             episodeRepository.save(episodeWithModels)
             podcastRepository.save(podcast.copy(lastGeneratedAt = Instant.now().toString()))
-            log.info("Briefing generation complete for podcast {}: episode {} ({} seconds)", podcastId, episode.id, episode.durationSeconds)
+            log.info("[Pipeline] Briefing generation complete for podcast {}: episode {} ({} seconds) — total {}", podcastId, episode.id, episode.durationSeconds, mark.elapsedNow())
         }
     }
 

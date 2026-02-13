@@ -32,7 +32,8 @@ class ArticleProcessor(
         val chatClient = chatClientFactory.createForModel(podcast.userId, filterModelDef)
         val model = filterModelDef.model
 
-        return articles.mapNotNull { article ->
+        return articles.mapIndexedNotNull { index, article ->
+            log.info("[LLM] Processing article {}/{}: '{}'", index + 1, articles.size, article.title)
             try {
                 val prompt = """
                     You are a relevance filter and summarizer. Given the topic of interest and an article, rate the article's relevance on a scale of 1-5. If the score is 3 or above, also provide a 2-3 sentence summary capturing the key information.
@@ -61,11 +62,11 @@ class ArticleProcessor(
                 val updated = article.copy(isRelevant = isRelevant, summary = summary)
                 articleRepository.save(updated)
 
-                log.info("Article '{}' scored {} - {}", article.title, result?.score, result?.justification)
+                log.info("[LLM] Article '{}' scored {} — {}", article.title, result?.score, result?.justification)
 
                 if (isRelevant) updated else null
             } catch (e: Exception) {
-                log.error("Error processing article '{}': {}", article.title, e.message, e)
+                log.error("[LLM] Error processing article '{}': {}", article.title, e.message, e)
                 null
             }
         }
