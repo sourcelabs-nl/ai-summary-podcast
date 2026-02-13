@@ -29,6 +29,12 @@ data class SoundCloudTrackResponse(
     val title: String? = null
 )
 
+@JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy::class)
+data class SoundCloudPlaylistResponse(
+    val id: Long,
+    val permalinkUrl: String? = null
+)
+
 data class TrackUploadRequest(
     val title: String,
     val description: String,
@@ -121,5 +127,58 @@ class SoundCloudClient {
             SoundCloudTrackResponse::class.java
         )
         return response.body ?: throw RuntimeException("Empty response from SoundCloud track upload")
+    }
+
+    fun createPlaylist(
+        accessToken: String,
+        title: String,
+        trackIds: List<Long>
+    ): SoundCloudPlaylistResponse {
+        val body = mapOf(
+            "playlist" to mapOf(
+                "title" to title,
+                "sharing" to "public",
+                "tracks" to trackIds.map { mapOf("id" to it) }
+            )
+        )
+
+        val headers = HttpHeaders().apply {
+            contentType = MediaType.APPLICATION_JSON
+            setBearerAuth(accessToken)
+        }
+
+        log.info("Creating SoundCloud playlist: {}", title)
+        val response = restTemplate.postForEntity(
+            "https://api.soundcloud.com/playlists",
+            HttpEntity(body, headers),
+            SoundCloudPlaylistResponse::class.java
+        )
+        return response.body ?: throw RuntimeException("Empty response from SoundCloud playlist creation")
+    }
+
+    fun addTrackToPlaylist(
+        accessToken: String,
+        playlistId: Long,
+        trackIds: List<Long>
+    ): SoundCloudPlaylistResponse {
+        val body = mapOf(
+            "playlist" to mapOf(
+                "tracks" to trackIds.map { mapOf("id" to it) }
+            )
+        )
+
+        val headers = HttpHeaders().apply {
+            contentType = MediaType.APPLICATION_JSON
+            setBearerAuth(accessToken)
+        }
+
+        log.info("Adding tracks to SoundCloud playlist {}", playlistId)
+        val response = restTemplate.exchange(
+            "https://api.soundcloud.com/playlists/$playlistId",
+            HttpMethod.PUT,
+            HttpEntity(body, headers),
+            SoundCloudPlaylistResponse::class.java
+        )
+        return response.body ?: throw RuntimeException("Empty response from SoundCloud playlist update")
     }
 }

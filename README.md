@@ -164,7 +164,7 @@ curl http://localhost:8080/users/{userId}/oauth/soundcloud/status
 curl -X POST http://localhost:8080/users/{userId}/podcasts/{podcastId}/episodes/{episodeId}/publish/soundcloud
 ```
 
-The track is uploaded with the podcast name + date as title, a description from the script, and tags from the podcast topic. Publication status (PENDING, PUBLISHED, FAILED) is tracked per episode and target.
+The track is uploaded with the podcast name + date as title, a description from the script, and tags from the podcast topic. Episodes are automatically grouped into a SoundCloud playlist per podcast — on first publish a new playlist is created, and subsequent episodes are added to it. Publication status (PENDING, PUBLISHED, FAILED) is tracked per episode and target.
 
 ### Example: Create a Customized Podcast
 

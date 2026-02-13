@@ -56,7 +56,7 @@ class SoundCloudOAuthControllerTest {
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.authorizationUrl").exists())
             .andExpect(jsonPath("$.authorizationUrl").value(
-                org.hamcrest.Matchers.containsString("https://soundcloud.com/connect")
+                org.hamcrest.Matchers.containsString("https://secure.soundcloud.com/authorize")
             ))
             .andExpect(jsonPath("$.authorizationUrl").value(
                 org.hamcrest.Matchers.containsString("client_id=test-client-id")
