@@ -1,7 +1,5 @@
 package com.aisummarypodcast.publishing
 
-import com.fasterxml.jackson.annotation.JsonProperty
-import com.fasterxml.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
 import org.springframework.core.io.FileSystemResource
 import org.springframework.http.HttpEntity
@@ -11,19 +9,23 @@ import org.springframework.http.MediaType
 import org.springframework.stereotype.Service
 import org.springframework.util.LinkedMultiValueMap
 import org.springframework.web.client.RestTemplate
+import tools.jackson.databind.PropertyNamingStrategies
+import tools.jackson.databind.annotation.JsonNaming
 import java.nio.file.Path
 
+@JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy::class)
 data class SoundCloudTokenResponse(
-    @JsonProperty("access_token") val accessToken: String,
-    @JsonProperty("refresh_token") val refreshToken: String? = null,
-    @JsonProperty("expires_in") val expiresIn: Long? = null,
-    @JsonProperty("token_type") val tokenType: String? = null,
-    @JsonProperty("scope") val scope: String? = null
+    val accessToken: String,
+    val refreshToken: String? = null,
+    val expiresIn: Long? = null,
+    val tokenType: String? = null,
+    val scope: String? = null
 )
 
+@JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy::class)
 data class SoundCloudTrackResponse(
     val id: Long,
-    @JsonProperty("permalink_url") val permalinkUrl: String,
+    val permalinkUrl: String,
     val title: String? = null
 )
 
@@ -35,7 +37,7 @@ data class TrackUploadRequest(
 )
 
 @Service
-class SoundCloudClient(private val objectMapper: ObjectMapper) {
+class SoundCloudClient {
 
     private val log = LoggerFactory.getLogger(javaClass)
     private val restTemplate = RestTemplate()
