@@ -13,7 +13,9 @@ data class EpisodeResponse(
     val scriptText: String,
     val status: String,
     val audioFilePath: String?,
-    val durationSeconds: Int?
+    val durationSeconds: Int?,
+    val filterModel: String?,
+    val composeModel: String?
 )
 
 data class UpdateScriptRequest(
@@ -145,6 +147,8 @@ class EpisodeController(
         scriptText = scriptText,
         status = status,
         audioFilePath = audioFilePath,
-        durationSeconds = durationSeconds
+        durationSeconds = durationSeconds,
+        filterModel = filterModel,
+        composeModel = composeModel
     )
 }

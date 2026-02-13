@@ -1,5 +1,6 @@
 package com.aisummarypodcast.llm
 
+import com.aisummarypodcast.config.ModelDefinition
 import com.aisummarypodcast.store.Article
 import com.aisummarypodcast.store.ArticleRepository
 import com.aisummarypodcast.store.Podcast
@@ -18,13 +19,17 @@ class LlmPipelineTest {
 
     private val articleProcessor = mockk<ArticleProcessor>()
     private val briefingComposer = mockk<BriefingComposer>()
+    private val modelResolver = mockk<ModelResolver>()
     private val articleRepository = mockk<ArticleRepository> {
         every { save(any()) } answers { firstArg() }
     }
     private val sourceRepository = mockk<SourceRepository>()
 
+    private val filterModelDef = ModelDefinition(provider = "openrouter", model = "anthropic/claude-haiku-4.5")
+    private val composeModelDef = ModelDefinition(provider = "openrouter", model = "anthropic/claude-sonnet-4")
+
     private val pipeline = LlmPipeline(
-        articleProcessor, briefingComposer, articleRepository, sourceRepository
+        articleProcessor, briefingComposer, modelResolver, articleRepository, sourceRepository
     )
 
     private val podcast = Podcast(id = "p1", userId = "u1", name = "Tech Daily", topic = "tech")
@@ -60,7 +65,9 @@ class LlmPipelineTest {
 
         every { sourceRepository.findByPodcastId("p1") } returns listOf(source)
         every { articleRepository.findUnfilteredBySourceIds(listOf("s1")) } returns listOf(article)
-        every { articleProcessor.process(listOf(article), podcast) } returns emptyList()
+        every { modelResolver.resolve(podcast, "filter") } returns filterModelDef
+        every { modelResolver.resolve(podcast, "compose") } returns composeModelDef
+        every { articleProcessor.process(listOf(article), podcast, filterModelDef) } returns emptyList()
 
         val result = pipeline.run(podcast)
 
@@ -78,12 +85,17 @@ class LlmPipelineTest {
 
         every { sourceRepository.findByPodcastId("p1") } returns listOf(source)
         every { articleRepository.findUnfilteredBySourceIds(listOf("s1")) } returns listOf(article)
-        every { articleProcessor.process(listOf(article), podcast) } returns listOf(processedArticle)
-        every { briefingComposer.compose(listOf(processedArticle), podcast) } returns "Today in tech..."
+        every { modelResolver.resolve(podcast, "filter") } returns filterModelDef
+        every { modelResolver.resolve(podcast, "compose") } returns composeModelDef
+        every { articleProcessor.process(listOf(article), podcast, filterModelDef) } returns listOf(processedArticle)
+        every { briefingComposer.compose(listOf(processedArticle), podcast, composeModelDef) } returns "Today in tech..."
 
         val result = pipeline.run(podcast)
 
         assertNotNull(result)
+        assertEquals("Today in tech...", result!!.script)
+        assertEquals("anthropic/claude-haiku-4.5", result.filterModel)
+        assertEquals("anthropic/claude-sonnet-4", result.composeModel)
 
         val savedArticle = slot<Article>()
         verify { articleRepository.save(capture(savedArticle)) }
@@ -102,13 +114,15 @@ class LlmPipelineTest {
 
         every { sourceRepository.findByPodcastId("p1") } returns listOf(source)
         every { articleRepository.findUnfilteredBySourceIds(listOf("s1")) } returns listOf(article)
-        every { articleProcessor.process(listOf(article), podcast) } returns listOf(processedArticle)
-        every { briefingComposer.compose(listOf(processedArticle), podcast) } returns "Final script"
+        every { modelResolver.resolve(podcast, "filter") } returns filterModelDef
+        every { modelResolver.resolve(podcast, "compose") } returns composeModelDef
+        every { articleProcessor.process(listOf(article), podcast, filterModelDef) } returns listOf(processedArticle)
+        every { briefingComposer.compose(listOf(processedArticle), podcast, composeModelDef) } returns "Final script"
 
         val result = pipeline.run(podcast)
 
-        assertEquals("Final script", result)
-        verify { articleProcessor.process(listOf(article), podcast) }
-        verify { briefingComposer.compose(listOf(processedArticle), podcast) }
+        assertEquals("Final script", result!!.script)
+        verify { articleProcessor.process(listOf(article), podcast, filterModelDef) }
+        verify { briefingComposer.compose(listOf(processedArticle), podcast, composeModelDef) }
     }
 }

@@ -26,6 +26,12 @@ class UserProviderConfigRepository(private val jdbcTemplate: JdbcTemplate) {
             rowMapper, userId, category.name
         )
 
+    fun findByUserIdAndCategoryAndProvider(userId: String, category: ApiKeyCategory, provider: String): UserProviderConfig? =
+        jdbcTemplate.query(
+            "SELECT * FROM user_provider_configs WHERE user_id = ? AND category = ? AND provider = ?",
+            rowMapper, userId, category.name, provider
+        ).firstOrNull()
+
     fun save(config: UserProviderConfig) {
         jdbcTemplate.update(
             """

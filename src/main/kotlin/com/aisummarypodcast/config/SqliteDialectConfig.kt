@@ -1,8 +1,12 @@
 package com.aisummarypodcast.config
 
+import tools.jackson.module.kotlin.jacksonObjectMapper
+import tools.jackson.module.kotlin.readValue
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.core.convert.converter.Converter
+import org.springframework.data.convert.ReadingConverter
+import org.springframework.data.convert.WritingConverter
 import org.springframework.data.jdbc.core.convert.JdbcCustomConversions
 import org.springframework.data.jdbc.core.dialect.JdbcDialect
 import org.springframework.data.relational.core.dialect.AnsiDialect
@@ -23,7 +27,12 @@ class SqliteDialectConfig {
     fun jdbcCustomConversions(dialect: JdbcDialect): JdbcCustomConversions {
         return JdbcCustomConversions.of(
             dialect,
-            listOf(IntegerToBooleanConverter(), BooleanToIntegerConverter())
+            listOf(
+                IntegerToBooleanConverter(),
+                BooleanToIntegerConverter(),
+                StringToMapConverter(),
+                MapToStringConverter()
+            )
         )
     }
 
@@ -33,5 +42,17 @@ class SqliteDialectConfig {
 
     class BooleanToIntegerConverter : Converter<Boolean, Int> {
         override fun convert(source: Boolean): Int = if (source) 1 else 0
+    }
+
+    @ReadingConverter
+    class StringToMapConverter : Converter<String, Map<String, String>> {
+        private val objectMapper = jacksonObjectMapper()
+        override fun convert(source: String): Map<String, String> = objectMapper.readValue(source)
+    }
+
+    @WritingConverter
+    class MapToStringConverter : Converter<Map<String, String>, String> {
+        private val objectMapper = jacksonObjectMapper()
+        override fun convert(source: Map<String, String>): String = objectMapper.writeValueAsString(source)
     }
 }

@@ -21,7 +21,16 @@ app:
   encryption:
     master-key: ${APP_ENCRYPTION_MASTER_KEY}
   llm:
-    cheap-model: anthropic/claude-haiku-4.5
+    models:
+      cheap:
+        provider: openrouter
+        model: openai/gpt5-nano
+      capable:
+        provider: openrouter
+        model: anthropic/claude-sonnet-4.5
+    defaults:
+      filter: cheap
+      compose: capable
   briefing:
     target-words: 1500
   episodes:

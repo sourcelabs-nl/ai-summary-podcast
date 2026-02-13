@@ -52,6 +52,16 @@ class UserProviderConfigService(
         return globalFallbackForCategory(category)
     }
 
+    fun resolveConfig(userId: String, category: ApiKeyCategory, provider: String): ProviderConfig? {
+        val config = repository.findByUserIdAndCategoryAndProvider(userId, category, provider)
+        if (config != null) {
+            val apiKey = config.encryptedApiKey?.let { apiKeyEncryptor.decrypt(it) }
+            val baseUrl = config.baseUrl ?: resolveDefaultUrl(config.provider)
+            return ProviderConfig(baseUrl = baseUrl, apiKey = apiKey)
+        }
+        return globalFallbackForProvider(category, provider)
+    }
+
     fun resolveDefaultUrl(provider: String): String =
         PROVIDER_DEFAULT_URLS[provider.lowercase()]
             ?: throw IllegalStateException("No default base URL for provider '$provider'")
@@ -65,6 +75,17 @@ class UserProviderConfigService(
         }
         ApiKeyCategory.TTS -> System.getenv("OPENAI_API_KEY")?.let {
             ProviderConfig(baseUrl = "https://api.openai.com", apiKey = it)
+        }
+    }
+
+    private fun globalFallbackForProvider(category: ApiKeyCategory, provider: String): ProviderConfig? {
+        val envKey = when {
+            category == ApiKeyCategory.LLM && provider == "openrouter" -> "OPENROUTER_API_KEY"
+            category == ApiKeyCategory.TTS && provider == "openai" -> "OPENAI_API_KEY"
+            else -> return null
+        }
+        return System.getenv(envKey)?.let {
+            ProviderConfig(baseUrl = resolveDefaultUrl(provider), apiKey = it)
         }
     }
 }

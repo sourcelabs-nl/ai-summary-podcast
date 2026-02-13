@@ -6,17 +6,24 @@ import com.aisummarypodcast.store.SourceRepository
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 
+data class PipelineResult(
+    val script: String,
+    val filterModel: String,
+    val composeModel: String
+)
+
 @Component
 class LlmPipeline(
     private val articleProcessor: ArticleProcessor,
     private val briefingComposer: BriefingComposer,
+    private val modelResolver: ModelResolver,
     private val articleRepository: ArticleRepository,
     private val sourceRepository: SourceRepository
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    fun run(podcast: Podcast): String? {
+    fun run(podcast: Podcast): PipelineResult? {
         val sourceIds = sourceRepository.findByPodcastId(podcast.id).map { it.id }
         if (sourceIds.isEmpty()) {
             log.info("Podcast {} has no sources — skipping", podcast.id)
@@ -29,8 +36,11 @@ class LlmPipeline(
             return null
         }
 
+        val filterModelDef = modelResolver.resolve(podcast, "filter")
+        val composeModelDef = modelResolver.resolve(podcast, "compose")
+
         log.info("Processing {} articles for podcast {}", unfiltered.size, podcast.id)
-        val processed = articleProcessor.process(unfiltered, podcast)
+        val processed = articleProcessor.process(unfiltered, podcast, filterModelDef)
 
         if (processed.isEmpty()) {
             log.info("No relevant articles for podcast {} — skipping briefing generation", podcast.id)
@@ -38,13 +48,17 @@ class LlmPipeline(
         }
 
         log.info("Composing briefing script for podcast {}", podcast.id)
-        val script = briefingComposer.compose(processed, podcast)
+        val script = briefingComposer.compose(processed, podcast, composeModelDef)
 
         for (article in processed) {
             articleRepository.save(article.copy(isProcessed = true))
         }
 
         log.info("LLM pipeline complete for podcast {}: {} articles processed into briefing", podcast.id, processed.size)
-        return script
+        return PipelineResult(
+            script = script,
+            filterModel = filterModelDef.model,
+            composeModel = composeModelDef.model
+        )
     }
 }

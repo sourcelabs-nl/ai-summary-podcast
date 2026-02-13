@@ -1,8 +1,8 @@
 package com.aisummarypodcast.llm
 
+import com.aisummarypodcast.config.ModelDefinition
 import com.aisummarypodcast.store.ApiKeyCategory
 import com.aisummarypodcast.store.LlmCacheRepository
-import com.aisummarypodcast.store.Podcast
 import com.aisummarypodcast.user.UserProviderConfigService
 import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.openai.OpenAiChatModel
@@ -18,9 +18,12 @@ class ChatClientFactory(
     private val llmCacheRepository: LlmCacheRepository
 ) {
 
-    fun createForPodcast(podcast: Podcast): ChatClient {
-        val config = providerConfigService.resolveConfig(podcast.userId, ApiKeyCategory.LLM)
-            ?: throw IllegalStateException("No provider config available for category 'LLM'. Configure a user provider or set the OPENROUTER_API_KEY environment variable.")
+    fun createForModel(userId: String, modelDefinition: ModelDefinition): ChatClient {
+        val config = providerConfigService.resolveConfig(userId, ApiKeyCategory.LLM, modelDefinition.provider)
+            ?: throw IllegalStateException(
+                "No provider config available for provider '${modelDefinition.provider}'. " +
+                    "Configure a user provider for '${modelDefinition.provider}' or set the appropriate environment variable."
+            )
 
         val requestFactory = SimpleClientHttpRequestFactory().apply {
             setReadTimeout(Duration.ofMinutes(5))

@@ -149,6 +149,36 @@ class UserProviderConfigServiceTest {
     }
 
     @Test
+    fun `resolveConfig with provider returns matching config`() {
+        val config = UserProviderConfig(userId, "ollama", ApiKeyCategory.LLM, null, null)
+        every { repository.findByUserIdAndCategoryAndProvider(userId, ApiKeyCategory.LLM, "ollama") } returns config
+
+        val result = service.resolveConfig(userId, ApiKeyCategory.LLM, "ollama")
+
+        assertNull(result?.apiKey)
+        assertEquals("http://localhost:11434", result?.baseUrl)
+    }
+
+    @Test
+    fun `resolveConfig with provider falls back to env var for openrouter`() {
+        every { repository.findByUserIdAndCategoryAndProvider(userId, ApiKeyCategory.LLM, "openrouter") } returns null
+
+        // This test just verifies the method doesn't throw and delegates to global fallback
+        service.resolveConfig(userId, ApiKeyCategory.LLM, "openrouter")
+
+        verify { repository.findByUserIdAndCategoryAndProvider(userId, ApiKeyCategory.LLM, "openrouter") }
+    }
+
+    @Test
+    fun `resolveConfig with provider returns null for non-fallback provider without config`() {
+        every { repository.findByUserIdAndCategoryAndProvider(userId, ApiKeyCategory.LLM, "ollama") } returns null
+
+        val result = service.resolveConfig(userId, ApiKeyCategory.LLM, "ollama")
+
+        assertNull(result)
+    }
+
+    @Test
     fun `hasDefaultUrl returns true for known providers`() {
         assertEquals(true, service.hasDefaultUrl("openrouter"))
         assertEquals(true, service.hasDefaultUrl("openai"))

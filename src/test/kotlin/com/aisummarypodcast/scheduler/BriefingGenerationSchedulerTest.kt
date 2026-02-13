@@ -1,6 +1,7 @@
 package com.aisummarypodcast.scheduler
 
 import com.aisummarypodcast.llm.LlmPipeline
+import com.aisummarypodcast.llm.PipelineResult
 import com.aisummarypodcast.store.Episode
 import com.aisummarypodcast.store.EpisodeRepository
 import com.aisummarypodcast.store.Podcast
@@ -61,27 +62,30 @@ class BriefingGenerationSchedulerTest {
     @Test
     fun `generates pending episode when review required and no pending exists`() {
         val podcast = duePodcast(requireReview = true)
+        val pipelineResult = PipelineResult(script = "Generated script", filterModel = "anthropic/claude-haiku-4.5", composeModel = "anthropic/claude-sonnet-4")
         every { podcastRepository.findAll() } returns listOf(podcast)
         every { podcastRepository.findById("p1") } returns java.util.Optional.of(podcast)
         every { episodeRepository.findByPodcastIdAndStatusIn("p1", listOf("PENDING_REVIEW", "APPROVED")) } returns emptyList()
-        every { llmPipeline.run(podcast) } returns "Generated script"
+        every { llmPipeline.run(podcast) } returns pipelineResult
         every { episodeRepository.save(any()) } answers { firstArg() }
         every { podcastRepository.save(any()) } answers { firstArg() }
 
         scheduler.checkAndGenerate()
 
-        verify { episodeRepository.save(match { it.status == "PENDING_REVIEW" && it.scriptText == "Generated script" }) }
+        verify { episodeRepository.save(match { it.status == "PENDING_REVIEW" && it.scriptText == "Generated script" && it.filterModel == "anthropic/claude-haiku-4.5" && it.composeModel == "anthropic/claude-sonnet-4" }) }
         verify(exactly = 0) { ttsPipeline.generate(any(), any()) }
     }
 
     @Test
     fun `generates audio immediately when review not required`() {
         val podcast = duePodcast(requireReview = false)
+        val pipelineResult = PipelineResult(script = "Generated script", filterModel = "anthropic/claude-haiku-4.5", composeModel = "anthropic/claude-sonnet-4")
         val episode = Episode(id = 1, podcastId = "p1", generatedAt = Instant.now().toString(), scriptText = "script", audioFilePath = "/audio.mp3", durationSeconds = 60)
         every { podcastRepository.findAll() } returns listOf(podcast)
         every { podcastRepository.findById("p1") } returns java.util.Optional.of(podcast)
-        every { llmPipeline.run(podcast) } returns "Generated script"
+        every { llmPipeline.run(podcast) } returns pipelineResult
         every { ttsPipeline.generate("Generated script", podcast) } returns episode
+        every { episodeRepository.save(any()) } answers { firstArg() }
         every { podcastRepository.save(any()) } answers { firstArg() }
 
         scheduler.checkAndGenerate()

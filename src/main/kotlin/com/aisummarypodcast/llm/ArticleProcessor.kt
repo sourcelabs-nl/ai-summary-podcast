@@ -1,6 +1,6 @@
 package com.aisummarypodcast.llm
 
-import com.aisummarypodcast.config.AppProperties
+import com.aisummarypodcast.config.ModelDefinition
 import com.aisummarypodcast.store.Article
 import com.aisummarypodcast.store.ArticleRepository
 import com.aisummarypodcast.store.Podcast
@@ -17,15 +17,20 @@ data class ArticleProcessingResult(
 @Component
 class ArticleProcessor(
     private val articleRepository: ArticleRepository,
-    private val appProperties: AppProperties,
+    private val modelResolver: ModelResolver,
     private val chatClientFactory: ChatClientFactory
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
     fun process(articles: List<Article>, podcast: Podcast): List<Article> {
-        val chatClient = chatClientFactory.createForPodcast(podcast)
-        val model = podcast.llmModel ?: appProperties.llm.cheapModel
+        val filterModelDef = modelResolver.resolve(podcast, "filter")
+        return process(articles, podcast, filterModelDef)
+    }
+
+    fun process(articles: List<Article>, podcast: Podcast, filterModelDef: ModelDefinition): List<Article> {
+        val chatClient = chatClientFactory.createForModel(podcast.userId, filterModelDef)
+        val model = filterModelDef.model
 
         return articles.mapNotNull { article ->
             try {

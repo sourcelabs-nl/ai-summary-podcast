@@ -13,7 +13,7 @@ data class CreatePodcastRequest(
     val name: String,
     val topic: String,
     val language: String? = null,
-    val llmModel: String? = null,
+    val llmModels: Map<String, String>? = null,
     val ttsVoice: String? = null,
     val ttsSpeed: Double? = null,
     val style: String? = null,
@@ -27,7 +27,7 @@ data class UpdatePodcastRequest(
     val name: String,
     val topic: String,
     val language: String? = null,
-    val llmModel: String? = null,
+    val llmModels: Map<String, String>? = null,
     val ttsVoice: String? = null,
     val ttsSpeed: Double? = null,
     val style: String? = null,
@@ -43,7 +43,7 @@ data class PodcastResponse(
     val name: String,
     val topic: String,
     val language: String,
-    val llmModel: String?,
+    val llmModels: Map<String, String>?,
     val ttsVoice: String,
     val ttsSpeed: Double,
     val style: String,
@@ -83,7 +83,7 @@ class PodcastController(
                 name = request.name,
                 topic = request.topic,
                 language = language,
-                llmModel = request.llmModel,
+                llmModels = request.llmModels,
                 ttsVoice = request.ttsVoice ?: "nova",
                 ttsSpeed = request.ttsSpeed ?: 1.0,
                 style = request.style ?: "news-briefing",
@@ -129,7 +129,7 @@ class PodcastController(
                 name = request.name,
                 topic = request.topic,
                 language = request.language ?: existing.language,
-                llmModel = request.llmModel ?: existing.llmModel,
+                llmModels = request.llmModels ?: existing.llmModels,
                 ttsVoice = request.ttsVoice ?: existing.ttsVoice,
                 ttsSpeed = request.ttsSpeed ?: existing.ttsSpeed,
                 style = request.style ?: existing.style,
@@ -167,7 +167,7 @@ class PodcastController(
         }
 
         log.info("Manual briefing generation triggered for podcast {}", podcastId)
-        val script = llmPipeline.run(podcast)
+        val result = llmPipeline.run(podcast)
             ?: return ResponseEntity.ok("No relevant articles to process")
 
         if (podcast.requireReview) {
@@ -175,22 +175,29 @@ class PodcastController(
                 com.aisummarypodcast.store.Episode(
                     podcastId = podcastId,
                     generatedAt = Instant.now().toString(),
-                    scriptText = script,
-                    status = "PENDING_REVIEW"
+                    scriptText = result.script,
+                    status = "PENDING_REVIEW",
+                    filterModel = result.filterModel,
+                    composeModel = result.composeModel
                 )
             )
             podcastService.update(podcastId, podcast.copy(lastGeneratedAt = Instant.now().toString()))
             return ResponseEntity.ok(mapOf("message" to "Script ready for review", "episodeId" to episode.id))
         }
 
-        val episode = ttsPipeline.generate(script, podcast)
+        val episode = ttsPipeline.generate(result.script, podcast)
+        val episodeWithModels = episode.copy(
+            filterModel = result.filterModel,
+            composeModel = result.composeModel
+        )
+        episodeRepository.save(episodeWithModels)
         podcastService.update(podcastId, podcast.copy(lastGeneratedAt = Instant.now().toString()))
-        return ResponseEntity.ok(mapOf("message" to "Episode generated: ${episode.id} (${episode.durationSeconds}s)"))
+        return ResponseEntity.ok(mapOf("message" to "Episode generated: ${episodeWithModels.id} (${episodeWithModels.durationSeconds}s)"))
     }
 
     private fun com.aisummarypodcast.store.Podcast.toResponse() = PodcastResponse(
         id = id, userId = userId, name = name, topic = topic,
-        language = language, llmModel = llmModel, ttsVoice = ttsVoice, ttsSpeed = ttsSpeed,
+        language = language, llmModels = llmModels, ttsVoice = ttsVoice, ttsSpeed = ttsSpeed,
         style = style, targetWords = targetWords, cron = cron,
         customInstructions = customInstructions, requireReview = requireReview,
         lastGeneratedAt = lastGeneratedAt

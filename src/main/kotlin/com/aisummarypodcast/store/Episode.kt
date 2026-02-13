@@ -11,5 +11,7 @@ data class Episode(
     val scriptText: String,
     val status: String = "GENERATED",
     val audioFilePath: String? = null,
-    val durationSeconds: Int? = null
+    val durationSeconds: Int? = null,
+    val filterModel: String? = null,
+    val composeModel: String? = null
 )

@@ -1,6 +1,7 @@
 package com.aisummarypodcast.llm
 
 import com.aisummarypodcast.config.AppProperties
+import com.aisummarypodcast.config.ModelDefinition
 import com.aisummarypodcast.podcast.SupportedLanguage
 import com.aisummarypodcast.store.Article
 import com.aisummarypodcast.store.Podcast
@@ -15,6 +16,7 @@ import java.util.Locale
 @Component
 class BriefingComposer(
     private val appProperties: AppProperties,
+    private val modelResolver: ModelResolver,
     private val chatClientFactory: ChatClientFactory
 ) {
 
@@ -28,18 +30,18 @@ class BriefingComposer(
     )
 
     fun compose(articles: List<Article>, podcast: Podcast): String {
-        val chatClient = chatClientFactory.createForPodcast(podcast)
+        val composeModelDef = modelResolver.resolve(podcast, "compose")
+        return compose(articles, podcast, composeModelDef)
+    }
+
+    fun compose(articles: List<Article>, podcast: Podcast, composeModelDef: ModelDefinition): String {
+        val chatClient = chatClientFactory.createForModel(podcast.userId, composeModelDef)
         val prompt = buildPrompt(articles, podcast)
 
-        val promptBuilder = chatClient.prompt()
+        val rawScript = chatClient.prompt()
             .user(prompt)
-
-        val model = podcast.llmModel
-        if (model != null) {
-            promptBuilder.options(OpenAiChatOptions.builder().model(model).build())
-        }
-
-        val rawScript = promptBuilder.call()
+            .options(OpenAiChatOptions.builder().model(composeModelDef.model).build())
+            .call()
             .content() ?: throw IllegalStateException("Empty response from LLM for briefing composition")
 
         val script = stripSectionHeaders(rawScript)

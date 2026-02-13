@@ -61,8 +61,8 @@ class BriefingGenerationScheduler(
             return
         }
 
-        val script = llmPipeline.run(podcast)
-        if (script == null) {
+        val result = llmPipeline.run(podcast)
+        if (result == null) {
             log.info("No briefing script generated for podcast {} — nothing to synthesize", podcastId)
             podcastRepository.save(podcast.copy(lastGeneratedAt = Instant.now().toString()))
             return
@@ -73,14 +73,21 @@ class BriefingGenerationScheduler(
                 Episode(
                     podcastId = podcastId,
                     generatedAt = Instant.now().toString(),
-                    scriptText = script,
-                    status = "PENDING_REVIEW"
+                    scriptText = result.script,
+                    status = "PENDING_REVIEW",
+                    filterModel = result.filterModel,
+                    composeModel = result.composeModel
                 )
             )
             podcastRepository.save(podcast.copy(lastGeneratedAt = Instant.now().toString()))
             log.info("Script ready for review for podcast {}", podcastId)
         } else {
-            val episode = ttsPipeline.generate(script, podcast)
+            val episode = ttsPipeline.generate(result.script, podcast)
+            val episodeWithModels = episode.copy(
+                filterModel = result.filterModel,
+                composeModel = result.composeModel
+            )
+            episodeRepository.save(episodeWithModels)
             podcastRepository.save(podcast.copy(lastGeneratedAt = Instant.now().toString()))
             log.info("Briefing generation complete for podcast {}: episode {} ({} seconds)", podcastId, episode.id, episode.durationSeconds)
         }

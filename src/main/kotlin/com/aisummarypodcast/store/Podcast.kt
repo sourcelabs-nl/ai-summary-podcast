@@ -10,7 +10,7 @@ data class Podcast(
     val userId: String,
     val name: String,
     val topic: String,
-    val llmModel: String? = null,
+    val llmModels: Map<String, String>? = null,
     val language: String = "en",
     val ttsVoice: String = "nova",
     val ttsSpeed: Double = 1.0,

@@ -18,7 +18,18 @@ data class EncryptionProperties(
 )
 
 data class LlmProperties(
-    val cheapModel: String = "anthropic/claude-3-haiku"
+    val models: Map<String, ModelDefinition> = emptyMap(),
+    val defaults: StageDefaults = StageDefaults()
+)
+
+data class ModelDefinition(
+    val provider: String,
+    val model: String
+)
+
+data class StageDefaults(
+    val filter: String = "cheap",
+    val compose: String = "capable"
 )
 
 data class BriefingProperties(

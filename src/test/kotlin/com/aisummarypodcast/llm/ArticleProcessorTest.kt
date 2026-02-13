@@ -1,11 +1,6 @@
 package com.aisummarypodcast.llm
 
-import com.aisummarypodcast.config.AppProperties
-import com.aisummarypodcast.config.BriefingProperties
-import com.aisummarypodcast.config.EncryptionProperties
-import com.aisummarypodcast.config.EpisodesProperties
-import com.aisummarypodcast.config.FeedProperties
-import com.aisummarypodcast.config.LlmProperties
+import com.aisummarypodcast.config.ModelDefinition
 import com.aisummarypodcast.store.Article
 import com.aisummarypodcast.store.ArticleRepository
 import com.aisummarypodcast.store.Podcast
@@ -24,17 +19,13 @@ class ArticleProcessorTest {
     private val articleRepository = mockk<ArticleRepository> {
         every { save(any()) } answers { firstArg() }
     }
-    private val appProperties = AppProperties(
-        llm = LlmProperties(cheapModel = "test-model"),
-        briefing = BriefingProperties(),
-        episodes = EpisodesProperties(),
-        feed = FeedProperties(),
-        encryption = EncryptionProperties(masterKey = "test-key")
-    )
+    private val modelResolver = mockk<ModelResolver>()
     private val chatClientFactory = mockk<ChatClientFactory>()
     private val chatClient = mockk<ChatClient>()
 
-    private val processor = ArticleProcessor(articleRepository, appProperties, chatClientFactory)
+    private val filterModelDef = ModelDefinition(provider = "openrouter", model = "test-model")
+
+    private val processor = ArticleProcessor(articleRepository, modelResolver, chatClientFactory)
 
     private val podcast = Podcast(id = "p1", userId = "u1", name = "Tech Daily", topic = "AI engineering")
 
@@ -48,7 +39,7 @@ class ArticleProcessorTest {
         every { chatClientRequestSpec.call() } returns callResponseSpec
 
         every { chatClient.prompt() } returns chatClientRequestSpec
-        every { chatClientFactory.createForPodcast(podcast) } returns chatClient
+        every { chatClientFactory.createForModel(podcast.userId, filterModelDef) } returns chatClient
     }
 
     @Test
@@ -61,7 +52,7 @@ class ArticleProcessorTest {
             ArticleProcessingResult(score = 4, justification = "Directly about AI", summary = "GPT-5 was released by OpenAI.")
         )
 
-        val result = processor.process(listOf(article), podcast)
+        val result = processor.process(listOf(article), podcast, filterModelDef)
 
         assertEquals(1, result.size)
         assertEquals(true, result[0].isRelevant)
@@ -83,7 +74,7 @@ class ArticleProcessorTest {
             ArticleProcessingResult(score = 1, justification = "Not about AI")
         )
 
-        val result = processor.process(listOf(article), podcast)
+        val result = processor.process(listOf(article), podcast, filterModelDef)
 
         assertTrue(result.isEmpty())
 
@@ -103,7 +94,7 @@ class ArticleProcessorTest {
             ArticleProcessingResult(score = 2, justification = "Tangentially related", summary = "An AI cooking app was launched.")
         )
 
-        val result = processor.process(listOf(article), podcast)
+        val result = processor.process(listOf(article), podcast, filterModelDef)
 
         assertTrue(result.isEmpty())
 
@@ -125,9 +116,9 @@ class ArticleProcessorTest {
         every { chatClientRequestSpec.options(any()) } returns chatClientRequestSpec
         every { chatClientRequestSpec.call() } throws RuntimeException("LLM unavailable")
         every { chatClient.prompt() } returns chatClientRequestSpec
-        every { chatClientFactory.createForPodcast(podcast) } returns chatClient
+        every { chatClientFactory.createForModel(podcast.userId, filterModelDef) } returns chatClient
 
-        val result = processor.process(listOf(article), podcast)
+        val result = processor.process(listOf(article), podcast, filterModelDef)
 
         assertTrue(result.isEmpty())
         verify(exactly = 0) { articleRepository.save(any()) }
