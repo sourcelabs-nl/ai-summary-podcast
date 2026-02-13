@@ -14,6 +14,11 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.time.measureTimedValue
 
+data class CompositionResult(
+    val script: String,
+    val usage: TokenUsage
+)
+
 @Component
 class BriefingComposer(
     private val appProperties: AppProperties,
@@ -30,28 +35,33 @@ class BriefingComposer(
         "executive-summary" to "You are creating a concise executive summary. Be fact-focused with minimal commentary. Get straight to the point."
     )
 
-    fun compose(articles: List<Article>, podcast: Podcast): String {
+    fun compose(articles: List<Article>, podcast: Podcast): CompositionResult {
         val composeModelDef = modelResolver.resolve(podcast, "compose")
         return compose(articles, podcast, composeModelDef)
     }
 
-    fun compose(articles: List<Article>, podcast: Podcast, composeModelDef: ModelDefinition): String {
+    fun compose(articles: List<Article>, podcast: Podcast, composeModelDef: ModelDefinition): CompositionResult {
         log.info("[LLM] Composing briefing from {} articles (style: {})", articles.size, podcast.style)
         val chatClient = chatClientFactory.createForModel(podcast.userId, composeModelDef)
         val prompt = buildPrompt(articles, podcast)
 
-        val (script, elapsed) = measureTimedValue {
-            val rawScript = chatClient.prompt()
+        val (result, elapsed) = measureTimedValue {
+            val chatResponse = chatClient.prompt()
                 .user(prompt)
                 .options(OpenAiChatOptions.builder().model(composeModelDef.model).build())
                 .call()
-                .content() ?: throw IllegalStateException("Empty response from LLM for briefing composition")
+                .chatResponse()
 
-            stripSectionHeaders(rawScript)
+            val rawScript = chatResponse?.result?.output?.text
+                ?: throw IllegalStateException("Empty response from LLM for briefing composition")
+
+            val script = stripSectionHeaders(rawScript)
+            val usage = TokenUsage.fromChatResponse(chatResponse)
+            CompositionResult(script, usage)
         }
 
-        log.info("[LLM] Briefing composed — {} words in {}", script.split("\\s+".toRegex()).size, elapsed)
-        return script
+        log.info("[LLM] Briefing composed — {} words in {}", result.script.split("\\s+".toRegex()).size, elapsed)
+        return result
     }
 
     internal fun buildPrompt(articles: List<Article>, podcast: Podcast): String {

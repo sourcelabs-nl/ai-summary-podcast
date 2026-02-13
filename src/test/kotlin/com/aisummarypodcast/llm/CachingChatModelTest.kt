@@ -9,6 +9,8 @@ import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import org.springframework.ai.chat.messages.AssistantMessage
+import org.springframework.ai.chat.metadata.ChatResponseMetadata
+import org.springframework.ai.chat.metadata.DefaultUsage
 import org.springframework.ai.chat.model.ChatModel
 import org.springframework.ai.chat.model.ChatResponse
 import org.springframework.ai.chat.model.Generation
@@ -102,5 +104,40 @@ class CachingChatModelTest {
         val savedSlot = slot<LlmCache>()
         verify { llmCacheRepository.save(capture(savedSlot)) }
         assertEquals("default", savedSlot.captured.model)
+    }
+
+    @Test
+    fun `cache miss preserves usage metadata from delegate response`() {
+        val prompt = Prompt("Summarize", OpenAiChatOptions.builder().model("test-model").build())
+        val metadata = ChatResponseMetadata.builder()
+            .usage(DefaultUsage(500, 100))
+            .build()
+        val delegateResponse = ChatResponse(listOf(Generation(AssistantMessage("Summary"))), metadata)
+
+        every { llmCacheRepository.findByPromptHashAndModel(any(), "test-model") } returns null
+        every { delegate.call(prompt) } returns delegateResponse
+
+        val result = cachingChatModel.call(prompt)
+
+        val usage = TokenUsage.fromChatResponse(result)
+        assertEquals(500, usage.inputTokens)
+        assertEquals(100, usage.outputTokens)
+    }
+
+    @Test
+    fun `cache hit returns zero usage`() {
+        val prompt = Prompt("Summarize", OpenAiChatOptions.builder().model("test-model").build())
+        val cachedEntry = LlmCache(
+            id = 1, promptHash = "hash", model = "test-model",
+            response = "Cached", createdAt = "2026-01-01T00:00:00Z"
+        )
+
+        every { llmCacheRepository.findByPromptHashAndModel(any(), "test-model") } returns cachedEntry
+
+        val result = cachingChatModel.call(prompt)
+
+        val usage = TokenUsage.fromChatResponse(result)
+        assertEquals(0, usage.inputTokens)
+        assertEquals(0, usage.outputTokens)
     }
 }

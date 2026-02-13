@@ -51,7 +51,7 @@ class ArticleSummarizer(
                     Respond with a JSON object containing "summary" (2-3 sentences capturing the key information).
                 """.trimIndent()
 
-                val result = chatClient.prompt()
+                val responseEntity = chatClient.prompt()
                     .user(prompt)
                     .options(
                         OpenAiChatOptions.builder()
@@ -60,9 +60,18 @@ class ArticleSummarizer(
                             .build()
                     )
                     .call()
-                    .entity(SummarizationResult::class.java)
+                    .responseEntity(SummarizationResult::class.java)
 
-                val updated = article.copy(summary = result?.summary)
+                val result = responseEntity.entity()
+                val usage = TokenUsage.fromChatResponse(responseEntity.response())
+                val costCents = CostEstimator.estimateLlmCostCents(usage.inputTokens, usage.outputTokens, filterModelDef)
+
+                val updated = article.copy(
+                    summary = result?.summary,
+                    llmInputTokens = (article.llmInputTokens ?: 0) + usage.inputTokens,
+                    llmOutputTokens = (article.llmOutputTokens ?: 0) + usage.outputTokens,
+                    llmCostCents = CostEstimator.addNullableCosts(article.llmCostCents, costCents)
+                )
                 articleRepository.save(updated)
 
                 log.info("[LLM] Summarized '{}' — {} chars", article.title, result?.summary?.length ?: 0)
@@ -73,4 +82,5 @@ class ArticleSummarizer(
             }
         }
     }
+
 }

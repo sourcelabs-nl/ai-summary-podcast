@@ -13,5 +13,10 @@ data class Episode(
     val audioFilePath: String? = null,
     val durationSeconds: Int? = null,
     val filterModel: String? = null,
-    val composeModel: String? = null
+    val composeModel: String? = null,
+    val llmInputTokens: Int? = null,
+    val llmOutputTokens: Int? = null,
+    val llmCostCents: Int? = null,
+    val ttsCharacters: Int? = null,
+    val ttsCostCents: Int? = null
 )

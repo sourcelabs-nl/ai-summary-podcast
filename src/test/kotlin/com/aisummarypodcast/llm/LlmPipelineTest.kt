@@ -68,6 +68,7 @@ class LlmPipelineTest {
         )
         val scoredArticle = unscoredArticle.copy(relevanceScore = 8)
         val summarizedArticle = scoredArticle.copy(summary = "AI is advancing rapidly.")
+        val compositionResult = CompositionResult("Today in tech...", TokenUsage(1000, 500))
 
         every { sourceRepository.findByPodcastId("p1") } returns listOf(source)
         every { modelResolver.resolve(podcast, "filter") } returns filterModelDef
@@ -77,7 +78,7 @@ class LlmPipelineTest {
         every { articleRepository.findRelevantUnsummarizedBySourceIds(listOf("s1"), 5) } returns listOf(scoredArticle)
         every { articleSummarizer.summarize(listOf(scoredArticle), podcast, filterModelDef) } returns listOf(summarizedArticle)
         every { articleRepository.findRelevantUnprocessedBySourceIds(listOf("s1"), 5) } returns listOf(summarizedArticle)
-        every { briefingComposer.compose(listOf(summarizedArticle), podcast, composeModelDef) } returns "Today in tech..."
+        every { briefingComposer.compose(listOf(summarizedArticle), podcast, composeModelDef) } returns compositionResult
 
         val result = pipeline.run(podcast)
 
@@ -85,6 +86,8 @@ class LlmPipelineTest {
         assertEquals("Today in tech...", result!!.script)
         assertEquals("anthropic/claude-haiku-4.5", result.filterModel)
         assertEquals("anthropic/claude-sonnet-4", result.composeModel)
+        assertEquals(1000, result.llmInputTokens)
+        assertEquals(500, result.llmOutputTokens)
 
         verify { articleRepository.save(summarizedArticle.copy(isProcessed = true)) }
     }
@@ -104,7 +107,7 @@ class LlmPipelineTest {
         every { articleRepository.findUnscoredBySourceIds(listOf("s1")) } returns emptyList()
         every { articleRepository.findRelevantUnsummarizedBySourceIds(listOf("s1"), 5) } returns emptyList()
         every { articleRepository.findRelevantUnprocessedBySourceIds(listOf("s1"), 5) } returns listOf(article)
-        every { briefingComposer.compose(listOf(article), podcast, composeModelDef) } returns "Script text"
+        every { briefingComposer.compose(listOf(article), podcast, composeModelDef) } returns CompositionResult("Script text", TokenUsage(500, 200))
 
         val result = pipeline.run(podcast)
 
@@ -132,7 +135,7 @@ class LlmPipelineTest {
         every { articleRepository.findRelevantUnsummarizedBySourceIds(listOf("s1"), 5) } returns listOf(scoredArticle)
         every { articleSummarizer.summarize(listOf(scoredArticle), podcast, filterModelDef) } returns listOf(scoredArticle.copy(summary = "Summary."))
         every { articleRepository.findRelevantUnprocessedBySourceIds(listOf("s1"), 5) } returns listOf(scoredArticle.copy(summary = "Summary."))
-        every { briefingComposer.compose(any(), podcast, composeModelDef) } returns "Briefing script"
+        every { briefingComposer.compose(any(), podcast, composeModelDef) } returns CompositionResult("Briefing script", TokenUsage(800, 300))
 
         val result = pipeline.run(podcast)
 

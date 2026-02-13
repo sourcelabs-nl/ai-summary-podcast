@@ -10,7 +10,10 @@ import kotlin.time.measureTimedValue
 data class PipelineResult(
     val script: String,
     val filterModel: String,
-    val composeModel: String
+    val composeModel: String,
+    val llmInputTokens: Int = 0,
+    val llmOutputTokens: Int = 0,
+    val llmCostCents: Int? = null
 )
 
 @Component
@@ -63,17 +66,24 @@ class LlmPipeline(
             return null
         }
 
-        val script = briefingComposer.compose(toCompose, podcast, composeModelDef)
+        val compositionResult = briefingComposer.compose(toCompose, podcast, composeModelDef)
 
         for (article in toCompose) {
             articleRepository.save(article.copy(isProcessed = true))
         }
 
+        val costCents = CostEstimator.estimateLlmCostCents(
+            compositionResult.usage.inputTokens, compositionResult.usage.outputTokens, composeModelDef
+        )
+
         log.info("[LLM] Pipeline complete for podcast {}: {} articles processed into briefing", podcast.id, toCompose.size)
         return PipelineResult(
-            script = script,
+            script = compositionResult.script,
             filterModel = filterModelDef.model,
-            composeModel = composeModelDef.model
+            composeModel = composeModelDef.model,
+            llmInputTokens = compositionResult.usage.inputTokens,
+            llmOutputTokens = compositionResult.usage.outputTokens,
+            llmCostCents = costCents
         )
     }
 }

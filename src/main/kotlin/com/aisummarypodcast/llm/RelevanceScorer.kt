@@ -45,7 +45,7 @@ class RelevanceScorer(
                     Respond with a JSON object containing "score" (integer 0-10) and "justification" (one sentence explaining the score).
                 """.trimIndent()
 
-                val result = chatClient.prompt()
+                val responseEntity = chatClient.prompt()
                     .user(prompt)
                     .options(
                         OpenAiChatOptions.builder()
@@ -54,10 +54,19 @@ class RelevanceScorer(
                             .build()
                     )
                     .call()
-                    .entity(RelevanceScoringResult::class.java)
+                    .responseEntity(RelevanceScoringResult::class.java)
+
+                val result = responseEntity.entity()
+                val usage = TokenUsage.fromChatResponse(responseEntity.response())
+                val costCents = CostEstimator.estimateLlmCostCents(usage.inputTokens, usage.outputTokens, filterModelDef)
 
                 val score = result?.score ?: 0
-                val updated = article.copy(relevanceScore = score)
+                val updated = article.copy(
+                    relevanceScore = score,
+                    llmInputTokens = (article.llmInputTokens ?: 0) + usage.inputTokens,
+                    llmOutputTokens = (article.llmOutputTokens ?: 0) + usage.outputTokens,
+                    llmCostCents = CostEstimator.addNullableCosts(article.llmCostCents, costCents)
+                )
                 articleRepository.save(updated)
 
                 log.info("[LLM] Article '{}' scored {} — {}", article.title, score, result?.justification)
@@ -68,4 +77,5 @@ class RelevanceScorer(
             }
         }
     }
+
 }

@@ -24,10 +24,14 @@ app:
     models:
       cheap:
         provider: openrouter
-        model: openai/gpt5-nano
+        model: openai/gpt-4o-mini
+        input-cost-per-mtok: 0.15
+        output-cost-per-mtok: 0.60
       capable:
         provider: openrouter
         model: anthropic/claude-sonnet-4.5
+        input-cost-per-mtok: 3.00
+        output-cost-per-mtok: 15.00
     defaults:
       filter: cheap
       compose: capable
@@ -38,6 +42,8 @@ app:
     retention-days: 365
   source:
     max-article-age-days: 7
+  tts:
+    cost-per-million-chars: 15.00
   feed:
     base-url: http://localhost:8080
     title: AI Summary Podcast

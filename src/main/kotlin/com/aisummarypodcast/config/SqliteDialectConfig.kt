@@ -36,10 +36,12 @@ class SqliteDialectConfig {
         )
     }
 
+    @ReadingConverter
     class IntegerToBooleanConverter : Converter<Int, Boolean> {
         override fun convert(source: Int): Boolean = source != 0
     }
 
+    @WritingConverter
     class BooleanToIntegerConverter : Converter<Boolean, Int> {
         override fun convert(source: Boolean): Int = if (source) 1 else 0
     }

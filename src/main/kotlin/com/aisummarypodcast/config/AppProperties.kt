@@ -10,7 +10,8 @@ data class AppProperties(
     val feed: FeedProperties,
     val encryption: EncryptionProperties,
     val llmCache: LlmCacheProperties = LlmCacheProperties(),
-    val source: SourceProperties = SourceProperties()
+    val source: SourceProperties = SourceProperties(),
+    val tts: TtsProperties = TtsProperties()
 )
 
 data class EncryptionProperties(
@@ -25,7 +26,9 @@ data class LlmProperties(
 
 data class ModelDefinition(
     val provider: String,
-    val model: String
+    val model: String,
+    val inputCostPerMtok: Double? = null,
+    val outputCostPerMtok: Double? = null
 )
 
 data class StageDefaults(
@@ -54,4 +57,8 @@ data class LlmCacheProperties(
 
 data class SourceProperties(
     val maxArticleAgeDays: Int = 7
+)
+
+data class TtsProperties(
+    val costPerMillionChars: Double? = null
 )

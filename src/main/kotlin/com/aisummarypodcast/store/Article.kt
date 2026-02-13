@@ -14,5 +14,8 @@ data class Article(
     val contentHash: String,
     val relevanceScore: Int? = null,
     val isProcessed: Boolean = false,
-    val summary: String? = null
+    val summary: String? = null,
+    val llmInputTokens: Int? = null,
+    val llmOutputTokens: Int? = null,
+    val llmCostCents: Int? = null
 )

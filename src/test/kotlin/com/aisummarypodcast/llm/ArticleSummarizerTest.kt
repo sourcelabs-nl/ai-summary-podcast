@@ -18,6 +18,12 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
 import org.springframework.ai.chat.client.ChatClient
+import org.springframework.ai.chat.client.ResponseEntity
+import org.springframework.ai.chat.messages.AssistantMessage
+import org.springframework.ai.chat.metadata.ChatResponseMetadata
+import org.springframework.ai.chat.metadata.DefaultUsage
+import org.springframework.ai.chat.model.ChatResponse
+import org.springframework.ai.chat.model.Generation
 
 class ArticleSummarizerTest {
 
@@ -28,7 +34,10 @@ class ArticleSummarizerTest {
     private val chatClientFactory = mockk<ChatClientFactory>()
     private val chatClient = mockk<ChatClient>()
 
-    private val filterModelDef = ModelDefinition(provider = "openrouter", model = "test-model")
+    private val filterModelDef = ModelDefinition(
+        provider = "openrouter", model = "test-model",
+        inputCostPerMtok = 0.15, outputCostPerMtok = 0.60
+    )
 
     private val appProperties = AppProperties(
         llm = LlmProperties(summarizationMinWords = 500),
@@ -42,9 +51,15 @@ class ArticleSummarizerTest {
 
     private val podcast = Podcast(id = "p1", userId = "u1", name = "Tech Daily", topic = "AI engineering")
 
-    private fun mockLlmResponse(result: SummarizationResult) {
+    private fun mockLlmResponse(result: SummarizationResult, inputTokens: Int = 600, outputTokens: Int = 80) {
+        val metadata = ChatResponseMetadata.builder()
+            .usage(DefaultUsage(inputTokens, outputTokens))
+            .build()
+        val chatResponse = ChatResponse(listOf(Generation(AssistantMessage("{}"))), metadata)
+        val responseEntity = ResponseEntity(chatResponse, result)
+
         val callResponseSpec = mockk<ChatClient.CallResponseSpec>()
-        every { callResponseSpec.entity(SummarizationResult::class.java) } returns result
+        every { callResponseSpec.responseEntity(SummarizationResult::class.java) } returns responseEntity
 
         val chatClientRequestSpec = mockk<ChatClient.ChatClientRequestSpec>()
         every { chatClientRequestSpec.user(any<String>()) } returns chatClientRequestSpec
@@ -108,5 +123,33 @@ class ArticleSummarizerTest {
 
         assertNull(result[0].summary)
         verify(exactly = 0) { articleRepository.save(any()) }
+    }
+
+    @Test
+    fun `token counts are accumulated on article from scoring and summarization`() {
+        val article = articleWithWordCount(600).copy(
+            llmInputTokens = 500, llmOutputTokens = 50, llmCostCents = 0
+        )
+        mockLlmResponse(SummarizationResult(summary = "Summary."), inputTokens = 800, outputTokens = 100)
+
+        val result = summarizer.summarize(listOf(article), podcast, filterModelDef)
+
+        val saved = slot<Article>()
+        verify { articleRepository.save(capture(saved)) }
+        assertEquals(1300, saved.captured.llmInputTokens)
+        assertEquals(150, saved.captured.llmOutputTokens)
+    }
+
+    @Test
+    fun `token counts start from zero when article has no previous counts`() {
+        val article = articleWithWordCount(600)
+        mockLlmResponse(SummarizationResult(summary = "Summary."), inputTokens = 800, outputTokens = 100)
+
+        summarizer.summarize(listOf(article), podcast, filterModelDef)
+
+        val saved = slot<Article>()
+        verify { articleRepository.save(capture(saved)) }
+        assertEquals(800, saved.captured.llmInputTokens)
+        assertEquals(100, saved.captured.llmOutputTokens)
     }
 }

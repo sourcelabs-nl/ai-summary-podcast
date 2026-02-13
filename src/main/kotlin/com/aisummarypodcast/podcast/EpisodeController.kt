@@ -15,7 +15,12 @@ data class EpisodeResponse(
     val audioFilePath: String?,
     val durationSeconds: Int?,
     val filterModel: String?,
-    val composeModel: String?
+    val composeModel: String?,
+    val llmInputTokens: Int?,
+    val llmOutputTokens: Int?,
+    val llmCostCents: Int?,
+    val ttsCharacters: Int?,
+    val ttsCostCents: Int?
 )
 
 data class UpdateScriptRequest(
@@ -149,6 +154,11 @@ class EpisodeController(
         audioFilePath = audioFilePath,
         durationSeconds = durationSeconds,
         filterModel = filterModel,
-        composeModel = composeModel
+        composeModel = composeModel,
+        llmInputTokens = llmInputTokens,
+        llmOutputTokens = llmOutputTokens,
+        llmCostCents = llmCostCents,
+        ttsCharacters = ttsCharacters,
+        ttsCostCents = ttsCostCents
     )
 }

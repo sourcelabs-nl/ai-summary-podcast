@@ -2,12 +2,19 @@ package com.aisummarypodcast.llm
 
 import com.aisummarypodcast.config.AppProperties
 import com.aisummarypodcast.config.BriefingProperties
+import com.aisummarypodcast.config.ModelDefinition
 import com.aisummarypodcast.store.Article
 import com.aisummarypodcast.store.Podcast
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
+import org.springframework.ai.chat.client.ChatClient
+import org.springframework.ai.chat.messages.AssistantMessage
+import org.springframework.ai.chat.metadata.ChatResponseMetadata
+import org.springframework.ai.chat.metadata.DefaultUsage
+import org.springframework.ai.chat.model.ChatResponse
+import org.springframework.ai.chat.model.Generation
 
 class BriefingComposerTest {
 
@@ -182,6 +189,41 @@ class BriefingComposerTest {
         )
         val prompt = composer.buildPrompt(articles, podcast)
         assertTrue(prompt.contains("Short article body content."))
+    }
+
+    @Test
+    fun `compose returns CompositionResult with token usage`() {
+        val composeModelDef = ModelDefinition(provider = "openrouter", model = "test-model")
+        val podcast = Podcast(id = "p1", userId = "u1", name = "Test Pod", topic = "tech")
+        val articles = listOf(
+            Article(
+                id = 1, sourceId = "s1", title = "AI News", body = "body",
+                url = "https://example.com/1", contentHash = "h1", summary = "AI summary."
+            )
+        )
+
+        val metadata = ChatResponseMetadata.builder()
+            .usage(DefaultUsage(1200, 400))
+            .build()
+        val chatResponse = ChatResponse(listOf(Generation(AssistantMessage("Welcome to the briefing."))), metadata)
+
+        val callResponseSpec = mockk<ChatClient.CallResponseSpec>()
+        every { callResponseSpec.chatResponse() } returns chatResponse
+
+        val chatClientRequestSpec = mockk<ChatClient.ChatClientRequestSpec>()
+        every { chatClientRequestSpec.user(any<String>()) } returns chatClientRequestSpec
+        every { chatClientRequestSpec.options(any()) } returns chatClientRequestSpec
+        every { chatClientRequestSpec.call() } returns callResponseSpec
+
+        val chatClient = mockk<ChatClient>()
+        every { chatClient.prompt() } returns chatClientRequestSpec
+        every { chatClientFactory.createForModel(podcast.userId, composeModelDef) } returns chatClient
+
+        val result = composer.compose(articles, podcast, composeModelDef)
+
+        assertEquals("Welcome to the briefing.", result.script)
+        assertEquals(1200, result.usage.inputTokens)
+        assertEquals(400, result.usage.outputTokens)
     }
 
     @Test

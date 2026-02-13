@@ -4,6 +4,8 @@ import com.aisummarypodcast.store.LlmCache
 import com.aisummarypodcast.store.LlmCacheRepository
 import org.slf4j.LoggerFactory
 import org.springframework.ai.chat.messages.AssistantMessage
+import org.springframework.ai.chat.metadata.ChatResponseMetadata
+import org.springframework.ai.chat.metadata.DefaultUsage
 import org.springframework.ai.chat.model.ChatModel
 import org.springframework.ai.chat.model.ChatResponse
 import org.springframework.ai.chat.model.Generation
@@ -53,8 +55,12 @@ class CachingChatModel(
 
     override fun getDefaultOptions(): ChatOptions = delegate.defaultOptions
 
-    private fun reconstructResponse(text: String): ChatResponse =
-        ChatResponse(listOf(Generation(AssistantMessage(text))))
+    private fun reconstructResponse(text: String): ChatResponse {
+        val metadata = ChatResponseMetadata.builder()
+            .usage(DefaultUsage(0, 0))
+            .build()
+        return ChatResponse(listOf(Generation(AssistantMessage(text))), metadata)
+    }
 
     private fun sha256(text: String): String {
         val digest = MessageDigest.getInstance("SHA-256")

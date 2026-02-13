@@ -1,6 +1,7 @@
 package com.aisummarypodcast.tts
 
 import com.aisummarypodcast.config.AppProperties
+import com.aisummarypodcast.llm.CostEstimator
 import com.aisummarypodcast.store.Episode
 import com.aisummarypodcast.store.EpisodeRepository
 import com.aisummarypodcast.store.Podcast
@@ -28,9 +29,10 @@ class TtsPipeline(
         val chunks = TextChunker.chunk(script)
         log.info("[TTS] Script split into {} chunks for podcast {}", chunks.size, podcast.id)
 
-        val audioChunks = ttsService.generateAudio(chunks, podcast)
+        val ttsResult = ttsService.generateAudio(chunks, podcast)
+        val ttsCostCents = CostEstimator.estimateTtsCostCents(ttsResult.totalCharacters, appProperties.tts.costPerMillionChars)
 
-        val (outputPath, duration) = generateAudioFile(audioChunks, podcast)
+        val (outputPath, duration) = generateAudioFile(ttsResult.audioChunks, podcast)
 
         val episode = episodeRepository.save(
             Episode(
@@ -38,7 +40,9 @@ class TtsPipeline(
                 generatedAt = Instant.now().toString(),
                 scriptText = script,
                 audioFilePath = outputPath.toString(),
-                durationSeconds = duration
+                durationSeconds = duration,
+                ttsCharacters = ttsResult.totalCharacters,
+                ttsCostCents = ttsCostCents
             )
         )
 
@@ -51,15 +55,18 @@ class TtsPipeline(
         val chunks = TextChunker.chunk(episode.scriptText)
         log.info("[TTS] Script split into {} chunks for episode {} (podcast {})", chunks.size, episode.id, podcast.id)
 
-        val audioChunks = ttsService.generateAudio(chunks, podcast)
+        val ttsResult = ttsService.generateAudio(chunks, podcast)
+        val ttsCostCents = CostEstimator.estimateTtsCostCents(ttsResult.totalCharacters, appProperties.tts.costPerMillionChars)
 
-        val (outputPath, duration) = generateAudioFile(audioChunks, podcast)
+        val (outputPath, duration) = generateAudioFile(ttsResult.audioChunks, podcast)
 
         val updated = episodeRepository.save(
             episode.copy(
                 status = "GENERATED",
                 audioFilePath = outputPath.toString(),
-                durationSeconds = duration
+                durationSeconds = duration,
+                ttsCharacters = ttsResult.totalCharacters,
+                ttsCostCents = ttsCostCents
             )
         )
 

@@ -12,6 +12,12 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.springframework.ai.chat.client.ChatClient
+import org.springframework.ai.chat.client.ResponseEntity
+import org.springframework.ai.chat.messages.AssistantMessage
+import org.springframework.ai.chat.metadata.ChatResponseMetadata
+import org.springframework.ai.chat.metadata.DefaultUsage
+import org.springframework.ai.chat.model.ChatResponse
+import org.springframework.ai.chat.model.Generation
 
 class RelevanceScorerTest {
 
@@ -22,15 +28,24 @@ class RelevanceScorerTest {
     private val chatClientFactory = mockk<ChatClientFactory>()
     private val chatClient = mockk<ChatClient>()
 
-    private val filterModelDef = ModelDefinition(provider = "openrouter", model = "test-model")
+    private val filterModelDef = ModelDefinition(
+        provider = "openrouter", model = "test-model",
+        inputCostPerMtok = 0.15, outputCostPerMtok = 0.60
+    )
 
     private val scorer = RelevanceScorer(articleRepository, modelResolver, chatClientFactory)
 
     private val podcast = Podcast(id = "p1", userId = "u1", name = "Tech Daily", topic = "AI engineering")
 
-    private fun mockLlmResponse(result: RelevanceScoringResult) {
+    private fun mockLlmResponse(result: RelevanceScoringResult, inputTokens: Int = 500, outputTokens: Int = 50) {
+        val metadata = ChatResponseMetadata.builder()
+            .usage(DefaultUsage(inputTokens, outputTokens))
+            .build()
+        val chatResponse = ChatResponse(listOf(Generation(AssistantMessage("{}"))), metadata)
+        val responseEntity = ResponseEntity(chatResponse, result)
+
         val callResponseSpec = mockk<ChatClient.CallResponseSpec>()
-        every { callResponseSpec.entity(RelevanceScoringResult::class.java) } returns result
+        every { callResponseSpec.responseEntity(RelevanceScoringResult::class.java) } returns responseEntity
 
         val chatClientRequestSpec = mockk<ChatClient.ChatClientRequestSpec>()
         every { chatClientRequestSpec.user(any<String>()) } returns chatClientRequestSpec
@@ -109,5 +124,38 @@ class RelevanceScorerTest {
 
         assertEquals(1, result.size)
         assertEquals(0, result[0].relevanceScore)
+    }
+
+    @Test
+    fun `token counts are persisted on article after scoring`() {
+        val article = Article(
+            id = 5, sourceId = "s1", title = "AI News", body = "AI content",
+            url = "https://example.com/5", contentHash = "hash5"
+        )
+        mockLlmResponse(RelevanceScoringResult(score = 7, justification = "Relevant"), inputTokens = 800, outputTokens = 120)
+
+        scorer.score(listOf(article), podcast, filterModelDef)
+
+        val saved = slot<Article>()
+        verify { articleRepository.save(capture(saved)) }
+        assertEquals(800, saved.captured.llmInputTokens)
+        assertEquals(120, saved.captured.llmOutputTokens)
+    }
+
+    @Test
+    fun `cost cents are persisted on article after scoring`() {
+        val article = Article(
+            id = 6, sourceId = "s1", title = "AI News", body = "AI content",
+            url = "https://example.com/6", contentHash = "hash6"
+        )
+        // With inputCostPerMtok=0.15, outputCostPerMtok=0.60:
+        // (1000000 * 0.15 + 200000 * 0.60) / 1_000_000 * 100 = (150000 + 120000) / 1_000_000 * 100 = 27 cents
+        mockLlmResponse(RelevanceScoringResult(score = 7, justification = "Relevant"), inputTokens = 1000000, outputTokens = 200000)
+
+        scorer.score(listOf(article), podcast, filterModelDef)
+
+        val saved = slot<Article>()
+        verify { articleRepository.save(capture(saved)) }
+        assertEquals(27, saved.captured.llmCostCents)
     }
 }

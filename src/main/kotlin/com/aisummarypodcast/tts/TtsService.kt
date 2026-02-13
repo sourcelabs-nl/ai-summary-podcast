@@ -10,6 +10,11 @@ import org.springframework.ai.openai.OpenAiAudioSpeechOptions
 import org.springframework.ai.openai.api.OpenAiAudioApi
 import org.springframework.stereotype.Service
 
+data class TtsResult(
+    val audioChunks: List<ByteArray>,
+    val totalCharacters: Int
+)
+
 @Service
 class TtsService(
     private val providerConfigService: UserProviderConfigService
@@ -17,7 +22,7 @@ class TtsService(
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    fun generateAudio(chunks: List<String>, podcast: Podcast): List<ByteArray> {
+    fun generateAudio(chunks: List<String>, podcast: Podcast): TtsResult {
         log.info("Generating TTS audio for {} chunks (voice: {}, speed: {}, language: {})", chunks.size, podcast.ttsVoice, podcast.ttsSpeed, podcast.language)
 
         val speechModel = createSpeechModel(podcast)
@@ -27,11 +32,15 @@ class TtsService(
             .speed(podcast.ttsSpeed)
             .build()
 
-        return chunks.mapIndexed { index, chunk ->
+        val totalCharacters = chunks.sumOf { it.length }
+
+        val audioChunks = chunks.mapIndexed { index, chunk ->
             log.info("Generating TTS chunk {}/{} ({} chars)", index + 1, chunks.size, chunk.length)
             val response = speechModel.call(TextToSpeechPrompt(chunk, options))
             response.result.output
         }
+
+        return TtsResult(audioChunks, totalCharacters)
     }
 
     private fun createSpeechModel(podcast: Podcast): OpenAiAudioSpeechModel {

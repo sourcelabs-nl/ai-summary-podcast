@@ -80,7 +80,10 @@ class BriefingGenerationScheduler(
                     scriptText = result.script,
                     status = "PENDING_REVIEW",
                     filterModel = result.filterModel,
-                    composeModel = result.composeModel
+                    composeModel = result.composeModel,
+                    llmInputTokens = result.llmInputTokens,
+                    llmOutputTokens = result.llmOutputTokens,
+                    llmCostCents = result.llmCostCents
                 )
             )
             podcastRepository.save(podcast.copy(lastGeneratedAt = Instant.now().toString()))
@@ -89,7 +92,10 @@ class BriefingGenerationScheduler(
             val episode = ttsPipeline.generate(result.script, podcast)
             val episodeWithModels = episode.copy(
                 filterModel = result.filterModel,
-                composeModel = result.composeModel
+                composeModel = result.composeModel,
+                llmInputTokens = result.llmInputTokens,
+                llmOutputTokens = result.llmOutputTokens,
+                llmCostCents = result.llmCostCents
             )
             episodeRepository.save(episodeWithModels)
             podcastRepository.save(podcast.copy(lastGeneratedAt = Instant.now().toString()))
