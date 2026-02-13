@@ -98,23 +98,27 @@ The system SHALL allow deleting a user's provider configuration for a specific c
 - **THEN** the system returns HTTP 400 with a validation error message
 
 ### Requirement: API key resolution with fallback
-When the pipeline needs a provider configuration, the system SHALL resolve it by category in this order: (1) load the user's configs for that category, pick the first one found, decrypt the API key if present, and resolve the base URL (stored value or provider default), (2) fall back to the corresponding environment variable and default base URL (`OPENROUTER_API_KEY` + `https://openrouter.ai/api` for category `"LLM"`, `OPENAI_API_KEY` + `https://api.openai.com` for category `"TTS"`). The resolution SHALL return a `ProviderConfig` containing `baseUrl: String` and `apiKey: String?`. If neither a user config nor env var exists, the pipeline step SHALL fail with a clear error.
+When the pipeline needs a provider configuration, the system SHALL resolve it by category and provider name. The `resolveConfig` method SHALL accept a `userId`, `category`, and `provider` parameter. It SHALL look up the user's config for that specific `(userId, category, provider)` combination. If found, it SHALL decrypt the API key (if present) and resolve the base URL (stored value or provider default). If no user config exists for the requested provider, it SHALL fall back to the corresponding environment variable only if the provider matches the default fallback provider (`"openrouter"` for `LLM` → `OPENROUTER_API_KEY`, `"openai"` for `TTS` → `OPENAI_API_KEY`). The resolution SHALL return a `ProviderConfig` containing `baseUrl: String` and `apiKey: String?`. If neither a user config nor applicable env var fallback exists, the resolution SHALL fail with a clear error indicating which provider config is missing. The existing no-provider overload (resolving by category only, picking the first config) SHALL be retained for backward compatibility with TTS resolution.
 
-#### Scenario: User has one config for the category
-- **WHEN** the pipeline runs for a podcast whose owning user has a single provider config stored for category `LLM` with provider `"ollama"` and no API key
-- **THEN** the system resolves the config with `baseUrl = "http://localhost:11434"` and `apiKey = null`
+#### Scenario: User has config for the requested provider
+- **WHEN** the pipeline resolves config for provider "openrouter" and the user has a config for (LLM, "openrouter")
+- **THEN** the system returns that config's base URL and decrypted API key
 
-#### Scenario: User has multiple configs for the category
-- **WHEN** the pipeline runs for a podcast whose owning user has two LLM configs (`"openrouter"` and `"ollama"`)
-- **THEN** the system resolves using the first stored config for that category
+#### Scenario: User has config for a different provider only
+- **WHEN** the pipeline resolves config for provider "ollama" but the user only has a config for (LLM, "openrouter")
+- **THEN** the system does not use the openrouter config and checks the global fallback
 
-#### Scenario: User has no config, global env var exists
-- **WHEN** the pipeline runs for a podcast whose owning user has no `LLM` config, but the `OPENROUTER_API_KEY` environment variable is set
-- **THEN** the system resolves the config with `baseUrl = "https://openrouter.ai/api"` and the env var value as `apiKey`
+#### Scenario: Provider matches global fallback
+- **WHEN** the pipeline resolves config for provider "openrouter", the user has no config for openrouter, but `OPENROUTER_API_KEY` env var is set
+- **THEN** the system returns the default openrouter base URL with the env var as API key
 
-#### Scenario: No config available anywhere
-- **WHEN** the pipeline runs for a podcast whose owning user has no `LLM` config and the `OPENROUTER_API_KEY` environment variable is not set
-- **THEN** the pipeline step fails with an error indicating no provider config is available for the LLM category
+#### Scenario: Provider does not match global fallback
+- **WHEN** the pipeline resolves config for provider "ollama" and the user has no config for ollama
+- **THEN** the system fails with an error indicating no provider config is available for "ollama"
+
+#### Scenario: TTS resolution unchanged
+- **WHEN** the TTS pipeline resolves config using the category-only method (no provider parameter)
+- **THEN** the system picks the first available TTS config for the user, unchanged from current behavior
 
 #### Scenario: Spring AI auto-configuration excluded
 - **WHEN** the application starts
