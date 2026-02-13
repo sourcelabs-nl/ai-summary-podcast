@@ -22,7 +22,7 @@ The system SHALL split the briefing script into chunks that respect the TTS API'
 - **THEN** the sentence is split at the nearest whitespace before the 4096 limit
 
 ### Requirement: TTS audio generation via OpenAI API
-The system SHALL send each text chunk to the OpenAI TTS API using a manually configured `OpenAiAudioSpeechModel` bean (separate from the OpenRouter ChatClient). The voice and model (e.g., `alloy`, `tts-1-hd`) SHALL be configurable via application properties. Each chunk SHALL produce an MP3 audio segment. The TTS API auto-detects the language from the input text; no explicit language parameter is sent. Logging SHALL include the podcast's configured language for observability.
+The system SHALL send each text chunk to the OpenAI TTS API using a manually configured `OpenAiAudioSpeechModel` bean (separate from the OpenRouter ChatClient). The voice and model (e.g., `alloy`, `tts-1-hd`) SHALL be configurable via application properties. Each chunk SHALL produce an MP3 audio segment. The TTS API auto-detects the language from the input text; no explicit language parameter is sent. Logging SHALL include the podcast's configured language for observability. The TTS service SHALL track the total character count of all chunks sent to the API and return it alongside the audio data.
 
 #### Scenario: Chunk converted to audio
 - **WHEN** a text chunk is sent to the TTS API
@@ -39,6 +39,14 @@ The system SHALL send each text chunk to the OpenAI TTS API using a manually con
 #### Scenario: TTS logging includes language
 - **WHEN** TTS audio generation starts for a podcast with language `"nl"`
 - **THEN** the log message includes the language, e.g. "Generating TTS audio for 3 chunks (voice: nova, speed: 1.0, language: nl)"
+
+#### Scenario: Character count tracked across all chunks
+- **WHEN** 3 text chunks of 2000, 3000, and 1500 characters are sent to the TTS API
+- **THEN** the returned total character count is 6500
+
+#### Scenario: Character count included in TTS result
+- **WHEN** the TTS service generates audio for an episode
+- **THEN** the result includes both the audio byte arrays and the total character count
 
 ### Requirement: Audio concatenation via FFmpeg
 The system SHALL concatenate all audio chunks into a single MP3 file using FFmpeg via `ProcessBuilder`. The output file SHALL be stored in the configured episodes directory.
