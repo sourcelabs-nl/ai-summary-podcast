@@ -29,35 +29,35 @@ class BriefingComposerTest {
     fun `stripSectionHeaders removes Opening header line`() {
         val input = "[Opening]\nWelcome to today's briefing.\n"
         val result = composer.stripSectionHeaders(input)
-        assertEquals("Welcome to today's briefing.\n", result)
+        assertEquals("Welcome to today's briefing.", result)
     }
 
     @Test
     fun `stripSectionHeaders removes multiple header lines`() {
         val input = "[Opening]\nWelcome.\n[Transition]\nNext topic.\n[Closing]\nThat's all.\n"
         val result = composer.stripSectionHeaders(input)
-        assertEquals("Welcome.\nNext topic.\nThat's all.\n", result)
+        assertEquals("Welcome.\nNext topic.\nThat's all.", result)
     }
 
     @Test
     fun `stripSectionHeaders preserves inline bracketed text`() {
         val input = "The company [ACME Corp] announced earnings.\n"
         val result = composer.stripSectionHeaders(input)
-        assertEquals("The company [ACME Corp] announced earnings.\n", result)
+        assertEquals("The company [ACME Corp] announced earnings.", result)
     }
 
     @Test
     fun `stripSectionHeaders preserves brackets within sentences`() {
         val input = "Results were mixed [see chart] for the quarter.\nOverall performance improved.\n"
         val result = composer.stripSectionHeaders(input)
-        assertEquals("Results were mixed [see chart] for the quarter.\nOverall performance improved.\n", result)
+        assertEquals("Results were mixed [see chart] for the quarter.\nOverall performance improved.", result)
     }
 
     @Test
     fun `stripSectionHeaders handles script with no headers`() {
         val input = "Welcome to today's briefing.\nHere are the top stories.\n"
         val result = composer.stripSectionHeaders(input)
-        assertEquals(input, result)
+        assertEquals(input.trim(), result)
     }
 
     @Test
@@ -108,16 +108,54 @@ class BriefingComposerTest {
             )
         )
 
-        val block = articles.mapIndexed { index, article ->
-            val source = composer.extractDomain(article.url)
-            "${index + 1}. [$source] ${article.title}\n${article.summary}"
-        }.joinToString("\n\n")
+        val podcast = Podcast(id = "p1", userId = "u1", name = "Test", topic = "tech")
+        val prompt = composer.buildPrompt(articles, podcast)
 
-        assertEquals(
-            "1. [techcrunch.com] AI Breakthrough\nA major AI breakthrough was announced.\n\n" +
-                "2. [theverge.com] New Chip\nA new chip was unveiled.",
-            block
+        assertTrue(prompt.contains("[techcrunch.com] AI Breakthrough"))
+        assertTrue(prompt.contains("[theverge.com] New Chip"))
+    }
+
+    @Test
+    fun `summary block includes author when available`() {
+        val articles = listOf(
+            Article(
+                id = 1,
+                sourceId = "src-1",
+                title = "AI Breakthrough",
+                body = "body",
+                url = "https://techcrunch.com/2026/02/12/ai",
+                contentHash = "hash1",
+                summary = "A major AI breakthrough was announced.",
+                author = "John Smith"
+            )
         )
+
+        val podcast = Podcast(id = "p1", userId = "u1", name = "Test", topic = "tech")
+        val prompt = composer.buildPrompt(articles, podcast)
+
+        assertTrue(prompt.contains("[techcrunch.com, by John Smith] AI Breakthrough"))
+    }
+
+    @Test
+    fun `summary block omits author when null`() {
+        val articles = listOf(
+            Article(
+                id = 1,
+                sourceId = "src-1",
+                title = "AI Breakthrough",
+                body = "body",
+                url = "https://techcrunch.com/2026/02/12/ai",
+                contentHash = "hash1",
+                summary = "A major AI breakthrough was announced.",
+                author = null
+            )
+        )
+
+        val podcast = Podcast(id = "p1", userId = "u1", name = "Test", topic = "tech")
+        val prompt = composer.buildPrompt(articles, podcast)
+
+        assertTrue(prompt.contains("[techcrunch.com] AI Breakthrough"))
+        assertFalse(prompt.contains(", by"))
     }
 
     private val sampleArticles = listOf(
@@ -224,6 +262,13 @@ class BriefingComposerTest {
         assertEquals("Welcome to the briefing.", result.script)
         assertEquals(1200, result.usage.inputTokens)
         assertEquals(400, result.usage.outputTokens)
+    }
+
+    @Test
+    fun `buildPrompt includes author attribution instruction`() {
+        val podcast = Podcast(id = "p1", userId = "u1", name = "Test", topic = "tech")
+        val prompt = composer.buildPrompt(sampleArticles, podcast)
+        assertTrue(prompt.contains("credit original authors when known"))
     }
 
     @Test

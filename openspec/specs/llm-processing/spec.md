@@ -48,7 +48,7 @@ The `PipelineResult` SHALL include `llmInputTokens` and `llmOutputTokens` from t
 - **THEN** the token counts for that call are 0 and a warning is logged
 
 ### Requirement: Briefing script composition
-The system SHALL compose all relevant articles into a single coherent briefing script. For each article, the composer SHALL use the article's `summary` if available, or the article's `body` if no summary exists (short articles). The prompt SHALL include the current date (human-readable format), the podcast name, and the podcast topic as context. The prompt SHALL instruct the LLM to mention the podcast name, topic, and current date in the introduction. Each article in the summary block SHALL include the source domain name (extracted from the article URL). The prompt SHALL instruct the LLM to subtly and sparingly attribute information to its source throughout the script. The prompt SHALL instruct the LLM to use natural spoken language (not written style), include transitions between topics, and target approximately the configured word count (default: 1500 words for ~10 minutes of audio). The prompt SHALL explicitly prohibit bracketed section headers (e.g., `[Opening]`, `[Closing]`, `[Transition]`), stage directions, sound effects, and any other non-spoken text. After receiving the LLM response, the system SHALL sanitize the script by removing any lines consisting solely of bracketed headers (pattern: lines matching `[...]` with no other content). This step SHALL use a more capable model (configurable, e.g., `anthropic/claude-sonnet-4-20250514`). When the podcast's language is not English, the prompt SHALL instruct the LLM to write the entire script in the specified language. The current date in the prompt SHALL be formatted using the locale corresponding to the podcast's language.
+The system SHALL compose all relevant articles into a single coherent briefing script. For each article, the composer SHALL use the article's `summary` if available, or the article's `body` if no summary exists (short articles). The prompt SHALL include the current date (human-readable format), the podcast name, and the podcast topic as context. The prompt SHALL instruct the LLM to mention the podcast name, topic, and current date in the introduction. Each article in the summary block SHALL include the source domain name (extracted from the article URL) and the author name when available (format: `[domain, by Author]` or `[domain]` when author is null). The prompt SHALL instruct the LLM to naturally attribute information to its source and credit original authors when known — without over-citing. The prompt SHALL instruct the LLM to use natural spoken language (not written style), include transitions between topics, and target approximately the configured word count (default: 1500 words for ~10 minutes of audio). The prompt SHALL explicitly prohibit bracketed section headers (e.g., `[Opening]`, `[Closing]`, `[Transition]`), stage directions, sound effects, and any other non-spoken text. After receiving the LLM response, the system SHALL sanitize the script by removing any lines consisting solely of bracketed headers (pattern: lines matching `[...]` with no other content). This step SHALL use a more capable model (configurable, e.g., `anthropic/claude-sonnet-4-20250514`). When the podcast's language is not English, the prompt SHALL instruct the LLM to write the entire script in the specified language. The current date in the prompt SHALL be formatted using the locale corresponding to the podcast's language.
 
 #### Scenario: Composer uses summary for long articles
 - **WHEN** an article has a non-null `summary`
@@ -86,9 +86,17 @@ The system SHALL compose all relevant articles into a single coherent briefing s
 - **WHEN** a briefing is composed for podcast "AI Weekly" with topic "artificial intelligence"
 - **THEN** the introduction mentions the podcast name and topic
 
-#### Scenario: Source attribution included subtly
-- **WHEN** articles from techcrunch.com and theverge.com are composed into a briefing
-- **THEN** the script subtly references the source names, e.g., "according to TechCrunch" or "as reported by The Verge"
+#### Scenario: Source and author attribution included in summary block
+- **WHEN** an article from "https://techcrunch.com/2026/02/12/example" with author "John Smith" is included
+- **THEN** the summary block entry shows `[techcrunch.com, by John Smith] Article Title`
+
+#### Scenario: Source attribution without author in summary block
+- **WHEN** an article from "https://theverge.com/2026/02/12/example" with no author is included
+- **THEN** the summary block entry shows `[theverge.com] Article Title`
+
+#### Scenario: Script naturally credits authors
+- **WHEN** articles with known authors are composed into a briefing
+- **THEN** the script naturally credits authors where appropriate, e.g., "as John Smith reports for TechCrunch"
 
 #### Scenario: Article summary block includes source domain
 - **WHEN** an article with URL "https://techcrunch.com/2026/02/12/example" is included
@@ -148,7 +156,7 @@ The system SHALL score each unscored article on a scale of 0-10 for relevance to
 - **THEN** the `relevance_score` is saved to the database before the next article is scored
 
 ### Requirement: Conditional summarization stage
-The system SHALL summarize relevant articles only when the article body word count is greater than or equal to the global `app.llm.summarization-min-words` threshold (default: 500). Articles below this threshold SHALL NOT be summarized — their original body text will be used directly by the briefing composer. The summarization prompt SHALL request a 2-3 sentence summary capturing the key information. The summary SHALL be persisted on the article immediately after generation.
+The system SHALL summarize relevant articles only when the article body word count is greater than or equal to the global `app.llm.summarization-min-words` threshold (default: 500). Articles below this threshold SHALL NOT be summarized — their original body text will be used directly by the briefing composer. The summarization prompt SHALL request a 2-3 sentence summary capturing the key information. The summarization prompt SHALL instruct the LLM to preserve attribution: if the article attributes information to a specific person, organization, or study, that attribution SHALL be retained in the summary. The summary SHALL be persisted on the article immediately after generation.
 
 #### Scenario: Long article is summarized
 - **WHEN** a relevant article has a body of 1200 words and the summarization threshold is 500
@@ -165,3 +173,7 @@ The system SHALL summarize relevant articles only when the article body word cou
 #### Scenario: Custom global threshold respected
 - **WHEN** `app.llm.summarization-min-words` is configured to 800
 - **THEN** only articles with 800 or more words are summarized
+
+#### Scenario: Attribution preserved in summary
+- **WHEN** an article body states "Researchers at MIT published a study showing..."
+- **THEN** the summary retains the attribution, e.g., "MIT researchers found that..." rather than "A study showed..."

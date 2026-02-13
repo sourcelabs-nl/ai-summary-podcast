@@ -49,6 +49,7 @@ class ArticleSummarizer(
                     Article text: ${article.body}
 
                     Respond with a JSON object containing "summary" (2-3 sentences capturing the key information).
+                    If the article attributes information to a specific person, organization, or study, preserve that attribution in your summary.
                 """.trimIndent()
 
                 val responseEntity = chatClient.prompt()

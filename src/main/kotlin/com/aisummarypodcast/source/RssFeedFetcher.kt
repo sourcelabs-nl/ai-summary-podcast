@@ -34,6 +34,8 @@ class RssFeedFetcher {
                 val body = Jsoup.parse(rawBody).text()
                 val link = entry.link ?: entry.uri ?: return@mapNotNull null
                 val publishedAt = (entry.publishedDate ?: entry.updatedDate)?.toInstant()?.toString()
+                val author = entry.author?.takeIf { it.isNotBlank() }
+                    ?: entry.authors?.firstOrNull()?.name?.takeIf { it.isNotBlank() }
 
                 Article(
                     sourceId = sourceId,
@@ -41,6 +43,7 @@ class RssFeedFetcher {
                     body = body,
                     url = link,
                     publishedAt = publishedAt,
+                    author = author,
                     contentHash = ""
                 )
             }

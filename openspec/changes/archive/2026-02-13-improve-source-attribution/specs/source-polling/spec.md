@@ -1,25 +1,4 @@
-# Capability: Source Polling
-
-## Purpose
-
-Scheduled polling of configured content sources (RSS feeds and websites), extracting articles and deduplicating via content hashing.
-
-## Requirements
-
-### Requirement: Scheduled source polling
-The system SHALL poll each enabled source on a configurable schedule using Spring's `@Scheduled`. A `SourcePollingScheduler` SHALL run on a fixed interval, iterate over all enabled sources, and poll each source whose individual `pollIntervalMinutes` has elapsed since its last poll.
-
-#### Scenario: Source polled when interval has elapsed
-- **WHEN** the scheduler runs and a source's `pollIntervalMinutes` has elapsed since its `last_polled` timestamp
-- **THEN** the source is polled for new content
-
-#### Scenario: Source skipped when interval has not elapsed
-- **WHEN** the scheduler runs and a source was polled less than `pollIntervalMinutes` ago
-- **THEN** the source is skipped in this polling cycle
-
-#### Scenario: Disabled source never polled
-- **WHEN** the scheduler runs and a source has `enabled: false`
-- **THEN** the source is not polled
+## MODIFIED Requirements
 
 ### Requirement: RSS/Atom feed polling
 The system SHALL parse RSS and Atom feeds using ROME (`com.rometools:rome`). For sources with type `rss`, the system SHALL fetch the feed, extract entries published after the source's `last_seen_id` timestamp, and store each new entry as an article. The system SHALL strip HTML markup from the entry content and description using `Jsoup.parse(value).text()` before storing the article body, ensuring `article.body` is always clean plain text regardless of the feed's content format. This is safe to call on already-plain text (returns unchanged). The system SHALL extract the author from the RSS entry: use `SyndEntry.author` if non-blank, otherwise use the `name` of the first entry in `SyndEntry.authors` if available. If neither provides a non-blank value, `article.author` SHALL be null.
@@ -78,37 +57,3 @@ The system SHALL scrape websites using Jsoup for sources with type `website`. Th
 #### Scenario: No author meta tag on website
 - **WHEN** a website page has no author meta tags
 - **THEN** the stored article has `author` = null
-
-### Requirement: Content hash deduplication
-The system SHALL compute a SHA-256 hash of each article's body text before storing. Articles with a hash already present in the content store SHALL be silently skipped. Articles whose `publishedAt` is older than the configured maximum article age (`app.source.max-article-age-days`, default 7 days) SHALL be silently skipped. Articles with `publishedAt` = null SHALL NOT be filtered by age.
-
-#### Scenario: Identical content from different polls
-- **WHEN** two separate polls produce articles with the same body text
-- **THEN** only the first article is stored; the duplicate is silently skipped
-
-#### Scenario: Article older than max age is skipped
-- **WHEN** an article has `publishedAt` older than the configured `max-article-age-days`
-- **THEN** the article is not saved to the content store
-
-#### Scenario: Article within max age is saved
-- **WHEN** an article has `publishedAt` within the configured `max-article-age-days`
-- **THEN** the article is saved to the content store (subject to dedup)
-
-#### Scenario: Article with null publishedAt is saved
-- **WHEN** an article has `publishedAt` = null
-- **THEN** the article is saved to the content store (age cannot be determined)
-
-#### Scenario: Custom max article age configured
-- **WHEN** `app.source.max-article-age-days` is set to 14
-- **THEN** articles up to 14 days old are saved, and articles older than 14 days are skipped
-
-### Requirement: Old unprocessed article cleanup
-The system SHALL periodically delete unprocessed articles whose `publishedAt` is older than the configured maximum article age. The cleanup SHALL run as part of the source polling schedule, before sources are polled. Only articles with `is_processed` = false SHALL be deleted — processed articles are retained as historical records.
-
-#### Scenario: Old unprocessed articles deleted
-- **WHEN** the source polling scheduler runs and unprocessed articles exist with `publishedAt` older than `max-article-age-days`
-- **THEN** those articles are deleted from the content store
-
-#### Scenario: Old processed articles retained
-- **WHEN** the source polling scheduler runs and processed articles exist with `publishedAt` older than `max-article-age-days`
-- **THEN** those articles are not deleted (they are historical records of past episodes)

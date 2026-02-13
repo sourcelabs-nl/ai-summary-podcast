@@ -11,6 +11,7 @@ data class Article(
     val body: String,
     val url: String,
     val publishedAt: String? = null,
+    val author: String? = null,
     val contentHash: String,
     val relevanceScore: Int? = null,
     val isProcessed: Boolean = false,

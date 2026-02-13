@@ -16,6 +16,7 @@ import io.mockk.slot
 import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.chat.client.ResponseEntity
@@ -151,5 +152,32 @@ class ArticleSummarizerTest {
         verify { articleRepository.save(capture(saved)) }
         assertEquals(800, saved.captured.llmInputTokens)
         assertEquals(100, saved.captured.llmOutputTokens)
+    }
+
+    @Test
+    fun `summarization prompt includes attribution preservation instruction`() {
+        val article = articleWithWordCount(600)
+        mockLlmResponse(SummarizationResult(summary = "Summary."))
+
+        val promptSlot = slot<String>()
+        val chatClientRequestSpec = mockk<ChatClient.ChatClientRequestSpec>()
+        every { chatClientRequestSpec.user(capture(promptSlot)) } returns chatClientRequestSpec
+        every { chatClientRequestSpec.options(any()) } returns chatClientRequestSpec
+        val callResponseSpec = mockk<ChatClient.CallResponseSpec>()
+        every { chatClientRequestSpec.call() } returns callResponseSpec
+
+        val metadata = ChatResponseMetadata.builder()
+            .usage(DefaultUsage(600, 80))
+            .build()
+        val chatResponse = ChatResponse(listOf(Generation(AssistantMessage("{}"))), metadata)
+        val responseEntity = ResponseEntity(chatResponse, SummarizationResult(summary = "Summary."))
+        every { callResponseSpec.responseEntity(SummarizationResult::class.java) } returns responseEntity
+
+        every { chatClient.prompt() } returns chatClientRequestSpec
+        every { chatClientFactory.createForModel(podcast.userId, filterModelDef) } returns chatClient
+
+        summarizer.summarize(listOf(article), podcast, filterModelDef)
+
+        assertTrue(promptSlot.captured.contains("preserve that attribution"))
     }
 }

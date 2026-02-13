@@ -2,6 +2,7 @@ package com.aisummarypodcast.source
 
 import com.aisummarypodcast.store.Article
 import org.jsoup.Jsoup
+import org.jsoup.nodes.Document
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 
@@ -24,12 +25,19 @@ class WebsiteFetcher(private val contentExtractor: ContentExtractor) {
             return null
         }
 
+        val author = extractAuthor(document)
+
         return Article(
             sourceId = sourceId,
             title = title,
             body = body,
             url = url,
+            author = author,
             contentHash = "" // computed by SourcePoller
         )
     }
+
+    internal fun extractAuthor(document: Document): String? =
+        document.selectFirst("meta[name=author]")?.attr("content")?.takeIf { it.isNotBlank() }
+            ?: document.selectFirst("meta[property=article:author]")?.attr("content")?.takeIf { it.isNotBlank() }
 }

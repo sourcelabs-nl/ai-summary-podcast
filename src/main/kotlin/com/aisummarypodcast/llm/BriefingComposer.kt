@@ -70,8 +70,9 @@ class BriefingComposer(
 
         val summaryBlock = articles.mapIndexed { index, article ->
             val source = extractDomain(article.url)
+            val authorSuffix = article.author?.let { ", by $it" } ?: ""
             val content = article.summary ?: article.body
-            "${index + 1}. [$source] ${article.title}\n$content"
+            "${index + 1}. [$source$authorSuffix] ${article.title}\n$content"
         }.joinToString("\n\n")
 
         val customInstructionsBlock = podcast.customInstructions?.let {
@@ -100,7 +101,7 @@ class BriefingComposer(
             - Include smooth transitions between topics
             - Target approximately $targetWords words
             - In the introduction, mention the podcast name, its topic, and today's date
-            - Subtly and sparingly attribute information to its source (e.g., "according to TechCrunch") — do not over-cite
+            - Naturally attribute information to its source and credit original authors when known (e.g., "as John Smith reports for TechCrunch") — do not over-cite
             - End with a sign-off
             - Do NOT include any stage directions, sound effects, section headers (like [Opening], [Closing], [Transition]), or non-spoken text
             - Do NOT include any meta-commentary, notes, or disclaimers about the script itself$languageInstruction$customInstructionsBlock
