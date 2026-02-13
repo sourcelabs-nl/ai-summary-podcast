@@ -6,7 +6,7 @@ Self-hosted pipeline that monitors content sources (RSS feeds, websites), filter
 
 ```mermaid
 flowchart LR
-    A[Source Poller] --> B[Relevance Filter]
+    A[Source Poller] --> B[Relevance Scorer]
     B --> C[Summarizer]
     C --> D[Briefing Composer]
     D --> E[TTS + FFmpeg]
@@ -14,11 +14,14 @@ flowchart LR
 ```
 
 1. **Source Poller** — Periodically fetches new content from configured RSS feeds and websites. Articles older than a configurable threshold (default 7 days) are automatically discarded to keep briefings current.
-2. **LLM Processing** — Filters articles for relevance, summarizes each one, and composes a briefing script. Uses an OpenAI-compatible API (e.g. OpenRouter).
+2. **LLM Processing** — Three sequential stages, each using a configurable model from the named model registry:
+   - **Relevance Scoring** — Scores each article 0–10 for relevance to the podcast's topic. Articles below the `relevanceThreshold` (default 5) are excluded.
+   - **Summarization** — Condenses relevant articles into 2–3 sentence summaries. Short articles (below 500 words) skip this step and use their original text.
+   - **Briefing Composition** — Composes a coherent briefing script from all relevant articles with natural transitions.
 3. **TTS Generation** — Converts the script to speech via OpenAI TTS, chunking at sentence boundaries and concatenating with FFmpeg.
 4. **Podcast Feed** — Serves an RSS 2.0 feed with `<enclosure>` tags so any podcast app can subscribe.
 
-Each user can create multiple podcasts, each with its own sources, topic, language, LLM model, TTS voice, style, and generation schedule (cron).
+Each user can create multiple podcasts, each with its own sources, topic, language, LLM models, TTS voice, style, and generation schedule (cron).
 
 ## Customizing Your Podcast
 
@@ -32,10 +35,12 @@ Each podcast can be tailored to your preferences via the following settings:
 | `style` | `"news-briefing"` | Briefing tone — see styles below |
 | `ttsVoice` | `"nova"` | OpenAI TTS voice (`alloy`, `echo`, `fable`, `nova`, `onyx`, `shimmer`) |
 | `ttsSpeed` | `1.0` | TTS playback speed multiplier (e.g. `1.5` for faster speech) |
-| `llmModel` | — | Override the LLM model used for script composition (e.g. `gpt-4o`, `claude-3-sonnet`) |
+| `llmModels` | — | Override the LLM models per pipeline stage — see [Model Configuration](#model-configuration) below |
 | `targetWords` | `1500` | Approximate word count for the briefing script |
 | `cron` | `"0 0 6 * * *"` | Generation schedule in cron format (default: daily at 6 AM) |
 | `customInstructions` | — | Free-form instructions appended to the LLM prompt (e.g. "Focus on recent breakthroughs" or "Avoid financial topics") |
+| `relevanceThreshold` | `5` | Minimum relevance score (0–10) for an article to be included in the briefing |
+| `requireReview` | `false` | When `true`, generated scripts pause for review before TTS — see [Episode Review](#episode-review) below |
 
 ### Briefing Styles
 
@@ -54,6 +59,76 @@ Briefings can be generated in any of 56 languages. Set the `language` field to a
 
 The language setting affects the LLM script generation, date formatting in the briefing, and the `<language>` element in the RSS feed.
 
+### Model Configuration
+
+The LLM pipeline uses a **named model registry** defined in `application.yaml`. Each entry maps a name to a provider and model ID:
+
+```yaml
+app:
+  llm:
+    models:
+      cheap:
+        provider: openrouter
+        model: openai/gpt-4o-mini
+      capable:
+        provider: openrouter
+        model: anthropic/claude-sonnet-4.5
+      local:
+        provider: ollama
+        model: llama3
+    defaults:
+      filter: cheap      # used for relevance scoring and summarization
+      compose: capable    # used for briefing composition
+```
+
+Per-podcast overrides use the `llmModels` field, mapping stage names (`filter`, `compose`) to model names from the registry:
+
+```json
+{
+  "llmModels": {
+    "filter": "local",
+    "compose": "capable"
+  }
+}
+```
+
+### Episode Review
+
+When `requireReview` is enabled on a podcast, the generation pipeline pauses after the LLM produces a script — no audio is generated yet. This lets you review, edit, or discard the script before committing to TTS costs.
+
+The episode workflow is: `PENDING_REVIEW` → (edit script if needed) → `APPROVED` → TTS runs → `GENERATED`. You can also discard an episode to skip it entirely.
+
+### Cost Tracking
+
+Episode responses include token usage and estimated costs for both LLM and TTS stages. Costs are reported in USD cents and require pricing configuration in `application.yaml`:
+
+```yaml
+app:
+  llm:
+    models:
+      cheap:
+        input-cost-per-mtok: 0.15    # USD per million input tokens
+        output-cost-per-mtok: 0.60   # USD per million output tokens
+  tts:
+    cost-per-million-chars: 15.00    # USD per million characters
+```
+
+Cost fields are `null` when pricing is not configured or when usage metadata is unavailable from the provider.
+
+### Static Feed Export
+
+After each feed-changing event (episode generation, approval, or cleanup), the system writes a `feed.xml` file to the podcast's episode directory (`data/episodes/{podcastId}/feed.xml`). This lets you host the entire directory on a static file server (S3, Nginx, GitHub Pages) without running the application.
+
+To use a different base URL for the static feed's enclosure links (e.g., your CDN), set:
+
+```yaml
+app:
+  feed:
+    static-base-url: https://cdn.example.com
+```
+
+When not set, the static feed uses the same `app.feed.base-url` as the dynamic endpoint. The dynamic HTTP feed at `/users/{userId}/podcasts/{podcastId}/feed.xml` remains available regardless.
+
 ### Example: Create a Customized Podcast
 
 ```bash
@@ -64,9 +139,12 @@ curl -X POST http://localhost:8080/users/{userId}/podcasts \
     "topic": "artificial intelligence and machine learning",
     "language": "en",
     "style": "deep-dive",
+    "llmModels": {"filter": "cheap", "compose": "capable"},
     "ttsVoice": "onyx",
     "ttsSpeed": 1.1,
     "targetWords": 2000,
+    "relevanceThreshold": 6,
+    "requireReview": true,
     "cron": "0 0 8 * * MON",
     "customInstructions": "Focus on recent breakthroughs and industry trends"
   }'
@@ -95,6 +173,18 @@ DELETE /users/{userId}/podcasts/{podcastId}          — Delete podcast (cascade
 POST   /users/{userId}/podcasts/{podcastId}/generate — Manually trigger episode generation
 GET    /users/{userId}/podcasts/{podcastId}/feed.xml — RSS 2.0 feed for podcast apps
 ```
+
+### Episodes
+
+```
+GET    /users/{userId}/podcasts/{podcastId}/episodes              — List episodes (optional ?status= filter)
+GET    /users/{userId}/podcasts/{podcastId}/episodes/{episodeId}  — Get episode (includes cost tracking fields)
+PUT    /users/{userId}/podcasts/{podcastId}/episodes/{episodeId}/script  — Edit script (PENDING_REVIEW only)
+POST   /users/{userId}/podcasts/{podcastId}/episodes/{episodeId}/approve — Approve and trigger TTS generation
+POST   /users/{userId}/podcasts/{podcastId}/episodes/{episodeId}/discard — Discard episode
+```
+
+Episode statuses: `PENDING_REVIEW` → `APPROVED` → `GENERATED` (or `FAILED`). Episodes can also be `DISCARDED`. The review endpoints are only relevant when `requireReview` is enabled on the podcast.
 
 ### Sources
 
