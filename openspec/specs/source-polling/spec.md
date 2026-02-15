@@ -7,7 +7,7 @@ Scheduled polling of configured content sources (RSS feeds and websites), extrac
 ## Requirements
 
 ### Requirement: Scheduled source polling
-The system SHALL poll each enabled source on a configurable schedule using Spring's `@Scheduled`. A `SourcePollingScheduler` SHALL run on a fixed interval, iterate over all enabled sources, and poll each source whose individual `pollIntervalMinutes` has elapsed since its last poll.
+The system SHALL poll each enabled source on a configurable schedule using Spring's `@Scheduled`. A `SourcePollingScheduler` SHALL run on a fixed interval, iterate over all enabled sources, and poll each source whose individual `pollIntervalMinutes` has elapsed since its last poll. For source types that require per-user API keys (e.g., `"twitter"`), the scheduler SHALL resolve the podcast's owner user ID and pass it to the `SourcePoller`.
 
 #### Scenario: Source polled when interval has elapsed
 - **WHEN** the scheduler runs and a source's `pollIntervalMinutes` has elapsed since its `last_polled` timestamp
@@ -20,6 +20,10 @@ The system SHALL poll each enabled source on a configurable schedule using Sprin
 #### Scenario: Disabled source never polled
 - **WHEN** the scheduler runs and a source has `enabled: false`
 - **THEN** the source is not polled
+
+#### Scenario: Twitter source polled with user context
+- **WHEN** the scheduler runs and a source with `type: "twitter"` is due for polling
+- **THEN** the scheduler resolves the podcast owner's user ID and passes it to the poller so the fetcher can look up the user's X API key
 
 ### Requirement: RSS/Atom feed polling
 The system SHALL parse RSS and Atom feeds using ROME (`com.rometools:rome`). For sources with type `rss`, the system SHALL fetch the feed, extract entries published after the source's `last_seen_id` timestamp, and store each new entry as an article. The system SHALL strip HTML markup from the entry content and description using `Jsoup.parse(value).text()` before storing the article body, ensuring `article.body` is always clean plain text regardless of the feed's content format. This is safe to call on already-plain text (returns unchanged). The system SHALL extract the author from the RSS entry: use `SyndEntry.author` if non-blank, otherwise use the `name` of the first entry in `SyndEntry.authors` if available. If neither provides a non-blank value, `article.author` SHALL be null.

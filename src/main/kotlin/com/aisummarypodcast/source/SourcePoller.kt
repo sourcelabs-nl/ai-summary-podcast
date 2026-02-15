@@ -14,6 +14,7 @@ import java.time.temporal.ChronoUnit
 class SourcePoller(
     private val rssFeedFetcher: RssFeedFetcher,
     private val websiteFetcher: WebsiteFetcher,
+    private val twitterFetcher: TwitterFetcher,
     private val articleRepository: ArticleRepository,
     private val sourceRepository: SourceRepository,
     private val appProperties: AppProperties
@@ -21,13 +22,21 @@ class SourcePoller(
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    fun poll(source: Source) {
+    fun poll(source: Source, userId: String? = null) {
         log.info("[Polling] Polling source: {} ({})", source.id, source.type)
 
         try {
             val articles = when (source.type) {
                 "rss" -> rssFeedFetcher.fetch(source.url, source.id, source.lastSeenId)
                 "website" -> listOfNotNull(websiteFetcher.fetch(source.url, source.id))
+                "twitter" -> {
+                    if (userId == null) {
+                        log.warn("[Polling] Twitter source {} requires user context for OAuth — skipping", source.id)
+                        emptyList()
+                    } else {
+                        twitterFetcher.fetch(source.url, source.id, source.lastSeenId, userId)
+                    }
+                }
                 else -> {
                     log.warn("[Polling] Unknown source type: {}", source.type)
                     emptyList()
@@ -58,7 +67,13 @@ class SourcePoller(
                 }
             }
 
-            sourceRepository.save(source.copy(lastPolled = Instant.now().toString(), lastSeenId = latestTimestamp))
+            val newLastSeenId = if (source.type == "twitter" && userId != null) {
+                twitterFetcher.buildLastSeenId(source.lastSeenId, articles, source.url, userId)
+            } else {
+                latestTimestamp
+            }
+
+            sourceRepository.save(source.copy(lastPolled = Instant.now().toString(), lastSeenId = newLastSeenId))
             log.info("[Polling] Source {} polled: {} new articles saved", source.id, savedCount)
         } catch (e: Exception) {
             log.error("[Polling] Error polling source {}: {}", source.id, e.message, e)

@@ -7,8 +7,11 @@ import com.aisummarypodcast.config.EpisodesProperties
 import com.aisummarypodcast.config.FeedProperties
 import com.aisummarypodcast.config.LlmProperties
 import com.aisummarypodcast.config.SourceProperties
+import com.aisummarypodcast.podcast.PodcastService
 import com.aisummarypodcast.source.SourcePoller
 import com.aisummarypodcast.store.ArticleRepository
+import com.aisummarypodcast.store.Podcast
+import com.aisummarypodcast.store.Source
 import com.aisummarypodcast.store.SourceRepository
 import io.mockk.every
 import io.mockk.mockk
@@ -26,6 +29,7 @@ class SourcePollingSchedulerTest {
     private val articleRepository = mockk<ArticleRepository> {
         every { deleteOldUnprocessedArticles(any()) } returns Unit
     }
+    private val podcastService = mockk<PodcastService>()
 
     private fun appProperties(maxArticleAgeDays: Int = 7) = AppProperties(
         llm = LlmProperties(),
@@ -38,7 +42,7 @@ class SourcePollingSchedulerTest {
 
     @Test
     fun `cleans up old unprocessed articles before polling`() {
-        val scheduler = SourcePollingScheduler(sourcePoller, sourceRepository, articleRepository, appProperties())
+        val scheduler = SourcePollingScheduler(sourcePoller, sourceRepository, articleRepository, appProperties(), podcastService)
 
         scheduler.pollSources()
 
@@ -48,5 +52,43 @@ class SourcePollingSchedulerTest {
             // Allow 5 seconds of tolerance for test execution time
             parsed.isAfter(expectedCutoff.minusSeconds(5)) && parsed.isBefore(expectedCutoff.plusSeconds(5))
         }) }
+    }
+
+    @Test
+    fun `resolves podcast owner userId for twitter source`() {
+        val twitterSource = Source(
+            id = "s1", podcastId = "p1", type = "twitter", url = "testuser",
+            lastPolled = null, enabled = true
+        )
+        val podcast = Podcast(
+            id = "p1", userId = "owner-1", name = "Test", topic = "tech"
+        )
+
+        every { sourceRepository.findAll() } returns listOf(twitterSource)
+        every { podcastService.findById("p1") } returns podcast
+        every { sourcePoller.poll(twitterSource, "owner-1") } returns Unit
+
+        val scheduler = SourcePollingScheduler(sourcePoller, sourceRepository, articleRepository, appProperties(), podcastService)
+        scheduler.pollSources()
+
+        verify { podcastService.findById("p1") }
+        verify { sourcePoller.poll(twitterSource, "owner-1") }
+    }
+
+    @Test
+    fun `does not resolve userId for rss source`() {
+        val rssSource = Source(
+            id = "s2", podcastId = "p1", type = "rss", url = "https://example.com/feed",
+            lastPolled = null, enabled = true
+        )
+
+        every { sourceRepository.findAll() } returns listOf(rssSource)
+        every { sourcePoller.poll(rssSource, null) } returns Unit
+
+        val scheduler = SourcePollingScheduler(sourcePoller, sourceRepository, articleRepository, appProperties(), podcastService)
+        scheduler.pollSources()
+
+        verify(exactly = 0) { podcastService.findById(any()) }
+        verify { sourcePoller.poll(rssSource, null) }
     }
 }

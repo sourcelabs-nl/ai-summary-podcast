@@ -22,6 +22,7 @@ class SourcePollerTest {
 
     private val rssFeedFetcher = mockk<RssFeedFetcher>()
     private val websiteFetcher = mockk<WebsiteFetcher>()
+    private val twitterFetcher = mockk<TwitterFetcher>()
     private val articleRepository = mockk<ArticleRepository> {
         every { findBySourceIdAndContentHash(any(), any()) } returns null
         every { save(any()) } answers { firstArg() }
@@ -55,7 +56,7 @@ class SourcePollerTest {
         val recentArticle = article(publishedAt = Instant.now().minus(2, ChronoUnit.DAYS).toString())
         every { rssFeedFetcher.fetch(any(), any(), any()) } returns listOf(recentArticle)
 
-        val poller = SourcePoller(rssFeedFetcher, websiteFetcher, articleRepository, sourceRepository, appProperties())
+        val poller = SourcePoller(rssFeedFetcher, websiteFetcher, twitterFetcher, articleRepository, sourceRepository, appProperties())
         poller.poll(source)
 
         verify { articleRepository.save(any()) }
@@ -66,7 +67,7 @@ class SourcePollerTest {
         val oldArticle = article(publishedAt = Instant.now().minus(30, ChronoUnit.DAYS).toString())
         every { rssFeedFetcher.fetch(any(), any(), any()) } returns listOf(oldArticle)
 
-        val poller = SourcePoller(rssFeedFetcher, websiteFetcher, articleRepository, sourceRepository, appProperties())
+        val poller = SourcePoller(rssFeedFetcher, websiteFetcher, twitterFetcher, articleRepository, sourceRepository, appProperties())
         poller.poll(source)
 
         verify(exactly = 0) { articleRepository.save(match { it.sourceId == "s1" && it.title == "Test Article" }) }
@@ -77,7 +78,7 @@ class SourcePollerTest {
         val nullDateArticle = article(publishedAt = null)
         every { rssFeedFetcher.fetch(any(), any(), any()) } returns listOf(nullDateArticle)
 
-        val poller = SourcePoller(rssFeedFetcher, websiteFetcher, articleRepository, sourceRepository, appProperties())
+        val poller = SourcePoller(rssFeedFetcher, websiteFetcher, twitterFetcher, articleRepository, sourceRepository, appProperties())
         poller.poll(source)
 
         verify { articleRepository.save(any()) }
@@ -88,12 +89,44 @@ class SourcePollerTest {
         val article10DaysOld = article(publishedAt = Instant.now().minus(10, ChronoUnit.DAYS).toString())
         every { rssFeedFetcher.fetch(any(), any(), any()) } returns listOf(article10DaysOld)
 
-        val pollerWith7Days = SourcePoller(rssFeedFetcher, websiteFetcher, articleRepository, sourceRepository, appProperties(maxArticleAgeDays = 7))
+        val pollerWith7Days = SourcePoller(rssFeedFetcher, websiteFetcher, twitterFetcher, articleRepository, sourceRepository, appProperties(maxArticleAgeDays = 7))
         pollerWith7Days.poll(source)
         verify(exactly = 0) { articleRepository.save(match { it.title == "Test Article" }) }
 
-        val pollerWith14Days = SourcePoller(rssFeedFetcher, websiteFetcher, articleRepository, sourceRepository, appProperties(maxArticleAgeDays = 14))
+        val pollerWith14Days = SourcePoller(rssFeedFetcher, websiteFetcher, twitterFetcher, articleRepository, sourceRepository, appProperties(maxArticleAgeDays = 14))
         pollerWith14Days.poll(source)
         verify { articleRepository.save(any()) }
+    }
+
+    @Test
+    fun `dispatches twitter source to twitterFetcher with userId`() {
+        val twitterSource = Source(id = "s2", podcastId = "p1", type = "twitter", url = "testuser")
+        val tweetArticle = Article(
+            sourceId = "s2",
+            title = "Tweet text",
+            body = "Tweet text",
+            url = "https://x.com/testuser/status/123",
+            publishedAt = Instant.now().toString(),
+            author = "@testuser",
+            contentHash = ""
+        )
+        every { twitterFetcher.fetch("testuser", "s2", null, "user1") } returns listOf(tweetArticle)
+        every { twitterFetcher.buildLastSeenId(null, any(), "testuser", "user1") } returns "999:123"
+
+        val poller = SourcePoller(rssFeedFetcher, websiteFetcher, twitterFetcher, articleRepository, sourceRepository, appProperties())
+        poller.poll(twitterSource, userId = "user1")
+
+        verify { articleRepository.save(any()) }
+        verify { twitterFetcher.fetch("testuser", "s2", null, "user1") }
+    }
+
+    @Test
+    fun `skips twitter source when no userId provided`() {
+        val twitterSource = Source(id = "s2", podcastId = "p1", type = "twitter", url = "testuser")
+
+        val poller = SourcePoller(rssFeedFetcher, websiteFetcher, twitterFetcher, articleRepository, sourceRepository, appProperties())
+        poller.poll(twitterSource, userId = null)
+
+        verify(exactly = 0) { twitterFetcher.fetch(any(), any(), any(), any()) }
     }
 }

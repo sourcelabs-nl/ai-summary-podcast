@@ -13,7 +13,7 @@ flowchart LR
     E --> F[RSS Feed]
 ```
 
-1. **Source Poller** — Periodically fetches new content from configured RSS feeds and websites. Articles older than a configurable threshold (default 7 days) are automatically discarded to keep briefings current.
+1. **Source Poller** — Periodically fetches new content from configured RSS feeds, websites, and X (Twitter) accounts. Articles older than a configurable threshold (default 7 days) are automatically discarded to keep briefings current.
 2. **LLM Processing** — Three sequential stages, each using a configurable model from the named model registry:
    - **Relevance Scoring** — Scores each article 0–10 for relevance to the podcast's topic. Articles below the `relevanceThreshold` (default 5) are excluded.
    - **Summarization** — Condenses relevant articles into 2–3 sentence summaries. Short articles (below 500 words) skip this step and use their original text.
@@ -166,6 +166,45 @@ curl -X POST http://localhost:8080/users/{userId}/podcasts/{podcastId}/episodes/
 
 The track is uploaded with the podcast name + date as title, a description from the script, and tags from the podcast topic. Episodes are automatically grouped into a SoundCloud playlist per podcast — on first publish a new playlist is created, and subsequent episodes are added to it. Publication status (PENDING, PUBLISHED, FAILED) is tracked per episode and target.
 
+### Monitoring X (Twitter) Accounts
+
+X accounts can be added as content sources so their posts are included in podcast briefings. This requires an X developer app and a connected user account.
+
+1. **Register an X app** at https://developer.x.com/en/portal/dashboard. Enable OAuth 2.0 with type "Web App" and set the redirect URI to `http://localhost:8080/oauth/x/callback`. Requires at least the Basic tier ($100/month).
+
+2. **Add credentials** to your `.env` file:
+
+```
+APP_X_CLIENT_ID=<your-x-client-id>
+APP_X_CLIENT_SECRET=<your-x-client-secret>
+```
+
+3. **Restart the app** so it picks up the new environment variables.
+
+4. **Connect your X account** via the OAuth flow:
+
+```bash
+# Get the authorization URL
+curl http://localhost:8080/users/{userId}/oauth/x/authorize
+# → returns { "authorizationUrl": "https://twitter.com/i/oauth2/authorize?..." }
+
+# Open the URL in a browser, log in and authorize the app
+# The callback completes automatically and stores your tokens
+
+# Verify the connection
+curl http://localhost:8080/users/{userId}/oauth/x/status
+```
+
+5. **Add an X source** to a podcast:
+
+```bash
+curl -X POST http://localhost:8080/users/{userId}/podcasts/{podcastId}/sources \
+  -H 'Content-Type: application/json' \
+  -d '{"type": "twitter", "url": "elonmusk", "pollIntervalMinutes": 60}'
+```
+
+The `url` field accepts a plain username (e.g., `elonmusk`), `@username`, or a full URL (e.g., `https://x.com/elonmusk`). Posts are polled on the configured interval and included in briefings. X tokens are automatically refreshed (they expire every 2 hours).
+
 ### Example: Create a Customized Podcast
 
 ```bash
@@ -232,7 +271,7 @@ PUT    /users/{userId}/podcasts/{podcastId}/sources/{sourceId}  — Update sourc
 DELETE /users/{userId}/podcasts/{podcastId}/sources/{sourceId}  — Delete source
 ```
 
-Sources can be of type `rss` or `website`. Each source has a configurable `pollIntervalMinutes` and can be toggled with `enabled`.
+Sources can be of type `rss`, `website`, or `twitter`. Each source has a configurable `pollIntervalMinutes` and can be toggled with `enabled`. Twitter sources require an X OAuth connection (see below).
 
 Articles older than `app.source.max-article-age-days` (default: 7) are skipped during ingestion and periodically cleaned up. This prevents stale content from appearing in briefings when adding a new source with a large backlog.
 
@@ -250,6 +289,15 @@ GET    /users/{userId}/oauth/soundcloud/authorize  — Get SoundCloud authorizat
 GET    /oauth/soundcloud/callback                  — OAuth callback (handled automatically)
 GET    /users/{userId}/oauth/soundcloud/status      — Check connection status
 DELETE /users/{userId}/oauth/soundcloud             — Disconnect SoundCloud
+```
+
+### X (Twitter) OAuth
+
+```
+GET    /users/{userId}/oauth/x/authorize  — Get X authorization URL
+GET    /oauth/x/callback                  — OAuth callback (handled automatically)
+GET    /users/{userId}/oauth/x/status      — Check connection status
+DELETE /users/{userId}/oauth/x             — Disconnect X account
 ```
 
 ### Provider Configuration
@@ -283,7 +331,7 @@ OPENAI_API_KEY=<your-openai-key>
 
 Generate an encryption key: `openssl rand -base64 32`
 
-`APP_ENCRYPTION_MASTER_KEY` is required. `OPENROUTER_API_KEY` and `OPENAI_API_KEY` serve as global fallbacks for LLM and TTS respectively — they are used when a user has not configured their own provider keys via the API. Users can override these by setting per-user provider configs. `APP_SOUNDCLOUD_CLIENT_ID` and `APP_SOUNDCLOUD_CLIENT_SECRET` are optional — only needed if you want to publish episodes to SoundCloud.
+`APP_ENCRYPTION_MASTER_KEY` is required. `OPENROUTER_API_KEY` and `OPENAI_API_KEY` serve as global fallbacks for LLM and TTS respectively — they are used when a user has not configured their own provider keys via the API. Users can override these by setting per-user provider configs. `APP_SOUNDCLOUD_CLIENT_ID` and `APP_SOUNDCLOUD_CLIENT_SECRET` are optional — only needed if you want to publish episodes to SoundCloud. `APP_X_CLIENT_ID` and `APP_X_CLIENT_SECRET` are optional — only needed if you want to poll X (Twitter) accounts as content sources (requires an [X Developer](https://developer.x.com/) Basic tier account).
 
 ### Using Ollama instead of OpenRouter
 
