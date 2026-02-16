@@ -35,6 +35,7 @@ Three main entities stored in SQLite (or PostgreSQL):
 - **TTS API** — Audio generation (OpenAI TTS, ElevenLabs, or Google Cloud TTS)
 - **FFmpeg** — Audio chunk concatenation
 - **SQLite/PostgreSQL** — Persistent storage
+- **X (Twitter) API** — OAuth 2.0 with PKCE for polling Twitter sources. Docs: https://docs.x.com/fundamentals/authentication/oauth-2-0/authorization-code
 
 ## Running the Application
 
