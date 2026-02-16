@@ -60,8 +60,10 @@ class SoundCloudPublisher(
         }
 
         try {
-            soundCloudClient.addTrackToPlaylist(accessToken, playlistId, listOf(trackId))
-            log.info("Added track {} to SoundCloud playlist {}", trackId, playlistId)
+            val existing = soundCloudClient.getPlaylist(accessToken, playlistId)
+            val allTrackIds = existing.tracks.map { it.id } + trackId
+            soundCloudClient.addTrackToPlaylist(accessToken, playlistId, allTrackIds)
+            log.info("Added track {} to SoundCloud playlist {} (now {} tracks)", trackId, playlistId, allTrackIds.size)
         } catch (e: HttpClientErrorException.NotFound) {
             log.warn("SoundCloud playlist {} not found, creating new playlist", playlistId)
             createNewPlaylist(accessToken, podcast, trackId)
@@ -72,6 +74,28 @@ class SoundCloudPublisher(
         val playlist = soundCloudClient.createPlaylist(accessToken, podcast.name, listOf(trackId))
         podcastRepository.save(podcast.copy(soundcloudPlaylistId = playlist.id.toString()))
         log.info("Created SoundCloud playlist {} for podcast {}", playlist.id, podcast.id)
+    }
+
+    fun rebuildPlaylist(podcast: Podcast, userId: String, trackIds: List<Long>) {
+        val accessToken = tokenManager.getValidAccessToken(userId)
+        val playlistId = podcast.soundcloudPlaylistId?.toLongOrNull()
+
+        if (playlistId == null) {
+            val playlist = soundCloudClient.createPlaylist(accessToken, podcast.name, trackIds)
+            podcastRepository.save(podcast.copy(soundcloudPlaylistId = playlist.id.toString()))
+            log.info("Created SoundCloud playlist {} with {} tracks for podcast {}", playlist.id, trackIds.size, podcast.id)
+            return
+        }
+
+        try {
+            soundCloudClient.addTrackToPlaylist(accessToken, playlistId, trackIds)
+            log.info("Rebuilt SoundCloud playlist {} with {} tracks", playlistId, trackIds.size)
+        } catch (e: HttpClientErrorException.NotFound) {
+            log.warn("SoundCloud playlist {} not found, creating new playlist", playlistId)
+            val playlist = soundCloudClient.createPlaylist(accessToken, podcast.name, trackIds)
+            podcastRepository.save(podcast.copy(soundcloudPlaylistId = playlist.id.toString()))
+            log.info("Created SoundCloud playlist {} with {} tracks for podcast {}", playlist.id, trackIds.size, podcast.id)
+        }
     }
 
     private fun buildTagList(topic: String): String {

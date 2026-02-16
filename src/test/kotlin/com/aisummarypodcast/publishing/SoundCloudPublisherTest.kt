@@ -110,24 +110,70 @@ class SoundCloudPublisherTest {
     }
 
     @Test
-    fun `subsequent publish adds track to existing playlist`() {
+    fun `subsequent publish fetches existing tracks and appends new track`() {
         val podcastWithPlaylist = podcast.copy(soundcloudPlaylistId = "123")
+        val existingPlaylist = SoundCloudPlaylistDetailResponse(
+            id = 123,
+            tracks = listOf(SoundCloudPlaylistTrack(100), SoundCloudPlaylistTrack(200))
+        )
         every { tokenManager.getValidAccessToken("user1") } returns "access-token"
         every { soundCloudClient.uploadTrack("access-token", any()) } returns trackResponse
-        every { soundCloudClient.addTrackToPlaylist("access-token", 123, listOf(456)) } returns playlistResponse
+        every { soundCloudClient.getPlaylist("access-token", 123) } returns existingPlaylist
+        every { soundCloudClient.addTrackToPlaylist("access-token", 123, listOf(100, 200, 456)) } returns playlistResponse
 
         publisher.publish(episode, podcastWithPlaylist, "user1")
 
-        verify { soundCloudClient.addTrackToPlaylist("access-token", 123, listOf(456)) }
+        verify { soundCloudClient.getPlaylist("access-token", 123) }
+        verify { soundCloudClient.addTrackToPlaylist("access-token", 123, listOf(100, 200, 456)) }
         verify(exactly = 0) { soundCloudClient.createPlaylist(any(), any(), any()) }
     }
 
     @Test
-    fun `stale playlist triggers recreation`() {
+    fun `rebuildPlaylist sets all track IDs on existing playlist`() {
+        val podcastWithPlaylist = podcast.copy(soundcloudPlaylistId = "123")
+        every { tokenManager.getValidAccessToken("user1") } returns "access-token"
+        every { soundCloudClient.addTrackToPlaylist("access-token", 123, listOf(100, 200, 300)) } returns playlistResponse
+
+        publisher.rebuildPlaylist(podcastWithPlaylist, "user1", listOf(100, 200, 300))
+
+        verify { soundCloudClient.addTrackToPlaylist("access-token", 123, listOf(100, 200, 300)) }
+        verify(exactly = 0) { soundCloudClient.createPlaylist(any(), any(), any()) }
+    }
+
+    @Test
+    fun `rebuildPlaylist creates new playlist when no playlist ID exists`() {
+        every { tokenManager.getValidAccessToken("user1") } returns "access-token"
+        every { soundCloudClient.createPlaylist("access-token", "Tech News", listOf(100, 200)) } returns playlistResponse
+
+        publisher.rebuildPlaylist(podcast, "user1", listOf(100, 200))
+
+        verify { soundCloudClient.createPlaylist("access-token", "Tech News", listOf(100, 200)) }
+        val savedPodcast = slot<Podcast>()
+        verify { podcastRepository.save(capture(savedPodcast)) }
+        assertEquals("789", savedPodcast.captured.soundcloudPlaylistId)
+    }
+
+    @Test
+    fun `rebuildPlaylist creates new playlist when existing playlist returns 404`() {
+        val podcastWithStalePlaylist = podcast.copy(soundcloudPlaylistId = "999")
+        every { tokenManager.getValidAccessToken("user1") } returns "access-token"
+        every { soundCloudClient.addTrackToPlaylist("access-token", 999, listOf(100)) } throws
+            HttpClientErrorException.create(HttpStatusCode.valueOf(404), "Not Found", org.springframework.http.HttpHeaders(), ByteArray(0), null)
+        every { soundCloudClient.createPlaylist("access-token", "Tech News", listOf(100)) } returns playlistResponse
+
+        publisher.rebuildPlaylist(podcastWithStalePlaylist, "user1", listOf(100))
+
+        val savedPodcast = slot<Podcast>()
+        verify { podcastRepository.save(capture(savedPodcast)) }
+        assertEquals("789", savedPodcast.captured.soundcloudPlaylistId)
+    }
+
+    @Test
+    fun `stale playlist triggers recreation when getPlaylist returns 404`() {
         val podcastWithStalePlaylist = podcast.copy(soundcloudPlaylistId = "999")
         every { tokenManager.getValidAccessToken("user1") } returns "access-token"
         every { soundCloudClient.uploadTrack("access-token", any()) } returns trackResponse
-        every { soundCloudClient.addTrackToPlaylist("access-token", 999, listOf(456)) } throws
+        every { soundCloudClient.getPlaylist("access-token", 999) } throws
             HttpClientErrorException.create(HttpStatusCode.valueOf(404), "Not Found", org.springframework.http.HttpHeaders(), ByteArray(0), null)
         every { soundCloudClient.createPlaylist("access-token", "Tech News", listOf(456)) } returns playlistResponse
 

@@ -36,6 +36,17 @@ data class SoundCloudPlaylistResponse(
     val permalinkUrl: String? = null
 )
 
+@JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy::class)
+data class SoundCloudPlaylistDetailResponse(
+    val id: Long,
+    val tracks: List<SoundCloudPlaylistTrack> = emptyList()
+)
+
+@JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy::class)
+data class SoundCloudPlaylistTrack(
+    val id: Long
+)
+
 data class TrackUploadRequest(
     val title: String,
     val description: String,
@@ -155,6 +166,24 @@ class SoundCloudClient(restTemplateBuilder: RestTemplateBuilder) {
             SoundCloudPlaylistResponse::class.java
         )
         return response.body ?: throw RuntimeException("Empty response from SoundCloud playlist creation")
+    }
+
+    fun getPlaylist(
+        accessToken: String,
+        playlistId: Long
+    ): SoundCloudPlaylistDetailResponse {
+        val headers = HttpHeaders().apply {
+            setBearerAuth(accessToken)
+        }
+
+        log.info("Fetching SoundCloud playlist {}", playlistId)
+        val response = restTemplate.exchange(
+            "https://api.soundcloud.com/playlists/$playlistId",
+            HttpMethod.GET,
+            HttpEntity<Any>(headers),
+            SoundCloudPlaylistDetailResponse::class.java
+        )
+        return response.body ?: throw RuntimeException("Empty response from SoundCloud playlist fetch")
     }
 
     fun addTrackToPlaylist(
