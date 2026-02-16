@@ -17,6 +17,7 @@ import com.aisummarypodcast.store.SourceRepository
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import java.time.Instant
@@ -24,7 +25,7 @@ import java.time.temporal.ChronoUnit
 
 class SourcePollingSchedulerBackoffTest {
 
-    private val sourcePoller = mockk<SourcePoller>()
+    private val sourcePoller = mockk<SourcePoller>(relaxed = true)
     private val sourceRepository = mockk<SourceRepository>()
     private val articleRepository = mockk<ArticleRepository> {
         every { deleteOldUnprocessedArticles(any()) } returns Unit
@@ -43,9 +44,13 @@ class SourcePollingSchedulerBackoffTest {
         source = SourceProperties(maxBackoffHours = maxBackoffHours)
     )
 
-    private fun scheduler(maxBackoffHours: Int = 24) = SourcePollingScheduler(
-        sourcePoller, sourceRepository, articleRepository, postRepository, appProperties(maxBackoffHours), podcastService
-    )
+    private fun scheduler(maxBackoffHours: Int = 24): SourcePollingScheduler {
+        val props = appProperties(maxBackoffHours)
+        return SourcePollingScheduler(
+            sourcePoller, sourceRepository, articleRepository, postRepository,
+            props, podcastService, PollDelayResolver(props)
+        )
+    }
 
     @Test
     fun `effectivePollIntervalMinutes returns normal interval when no failures`() {
@@ -80,11 +85,11 @@ class SourcePollingSchedulerBackoffTest {
     private val podcast = Podcast(id = "p1", userId = "u1", name = "Test", topic = "tech")
 
     @Test
-    fun `source with failures is skipped when backoff interval has not elapsed`() {
+    fun `source with failures is skipped when backoff interval has not elapsed`() = runTest {
         val source = Source(
             id = "s1", podcastId = "p1", type = "rss", url = "u",
             pollIntervalMinutes = 60, consecutiveFailures = 2,
-            lastPolled = Instant.now().minus(100, ChronoUnit.MINUTES).toString(), // 100 min ago, but backoff is 240 min
+            lastPolled = Instant.now().minus(100, ChronoUnit.MINUTES).toString(),
             enabled = true
         )
         every { sourceRepository.findAll() } returns listOf(source)
@@ -95,16 +100,15 @@ class SourcePollingSchedulerBackoffTest {
     }
 
     @Test
-    fun `source with failures is polled when backoff interval has elapsed`() {
+    fun `source with failures is polled when backoff interval has elapsed`() = runTest {
         val source = Source(
             id = "s1", podcastId = "p1", type = "rss", url = "u",
             pollIntervalMinutes = 60, consecutiveFailures = 1,
-            lastPolled = Instant.now().minus(130, ChronoUnit.MINUTES).toString(), // 130 min ago, backoff is 120 min
+            lastPolled = Instant.now().minus(130, ChronoUnit.MINUTES).toString(),
             enabled = true
         )
         every { sourceRepository.findAll() } returns listOf(source)
         every { podcastService.findById("p1") } returns podcast
-        every { sourcePoller.poll(source, null, 7) } returns Unit
 
         scheduler().pollSources()
 
@@ -118,7 +122,6 @@ class SourcePollingSchedulerBackoffTest {
             pollIntervalMinutes = 60, consecutiveFailures = 10,
             maxBackoffHours = 48
         )
-        // With maxBackoffHours=48, cap is 2880 min. Backoff = 60 * 2^10 = 61440, capped to 2880.
         assertEquals(2880L, scheduler(maxBackoffHours = 24).effectivePollIntervalMinutes(source))
     }
 }

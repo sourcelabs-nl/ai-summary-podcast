@@ -17,6 +17,7 @@ data class Source(
     val aggregate: Boolean? = null,
     val maxFailures: Int? = null,
     val maxBackoffHours: Int? = null,
+    val pollDelaySeconds: Int? = null,
     val consecutiveFailures: Int = 0,
     val lastFailureType: String? = null,
     val disabledReason: String? = null,

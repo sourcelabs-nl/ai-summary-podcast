@@ -9,6 +9,10 @@ Scheduled polling of configured content sources (RSS feeds and websites), extrac
 ### Requirement: Scheduled source polling
 The system SHALL poll each enabled source on a configurable schedule using Spring's `@Scheduled`. A `SourcePollingScheduler` SHALL run on a fixed interval, iterate over all enabled sources, and poll each source whose effective poll interval has elapsed since its last poll. The effective poll interval SHALL account for exponential backoff: for sources with `consecutiveFailures > 0`, the interval is `pollIntervalMinutes × 2^consecutiveFailures`, capped at `app.source.max-backoff-hours` converted to minutes. For sources with `consecutiveFailures = 0`, the normal `pollIntervalMinutes` is used. For source types that require per-user API keys (e.g., `"twitter"`), the scheduler SHALL resolve the podcast's owner user ID and pass it to the `SourcePoller`.
 
+The scheduler's `pollSources()` method SHALL be a `suspend fun`, using Spring 6.1+'s native coroutine support for `@Scheduled` methods. Due sources SHALL be grouped by URL host (extracted via `java.net.URI(url).host`). Each host group SHALL be polled as a parallel coroutine under `supervisorScope`, with sequential polling and configurable delays within each group (as defined by the `poll-rate-limiting` capability).
+
+Sources with `lastPolled = null` (never polled) SHALL receive startup jitter before being checked for due status (as defined by the `poll-rate-limiting` capability).
+
 #### Scenario: Source polled when interval has elapsed
 - **WHEN** the scheduler runs and a source's effective poll interval has elapsed since its `last_polled` timestamp
 - **THEN** the source is polled for new content
@@ -28,6 +32,14 @@ The system SHALL poll each enabled source on a configurable schedule using Sprin
 #### Scenario: Source with failures uses backoff interval
 - **WHEN** the scheduler runs and a source has `consecutiveFailures = 2` and `pollIntervalMinutes = 60`
 - **THEN** the source is only polled if at least 240 minutes (60 × 2²) have elapsed since `lastPolled`
+
+#### Scenario: Host groups polled in parallel
+- **WHEN** the scheduler runs and due sources span multiple hosts
+- **THEN** each host group is polled concurrently as a separate coroutine under `supervisorScope`
+
+#### Scenario: Scheduler method is a suspend function
+- **WHEN** the scheduler tick fires
+- **THEN** `pollSources()` executes as a Kotlin `suspend fun` using Spring's native coroutine scheduling support
 
 ### Requirement: RSS/Atom feed polling
 The system SHALL parse RSS and Atom feeds using ROME (`com.rometools:rome`). For sources with type `rss`, the system SHALL fetch the feed, extract entries published after the source's `last_seen_id` timestamp, and store each new entry as a post in the `posts` table. The system SHALL strip HTML markup from the entry content and description using `Jsoup.parse(value).text()` before storing the post body. The system SHALL extract the author from the RSS entry: use `SyndEntry.author` if non-blank, otherwise use the `name` of the first entry in `SyndEntry.authors` if available. If neither provides a non-blank value, `post.author` SHALL be null. The `SourceAggregator` SHALL NOT be called during polling — aggregation is deferred to script generation time.

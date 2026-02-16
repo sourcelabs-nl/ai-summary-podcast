@@ -61,7 +61,13 @@ data class LlmCacheProperties(
 data class SourceProperties(
     val maxArticleAgeDays: Int = 7,
     val maxFailures: Int = 15,
-    val maxBackoffHours: Int = 24
+    val maxBackoffHours: Int = 24,
+    val pollDelaySeconds: Map<String, Int> = emptyMap(),
+    val hostOverrides: Map<String, HostOverride> = emptyMap()
+)
+
+data class HostOverride(
+    val pollDelaySeconds: Int = 0
 )
 
 data class TtsProperties(

@@ -305,6 +305,8 @@ Posts older than `app.source.max-article-age-days` (default: 7) are skipped duri
 
 Source responses include failure tracking fields: `consecutiveFailures`, `lastFailureType` (`"transient"` or `"permanent"`), and `disabledReason`. Sources that fail repeatedly use **exponential backoff** — the poll interval doubles with each consecutive failure, capped at `app.source.max-backoff-hours` (default: 24). Sources with **permanent** errors (404, 410, 401, 403, DNS failure) are auto-disabled after `app.source.max-failures` (default: 5) consecutive failures. Transient errors (timeouts, 5xx, rate limits) trigger backoff but never auto-disable. Re-enabling a disabled source via the API resets all failure tracking.
 
+Sources sharing the same host are polled sequentially with a configurable delay between requests, preventing rate limit violations on free/community-run services (e.g., Nitter instances). Different hosts are polled in parallel using Kotlin coroutines. On first boot, sources receive random startup jitter to prevent all sources from polling simultaneously. The delay between same-host polls is resolved using a three-layer precedence chain: per-source `pollDelaySeconds` field > host-specific override (`app.source.host-overrides.<host>.poll-delay-seconds`) > source-type default (`app.source.poll-delay-seconds.<type>`) > 0.
+
 ### Publishing
 
 ```
