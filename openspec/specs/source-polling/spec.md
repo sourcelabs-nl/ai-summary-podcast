@@ -26,11 +26,15 @@ The system SHALL poll each enabled source on a configurable schedule using Sprin
 - **THEN** the scheduler resolves the podcast owner's user ID and passes it to the poller so the fetcher can look up the user's X API key
 
 ### Requirement: RSS/Atom feed polling
-The system SHALL parse RSS and Atom feeds using ROME (`com.rometools:rome`). For sources with type `rss`, the system SHALL fetch the feed, extract entries published after the source's `last_seen_id` timestamp, and store each new entry as an article. The system SHALL strip HTML markup from the entry content and description using `Jsoup.parse(value).text()` before storing the article body, ensuring `article.body` is always clean plain text regardless of the feed's content format. This is safe to call on already-plain text (returns unchanged). The system SHALL extract the author from the RSS entry: use `SyndEntry.author` if non-blank, otherwise use the `name` of the first entry in `SyndEntry.authors` if available. If neither provides a non-blank value, `article.author` SHALL be null.
+The system SHALL parse RSS and Atom feeds using ROME (`com.rometools:rome`). For sources with type `rss`, the system SHALL fetch the feed, extract entries published after the source's `last_seen_id` timestamp, and store each new entry as an article. The system SHALL strip HTML markup from the entry content and description using `Jsoup.parse(value).text()` before storing the article body, ensuring `article.body` is always clean plain text regardless of the feed's content format. This is safe to call on already-plain text (returns unchanged). The system SHALL extract the author from the RSS entry: use `SyndEntry.author` if non-blank, otherwise use the `name` of the first entry in `SyndEntry.authors` if available. If neither provides a non-blank value, `article.author` SHALL be null. After fetching, the system SHALL pass the articles through the `SourceAggregator` which may merge them into a single digest article based on the source's aggregation settings.
 
-#### Scenario: New RSS entries discovered
-- **WHEN** an RSS feed contains 3 entries published after the last-seen timestamp
+#### Scenario: New RSS entries discovered without aggregation
+- **WHEN** an RSS feed contains 3 entries published after the last-seen timestamp and the source does not have aggregation enabled
 - **THEN** 3 new articles are created in the content store with title, clean plain-text body, URL, published timestamp, and author (when available)
+
+#### Scenario: Nitter RSS entries aggregated into digest
+- **WHEN** a nitter RSS feed contains 5 entries published after the last-seen timestamp and the source has aggregation enabled (explicit or auto-detected)
+- **THEN** the 5 entries are merged into a single digest article before storage
 
 #### Scenario: No new entries since last poll
 - **WHEN** an RSS feed contains no entries published after the last-seen timestamp

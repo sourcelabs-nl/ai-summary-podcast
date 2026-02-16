@@ -10,14 +10,16 @@ data class CreateSourceRequest(
     val type: String,
     val url: String,
     val pollIntervalMinutes: Int = 60,
-    val enabled: Boolean = true
+    val enabled: Boolean = true,
+    val aggregate: Boolean? = null
 )
 
 data class UpdateSourceRequest(
     val type: String,
     val url: String,
     val pollIntervalMinutes: Int = 60,
-    val enabled: Boolean = true
+    val enabled: Boolean = true,
+    val aggregate: Boolean? = null
 )
 
 data class SourceResponse(
@@ -27,6 +29,7 @@ data class SourceResponse(
     val url: String,
     val pollIntervalMinutes: Int,
     val enabled: Boolean,
+    val aggregate: Boolean?,
     val lastPolled: String?,
     val lastSeenId: String?
 )
@@ -49,7 +52,7 @@ class SourceController(
         val podcast = podcastService.findById(podcastId) ?: return ResponseEntity.notFound().build()
         if (podcast.userId != userId) return ResponseEntity.notFound().build()
 
-        val source = sourceService.create(podcastId, request.type, request.url, request.pollIntervalMinutes, request.enabled)
+        val source = sourceService.create(podcastId, request.type, request.url, request.pollIntervalMinutes, request.enabled, request.aggregate)
         return ResponseEntity.created(URI.create("/users/$userId/podcasts/$podcastId/sources/${source.id}"))
             .body(source.toResponse())
     }
@@ -77,7 +80,7 @@ class SourceController(
         val source = sourceService.findById(sourceId) ?: return ResponseEntity.notFound().build()
         if (source.podcastId != podcastId) return ResponseEntity.notFound().build()
 
-        val updated = sourceService.update(sourceId, request.type, request.url, request.pollIntervalMinutes, request.enabled)
+        val updated = sourceService.update(sourceId, request.type, request.url, request.pollIntervalMinutes, request.enabled, request.aggregate)
             ?: return ResponseEntity.notFound().build()
         return ResponseEntity.ok(updated.toResponse())
     }
@@ -101,7 +104,7 @@ class SourceController(
 
     private fun com.aisummarypodcast.store.Source.toResponse() = SourceResponse(
         id = id, podcastId = podcastId, type = type, url = url,
-        pollIntervalMinutes = pollIntervalMinutes, enabled = enabled,
+        pollIntervalMinutes = pollIntervalMinutes, enabled = enabled, aggregate = aggregate,
         lastPolled = lastPolled, lastSeenId = lastSeenId
     )
 }

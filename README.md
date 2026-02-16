@@ -271,7 +271,7 @@ PUT    /users/{userId}/podcasts/{podcastId}/sources/{sourceId}  — Update sourc
 DELETE /users/{userId}/podcasts/{podcastId}/sources/{sourceId}  — Delete source
 ```
 
-Sources can be of type `rss`, `website`, or `twitter`. Each source has a configurable `pollIntervalMinutes` and can be toggled with `enabled`. Twitter sources require an X OAuth connection (see below).
+Sources can be of type `rss`, `website`, or `twitter`. Each source has a configurable `pollIntervalMinutes` and can be toggled with `enabled`. Twitter sources require an X OAuth connection (see below). An optional `aggregate` field (boolean) controls whether fetched items are merged into a single digest article per poll cycle — useful for short-form sources like tweets. When `null` (default), aggregation is auto-detected for `twitter` type sources and nitter.net RSS feeds.
 
 Articles older than `app.source.max-article-age-days` (default: 7) are skipped during ingestion and periodically cleaned up. This prevents stale content from appearing in briefings when adding a new source with a large backlog.
 

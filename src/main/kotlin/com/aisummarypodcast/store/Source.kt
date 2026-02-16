@@ -14,5 +14,6 @@ data class Source(
     val enabled: Boolean = true,
     val lastPolled: String? = null,
     val lastSeenId: String? = null,
+    val aggregate: Boolean? = null,
     @Version val version: Long? = null
 )

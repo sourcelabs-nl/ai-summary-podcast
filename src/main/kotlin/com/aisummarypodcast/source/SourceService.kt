@@ -15,14 +15,15 @@ class SourceService(
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    fun create(podcastId: String, type: String, url: String, pollIntervalMinutes: Int = 60, enabled: Boolean = true): Source {
+    fun create(podcastId: String, type: String, url: String, pollIntervalMinutes: Int = 60, enabled: Boolean = true, aggregate: Boolean? = null): Source {
         val source = Source(
             id = UUID.randomUUID().toString(),
             podcastId = podcastId,
             type = type,
             url = url,
             pollIntervalMinutes = pollIntervalMinutes,
-            enabled = enabled
+            enabled = enabled,
+            aggregate = aggregate
         )
         return sourceRepository.save(source)
     }
@@ -31,9 +32,9 @@ class SourceService(
 
     fun findById(sourceId: String): Source? = sourceRepository.findById(sourceId).orElse(null)
 
-    fun update(sourceId: String, type: String, url: String, pollIntervalMinutes: Int, enabled: Boolean): Source? {
+    fun update(sourceId: String, type: String, url: String, pollIntervalMinutes: Int, enabled: Boolean, aggregate: Boolean? = null): Source? {
         val source = findById(sourceId) ?: return null
-        return sourceRepository.save(source.copy(type = type, url = url, pollIntervalMinutes = pollIntervalMinutes, enabled = enabled))
+        return sourceRepository.save(source.copy(type = type, url = url, pollIntervalMinutes = pollIntervalMinutes, enabled = enabled, aggregate = aggregate))
     }
 
     fun delete(sourceId: String): Boolean {

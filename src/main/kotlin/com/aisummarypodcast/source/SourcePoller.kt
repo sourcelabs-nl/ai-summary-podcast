@@ -15,6 +15,7 @@ class SourcePoller(
     private val rssFeedFetcher: RssFeedFetcher,
     private val websiteFetcher: WebsiteFetcher,
     private val twitterFetcher: TwitterFetcher,
+    private val sourceAggregator: SourceAggregator,
     private val articleRepository: ArticleRepository,
     private val sourceRepository: SourceRepository,
     private val appProperties: AppProperties
@@ -26,7 +27,7 @@ class SourcePoller(
         log.info("[Polling] Polling source: {} ({})", source.id, source.type)
 
         try {
-            val articles = when (source.type) {
+            val rawArticles = when (source.type) {
                 "rss" -> rssFeedFetcher.fetch(source.url, source.id, source.lastSeenId)
                 "website" -> listOfNotNull(websiteFetcher.fetch(source.url, source.id))
                 "twitter" -> {
@@ -42,6 +43,8 @@ class SourcePoller(
                     emptyList()
                 }
             }
+
+            val articles = sourceAggregator.aggregate(rawArticles, source)
 
             var latestTimestamp = source.lastSeenId
             var savedCount = 0
@@ -68,7 +71,7 @@ class SourcePoller(
             }
 
             val newLastSeenId = if (source.type == "twitter" && userId != null) {
-                twitterFetcher.buildLastSeenId(source.lastSeenId, articles, source.url, userId)
+                twitterFetcher.buildLastSeenId(source.lastSeenId, rawArticles, source.url, userId)
             } else {
                 latestTimestamp
             }
