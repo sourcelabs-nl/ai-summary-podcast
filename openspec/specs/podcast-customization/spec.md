@@ -125,6 +125,8 @@ Each podcast SHALL have a `language` field (TEXT, NOT NULL, default `"en"`). The
 ### Requirement: Customization fields in podcast CRUD
 All customization fields SHALL be accepted as optional fields in the podcast create (`POST`) and update (`PUT`) endpoints. The API response for a podcast SHALL include all customization fields with their effective values (stored value or default). The `llmModels` field SHALL be accepted and returned as a JSON object mapping stage names to model names (e.g., `{"filter": "cheap", "compose": "capable"}`). The old `llmModel` field SHALL no longer be accepted. All nullable primitive-typed DTO fields (`Int?`, `Boolean?`, `Double?`) SHALL use Jackson 3 `@JsonProperty` annotations to ensure correct deserialization.
 
+The `maxLlmCostCents` field SHALL be accepted as an optional nullable integer in the podcast create (`POST`) and update (`PUT`) endpoints. When set, it overrides the global `app.llm.max-cost-cents` threshold for that podcast's LLM pipeline cost gate. When null, the global default applies. The field SHALL be included in the podcast GET response.
+
 #### Scenario: Create podcast with per-stage model config
 - **WHEN** a `POST /users/{userId}/podcasts` request includes `llmModels: {"compose": "local"}`
 - **THEN** the podcast is created with `llm_models` stored as `{"compose": "local"}`
@@ -147,7 +149,23 @@ All customization fields SHALL be accepted as optional fields in the podcast cre
 
 #### Scenario: Get podcast includes customization
 - **WHEN** a `GET /users/{userId}/podcasts/{podcastId}` request is received
-- **THEN** the response includes all customization fields (llmModels, ttsVoice, ttsSpeed, style, targetWords, cron, customInstructions, language)
+- **THEN** the response includes all customization fields (llmModels, ttsVoice, ttsSpeed, style, targetWords, cron, customInstructions, language, maxLlmCostCents)
+
+#### Scenario: Create podcast with cost threshold
+- **WHEN** a `POST /users/{userId}/podcasts` request includes `"maxLlmCostCents": 500`
+- **THEN** the podcast is created with `max_llm_cost_cents` set to 500
+
+#### Scenario: Update podcast cost threshold
+- **WHEN** a `PUT /users/{userId}/podcasts/{podcastId}` request includes `"maxLlmCostCents": 300`
+- **THEN** the podcast's `max_llm_cost_cents` is updated to 300
+
+#### Scenario: Create podcast without cost threshold
+- **WHEN** a `POST /users/{userId}/podcasts` request does not include `maxLlmCostCents`
+- **THEN** the podcast is created with `max_llm_cost_cents` as null (uses global default)
+
+#### Scenario: Get podcast includes cost threshold
+- **WHEN** a `GET /users/{userId}/podcasts/{podcastId}` request is received for a podcast with `max_llm_cost_cents` set to 500
+- **THEN** the response includes `"maxLlmCostCents": 500`
 
 ### Requirement: Relevance threshold per podcast
 Each podcast SHALL have a `relevance_threshold` field (INTEGER, NOT NULL, default 5). The LLM pipeline SHALL use this threshold to determine which scored articles are relevant: articles with `relevance_score >= relevance_threshold` are considered relevant. Valid values are 0-10. The field SHALL be accepted in podcast create (`POST`) and update (`PUT`) endpoints and included in GET responses. Jackson 3 `@JsonProperty` annotations SHALL be used on the `relevanceThreshold` DTO field to ensure correct deserialization of nullable `Int?` values.

@@ -22,7 +22,8 @@ data class CreatePodcastRequest(
     val cron: String? = null,
     val customInstructions: String? = null,
     @JsonProperty("relevanceThreshold") val relevanceThreshold: Int? = null,
-    @JsonProperty("requireReview") val requireReview: Boolean? = null
+    @JsonProperty("requireReview") val requireReview: Boolean? = null,
+    @JsonProperty("maxLlmCostCents") val maxLlmCostCents: Int? = null
 )
 
 data class UpdatePodcastRequest(
@@ -37,7 +38,8 @@ data class UpdatePodcastRequest(
     val cron: String? = null,
     val customInstructions: String? = null,
     @JsonProperty("relevanceThreshold") val relevanceThreshold: Int? = null,
-    @JsonProperty("requireReview") val requireReview: Boolean? = null
+    @JsonProperty("requireReview") val requireReview: Boolean? = null,
+    @JsonProperty("maxLlmCostCents") val maxLlmCostCents: Int? = null
 )
 
 data class PodcastResponse(
@@ -55,6 +57,7 @@ data class PodcastResponse(
     val customInstructions: String?,
     val relevanceThreshold: Int,
     val requireReview: Boolean,
+    val maxLlmCostCents: Int?,
     val lastGeneratedAt: String?
 )
 
@@ -95,7 +98,8 @@ class PodcastController(
                 cron = request.cron ?: "0 0 6 * * *",
                 customInstructions = request.customInstructions,
                 relevanceThreshold = request.relevanceThreshold ?: 5,
-                requireReview = request.requireReview ?: false
+                requireReview = request.requireReview ?: false,
+                maxLlmCostCents = request.maxLlmCostCents
             )
         )
         return ResponseEntity.created(URI.create("/users/$userId/podcasts/${podcast.id}"))
@@ -142,7 +146,8 @@ class PodcastController(
                 cron = request.cron ?: existing.cron,
                 customInstructions = request.customInstructions ?: existing.customInstructions,
                 relevanceThreshold = request.relevanceThreshold ?: existing.relevanceThreshold,
-                requireReview = request.requireReview ?: existing.requireReview
+                requireReview = request.requireReview ?: existing.requireReview,
+                maxLlmCostCents = request.maxLlmCostCents ?: existing.maxLlmCostCents
             )
         ) ?: return ResponseEntity.notFound().build()
         return ResponseEntity.ok(updated.toResponse())
@@ -212,6 +217,6 @@ class PodcastController(
         language = language, llmModels = llmModels, ttsVoice = ttsVoice, ttsSpeed = ttsSpeed,
         style = style, targetWords = targetWords, cron = cron,
         customInstructions = customInstructions, relevanceThreshold = relevanceThreshold,
-        requireReview = requireReview, lastGeneratedAt = lastGeneratedAt
+        requireReview = requireReview, maxLlmCostCents = maxLlmCostCents, lastGeneratedAt = lastGeneratedAt
     )
 }

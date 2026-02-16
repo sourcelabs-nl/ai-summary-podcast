@@ -60,8 +60,26 @@ class LlmPipeline(
             }
         }
 
+        // Cost gate: estimate cost before any LLM calls
+        val allUnscored = articleRepository.findUnscoredBySourceIds(sourceIds)
+        if (allUnscored.isNotEmpty()) {
+            val targetWords = podcast.targetWords ?: appProperties.briefing.targetWords
+            val estimatedCostCents = CostEstimator.estimatePipelineCostCents(
+                allUnscored, filterModelDef, composeModelDef, targetWords
+            )
+            val costThreshold = podcast.maxLlmCostCents ?: appProperties.llm.maxCostCents
+            if (estimatedCostCents == null) {
+                log.warn("[LLM] Cost estimation unavailable for podcast {} — pricing not configured for model(s), skipping cost gate", podcast.id)
+            } else if (estimatedCostCents > costThreshold) {
+                log.warn("[LLM] Cost gate triggered for podcast {}: estimated {}¢ exceeds threshold {}¢ — skipping pipeline", podcast.id, estimatedCostCents, costThreshold)
+                return null
+            } else {
+                log.info("[LLM] Cost gate passed for podcast {}: estimated {}¢ within threshold {}¢", podcast.id, estimatedCostCents, costThreshold)
+            }
+        }
+
         // Step 2: Score and summarize unscored articles
-        val unscored = articleRepository.findUnscoredBySourceIds(sourceIds)
+        val unscored = allUnscored
         if (unscored.isNotEmpty()) {
             log.info("[LLM] Scoring and summarizing {} articles for podcast {}", unscored.size, podcast.id)
             val (_, scoringDuration) = measureTimedValue {

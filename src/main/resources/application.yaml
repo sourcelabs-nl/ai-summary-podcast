@@ -35,6 +35,7 @@ app:
     defaults:
       filter: cheap
       compose: capable
+    max-cost-cents: 200
   briefing:
     target-words: 1500
   episodes:

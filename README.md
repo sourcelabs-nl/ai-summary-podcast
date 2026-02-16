@@ -42,6 +42,7 @@ Each podcast can be tailored to your preferences via the following settings:
 | `customInstructions` | — | Free-form instructions appended to the LLM prompt (e.g. "Focus on recent breakthroughs" or "Avoid financial topics") |
 | `relevanceThreshold` | `5` | Minimum relevance score (0–10) for an article to be included in the briefing |
 | `requireReview` | `false` | When `true`, generated scripts pause for review before TTS — see [Episode Review](#episode-review) below |
+| `maxLlmCostCents` | `null` | Per-podcast LLM cost threshold in cents — see [Cost Gate](#cost-gate) below |
 
 ### Briefing Styles
 
@@ -115,6 +116,20 @@ app:
 ```
 
 Cost fields are `null` when pricing is not configured or when usage metadata is unavailable from the provider.
+
+### Cost Gate
+
+Before making any LLM API calls, the pipeline estimates the total cost (scoring + composition) and compares it against a configurable threshold. If the estimated cost exceeds the threshold, the entire pipeline run is skipped and a warning is logged.
+
+The global default threshold is configured in `application.yaml`:
+
+```yaml
+app:
+  llm:
+    max-cost-cents: 200    # $2.00 — skip pipeline if estimated cost exceeds this
+```
+
+Each podcast can override the global threshold via `maxLlmCostCents`. When set to `null` (the default), the global value applies. The estimation is pessimistic — it assumes all articles pass relevance filtering — so actual costs will typically be lower than estimated. If model pricing is not configured, the cost gate is bypassed with a warning.
 
 ### Static Feed Export
 

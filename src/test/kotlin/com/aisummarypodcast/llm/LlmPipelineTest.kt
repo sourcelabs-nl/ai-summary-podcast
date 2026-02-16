@@ -163,4 +163,189 @@ class LlmPipelineTest {
         verify(exactly = 0) { sourceAggregator.aggregateAndPersist(any(), any()) }
         verify(exactly = 0) { articleScoreSummarizer.scoreSummarize(any(), any(), any()) }
     }
+
+    // --- Cost gate tests ---
+
+    private val pricedFilterModel = ModelDefinition(
+        provider = "openrouter", model = "gpt-4o-mini",
+        inputCostPerMtok = 0.15, outputCostPerMtok = 0.60
+    )
+
+    private val pricedComposeModel = ModelDefinition(
+        provider = "openrouter", model = "claude-sonnet",
+        inputCostPerMtok = 3.00, outputCostPerMtok = 15.00
+    )
+
+    // Helper: creates an article with a body of the given size
+    private fun articleWithBody(bodySize: Int) = Article(
+        id = null, sourceId = "s1", title = "Test", body = "x".repeat(bodySize),
+        url = "http://test.com", contentHash = "hash-$bodySize"
+    )
+
+    private fun setupCostGateTest(
+        podcast: Podcast,
+        unscoredArticles: List<Article>,
+        filterModel: ModelDefinition = pricedFilterModel,
+        composeModel: ModelDefinition = pricedComposeModel
+    ) {
+        every { sourceRepository.findByPodcastId(podcast.id) } returns listOf(source)
+        every { modelResolver.resolve(podcast, "filter") } returns filterModel
+        every { modelResolver.resolve(podcast, "compose") } returns composeModel
+        every { postRepository.findUnlinkedBySourceIds(listOf("s1"), any()) } returns emptyList()
+        every { articleRepository.findUnscoredBySourceIds(listOf("s1")) } returns unscoredArticles
+    }
+
+    @Test
+    fun `cost gate - below threshold proceeds with pipeline`() {
+        // Small articles → low cost, well under 200¢ default threshold
+        val articles = listOf(articleWithBody(2000))
+        val scoredArticle = articles[0].copy(relevanceScore = 8, summary = "Summary")
+        val podcastWithPricing = podcast.copy()
+
+        setupCostGateTest(podcastWithPricing, articles)
+        every { articleScoreSummarizer.scoreSummarize(articles, podcastWithPricing, pricedFilterModel) } returns listOf(scoredArticle)
+        every { articleRepository.findRelevantUnprocessedBySourceIds(listOf("s1"), 5) } returns listOf(scoredArticle)
+        every { briefingComposer.compose(listOf(scoredArticle), podcastWithPricing, pricedComposeModel) } returns CompositionResult("Script", TokenUsage(500, 200))
+
+        val result = pipeline.run(podcastWithPricing)
+
+        assertNotNull(result)
+        verify { briefingComposer.compose(any(), any(), any()) }
+    }
+
+    @Test
+    fun `cost gate - above threshold skips pipeline`() {
+        // Use a very low threshold (1¢) so even small articles trigger the gate
+        val lowThresholdProps = AppProperties(
+            llm = LlmProperties(maxCostCents = 1),
+            briefing = BriefingProperties(),
+            episodes = EpisodesProperties(),
+            feed = FeedProperties(),
+            encryption = EncryptionProperties(masterKey = "test-key"),
+            source = SourceProperties(maxArticleAgeDays = 7)
+        )
+        val pipelineWithLowThreshold = LlmPipeline(
+            articleScoreSummarizer, briefingComposer, modelResolver, articleRepository,
+            sourceRepository, postRepository, sourceAggregator, lowThresholdProps
+        )
+
+        // 100 articles with 10000 chars each → estimated cost will exceed 1¢
+        val articles = (1..100).map { articleWithBody(10000) }
+
+        every { sourceRepository.findByPodcastId("p1") } returns listOf(source)
+        every { modelResolver.resolve(podcast, "filter") } returns pricedFilterModel
+        every { modelResolver.resolve(podcast, "compose") } returns pricedComposeModel
+        every { postRepository.findUnlinkedBySourceIds(listOf("s1"), any()) } returns emptyList()
+        every { articleRepository.findUnscoredBySourceIds(listOf("s1")) } returns articles
+
+        val result = pipelineWithLowThreshold.run(podcast)
+
+        assertNull(result)
+        verify(exactly = 0) { articleScoreSummarizer.scoreSummarize(any(), any(), any()) }
+        verify(exactly = 0) { briefingComposer.compose(any(), any(), any()) }
+    }
+
+    @Test
+    fun `cost gate - equal threshold proceeds`() {
+        // We need to find a cost that exactly equals the threshold.
+        // Use a custom threshold that matches the estimated cost.
+        // For 1 article with 4 chars body: scoring input = 1 token, output = 200 tokens
+        // Scoring cost = (1 * 0.15 + 200 * 0.60) / 1_000_000 * 100 ≈ 0.012 cents → 0
+        // Composition: input = 200 tokens, output = 1500 * 1.3 = 1950 tokens
+        // Composition cost = (200 * 3.00 + 1950 * 15.00) / 1_000_000 * 100 ≈ 2.985 → 3
+        // Total: 0 + 3 = 3 cents
+        val thresholdProps = AppProperties(
+            llm = LlmProperties(maxCostCents = 3),
+            briefing = BriefingProperties(),
+            episodes = EpisodesProperties(),
+            feed = FeedProperties(),
+            encryption = EncryptionProperties(masterKey = "test-key"),
+            source = SourceProperties(maxArticleAgeDays = 7)
+        )
+        val pipelineExact = LlmPipeline(
+            articleScoreSummarizer, briefingComposer, modelResolver, articleRepository,
+            sourceRepository, postRepository, sourceAggregator, thresholdProps
+        )
+
+        val articles = listOf(articleWithBody(4))
+        val scoredArticle = articles[0].copy(relevanceScore = 8, summary = "Summary")
+
+        every { sourceRepository.findByPodcastId("p1") } returns listOf(source)
+        every { modelResolver.resolve(podcast, "filter") } returns pricedFilterModel
+        every { modelResolver.resolve(podcast, "compose") } returns pricedComposeModel
+        every { postRepository.findUnlinkedBySourceIds(listOf("s1"), any()) } returns emptyList()
+        every { articleRepository.findUnscoredBySourceIds(listOf("s1")) } returns articles
+        every { articleScoreSummarizer.scoreSummarize(articles, podcast, pricedFilterModel) } returns listOf(scoredArticle)
+        every { articleRepository.findRelevantUnprocessedBySourceIds(listOf("s1"), 5) } returns listOf(scoredArticle)
+        every { briefingComposer.compose(listOf(scoredArticle), podcast, pricedComposeModel) } returns CompositionResult("Script", TokenUsage(500, 200))
+
+        val result = pipelineExact.run(podcast)
+
+        assertNotNull(result)
+        verify { briefingComposer.compose(any(), any(), any()) }
+    }
+
+    @Test
+    fun `cost gate - null pricing bypasses gate`() {
+        // Models without pricing → cost estimate is null → gate bypassed
+        val articles = listOf(articleWithBody(2000))
+        val scoredArticle = articles[0].copy(relevanceScore = 8, summary = "Summary")
+
+        setupCostGateTest(podcast, articles, filterModelDef, composeModelDef)
+        every { articleScoreSummarizer.scoreSummarize(articles, podcast, filterModelDef) } returns listOf(scoredArticle)
+        every { articleRepository.findRelevantUnprocessedBySourceIds(listOf("s1"), 5) } returns listOf(scoredArticle)
+        every { briefingComposer.compose(listOf(scoredArticle), podcast, composeModelDef) } returns CompositionResult("Script", TokenUsage(500, 200))
+
+        val result = pipeline.run(podcast)
+
+        assertNotNull(result)
+        verify { briefingComposer.compose(any(), any(), any()) }
+    }
+
+    @Test
+    fun `cost gate - per-podcast override respected`() {
+        // Global threshold is 200 (default). Podcast overrides to 500.
+        // With 100 articles of 10000 chars, the cost will exceed 200 but not 500.
+        // Let's verify: scoring input = 100 * (10000/4) = 250000 tokens, output = 100 * 200 = 20000 tokens
+        // Scoring cost = (250000 * 0.15 + 20000 * 0.60) / 1_000_000 * 100 = 4.95 cents → 5
+        // Composition: input = 100 * 200 = 20000, output = 1950
+        // Composition cost = (20000 * 3.00 + 1950 * 15.00) / 1_000_000 * 100 = 8.925 cents → 9
+        // Total = 5 + 9 = 14 cents → well under 500, also under 200
+        // Need more articles to exceed 200 but not 500... let me use larger bodies.
+        // Actually 14 cents for 100 articles is very low. The default 200¢ won't trigger here.
+        // Let me use a low global threshold with a higher per-podcast override.
+        val lowGlobalProps = AppProperties(
+            llm = LlmProperties(maxCostCents = 1),
+            briefing = BriefingProperties(),
+            episodes = EpisodesProperties(),
+            feed = FeedProperties(),
+            encryption = EncryptionProperties(masterKey = "test-key"),
+            source = SourceProperties(maxArticleAgeDays = 7)
+        )
+        val pipelineWithLowGlobal = LlmPipeline(
+            articleScoreSummarizer, briefingComposer, modelResolver, articleRepository,
+            sourceRepository, postRepository, sourceAggregator, lowGlobalProps
+        )
+
+        // Per-podcast override to 500 → the estimate (14¢) is under 500 → passes
+        val podcastWithOverride = podcast.copy(maxLlmCostCents = 500)
+        val articles = (1..100).map { articleWithBody(10000) }
+        val scoredArticles = articles.mapIndexed { i, a -> a.copy(relevanceScore = 8, summary = "Summary $i") }
+
+        every { sourceRepository.findByPodcastId("p1") } returns listOf(source)
+        every { modelResolver.resolve(podcastWithOverride, "filter") } returns pricedFilterModel
+        every { modelResolver.resolve(podcastWithOverride, "compose") } returns pricedComposeModel
+        every { postRepository.findUnlinkedBySourceIds(listOf("s1"), any()) } returns emptyList()
+        every { articleRepository.findUnscoredBySourceIds(listOf("s1")) } returns articles
+        every { articleScoreSummarizer.scoreSummarize(articles, podcastWithOverride, pricedFilterModel) } returns scoredArticles
+        every { articleRepository.findRelevantUnprocessedBySourceIds(listOf("s1"), 5) } returns scoredArticles
+        every { briefingComposer.compose(scoredArticles, podcastWithOverride, pricedComposeModel) } returns CompositionResult("Script", TokenUsage(500, 200))
+
+        val result = pipelineWithLowGlobal.run(podcastWithOverride)
+
+        // Without the per-podcast override (global = 1¢), this would be blocked
+        // With override = 500¢, it passes
+        assertNotNull(result)
+        verify { briefingComposer.compose(any(), any(), any()) }
+    }
 }
