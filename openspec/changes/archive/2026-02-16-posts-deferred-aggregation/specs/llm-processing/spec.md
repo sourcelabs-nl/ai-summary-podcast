@@ -1,9 +1,3 @@
-# Capability: LLM Processing
-
-## Purpose
-
-Three-stage LLM pipeline for processing articles (relevance scoring, conditional summarization, briefing script composition) using Spring AI and OpenRouter.
-
 ## MODIFIED Requirements
 
 ### Requirement: Two-step LLM pipeline

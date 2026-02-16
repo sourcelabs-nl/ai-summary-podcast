@@ -1,10 +1,15 @@
 package com.aisummarypodcast.llm
 
+import com.aisummarypodcast.config.AppProperties
+import com.aisummarypodcast.source.SourceAggregator
 import com.aisummarypodcast.store.ArticleRepository
 import com.aisummarypodcast.store.Podcast
+import com.aisummarypodcast.store.PostRepository
 import com.aisummarypodcast.store.SourceRepository
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
+import java.time.Instant
+import java.time.temporal.ChronoUnit
 import kotlin.time.measureTimedValue
 
 data class PipelineResult(
@@ -18,18 +23,21 @@ data class PipelineResult(
 
 @Component
 class LlmPipeline(
-    private val relevanceScorer: RelevanceScorer,
-    private val articleSummarizer: ArticleSummarizer,
+    private val articleScoreSummarizer: ArticleScoreSummarizer,
     private val briefingComposer: BriefingComposer,
     private val modelResolver: ModelResolver,
     private val articleRepository: ArticleRepository,
-    private val sourceRepository: SourceRepository
+    private val sourceRepository: SourceRepository,
+    private val postRepository: PostRepository,
+    private val sourceAggregator: SourceAggregator,
+    private val appProperties: AppProperties
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
     fun run(podcast: Podcast): PipelineResult? {
-        val sourceIds = sourceRepository.findByPodcastId(podcast.id).map { it.id }
+        val sources = sourceRepository.findByPodcastId(podcast.id)
+        val sourceIds = sources.map { it.id }
         if (sourceIds.isEmpty()) {
             log.info("[LLM] Podcast {} has no sources — skipping", podcast.id)
             return null
@@ -39,27 +47,30 @@ class LlmPipeline(
         val composeModelDef = modelResolver.resolve(podcast, "compose")
         val threshold = podcast.relevanceThreshold
 
-        // Stage 1: Score unscored articles
+        // Step 1: Aggregate unlinked posts into articles
+        val cutoff = Instant.now().minus(appProperties.source.maxArticleAgeDays.toLong(), ChronoUnit.DAYS).toString()
+        val unlinkedPosts = postRepository.findUnlinkedBySourceIds(sourceIds, cutoff)
+
+        if (unlinkedPosts.isNotEmpty()) {
+            log.info("[LLM] Aggregating {} unlinked posts for podcast {}", unlinkedPosts.size, podcast.id)
+            val postsBySource = unlinkedPosts.groupBy { it.sourceId }
+            for ((sourceId, posts) in postsBySource) {
+                val source = sources.first { it.id == sourceId }
+                sourceAggregator.aggregateAndPersist(posts, source)
+            }
+        }
+
+        // Step 2: Score and summarize unscored articles
         val unscored = articleRepository.findUnscoredBySourceIds(sourceIds)
         if (unscored.isNotEmpty()) {
-            log.info("[LLM] Scoring {} articles for podcast {}", unscored.size, podcast.id)
+            log.info("[LLM] Scoring and summarizing {} articles for podcast {}", unscored.size, podcast.id)
             val (_, scoringDuration) = measureTimedValue {
-                relevanceScorer.score(unscored, podcast, filterModelDef)
+                articleScoreSummarizer.scoreSummarize(unscored, podcast, filterModelDef)
             }
-            log.info("[LLM] Scoring complete — {} articles in {}", unscored.size, scoringDuration)
+            log.info("[LLM] Score+summarize complete — {} articles in {}", unscored.size, scoringDuration)
         }
 
-        // Stage 2: Summarize relevant unsummarized articles (word count filtering done in ArticleSummarizer)
-        val unsummarized = articleRepository.findRelevantUnsummarizedBySourceIds(sourceIds, threshold)
-        if (unsummarized.isNotEmpty()) {
-            log.info("[LLM] Summarizing {} relevant articles for podcast {}", unsummarized.size, podcast.id)
-            val (_, summarizationDuration) = measureTimedValue {
-                articleSummarizer.summarize(unsummarized, podcast, filterModelDef)
-            }
-            log.info("[LLM] Summarization complete — {} articles in {}", unsummarized.size, summarizationDuration)
-        }
-
-        // Stage 3: Compose briefing from all relevant unprocessed articles
+        // Step 3: Compose briefing from all relevant unprocessed articles
         val toCompose = articleRepository.findRelevantUnprocessedBySourceIds(sourceIds, threshold)
         if (toCompose.isEmpty()) {
             log.info("[LLM] No relevant unprocessed articles for podcast {} — skipping briefing generation", podcast.id)

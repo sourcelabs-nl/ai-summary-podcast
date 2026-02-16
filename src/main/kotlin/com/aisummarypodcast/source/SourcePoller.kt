@@ -1,7 +1,7 @@
 package com.aisummarypodcast.source
 
 import com.aisummarypodcast.config.AppProperties
-import com.aisummarypodcast.store.ArticleRepository
+import com.aisummarypodcast.store.PostRepository
 import com.aisummarypodcast.store.Source
 import com.aisummarypodcast.store.SourceRepository
 import org.slf4j.LoggerFactory
@@ -15,8 +15,7 @@ class SourcePoller(
     private val rssFeedFetcher: RssFeedFetcher,
     private val websiteFetcher: WebsiteFetcher,
     private val twitterFetcher: TwitterFetcher,
-    private val sourceAggregator: SourceAggregator,
-    private val articleRepository: ArticleRepository,
+    private val postRepository: PostRepository,
     private val sourceRepository: SourceRepository,
     private val appProperties: AppProperties
 ) {
@@ -27,7 +26,7 @@ class SourcePoller(
         log.info("[Polling] Polling source: {} ({})", source.id, source.type)
 
         try {
-            val rawArticles = when (source.type) {
+            val rawPosts = when (source.type) {
                 "rss" -> rssFeedFetcher.fetch(source.url, source.id, source.lastSeenId)
                 "website" -> listOfNotNull(websiteFetcher.fetch(source.url, source.id))
                 "twitter" -> {
@@ -44,26 +43,25 @@ class SourcePoller(
                 }
             }
 
-            val articles = sourceAggregator.aggregate(rawArticles, source)
-
             var latestTimestamp = source.lastSeenId
             var savedCount = 0
 
             val maxAgeCutoff = Instant.now().minus(appProperties.source.maxArticleAgeDays.toLong(), ChronoUnit.DAYS)
+            val now = Instant.now().toString()
 
-            for (article in articles) {
-                if (article.publishedAt != null && Instant.parse(article.publishedAt).isBefore(maxAgeCutoff)) {
-                    log.debug("[Polling] Skipping old article '{}' (published {})", article.title, article.publishedAt)
+            for (post in rawPosts) {
+                if (post.publishedAt != null && Instant.parse(post.publishedAt).isBefore(maxAgeCutoff)) {
+                    log.debug("[Polling] Skipping old post '{}' (published {})", post.title, post.publishedAt)
                     continue
                 }
 
-                val hash = sha256(article.body)
-                if (articleRepository.findBySourceIdAndContentHash(source.id, hash) != null) continue
+                val hash = sha256(post.body)
+                if (postRepository.findBySourceIdAndContentHash(source.id, hash) != null) continue
 
-                articleRepository.save(article.copy(contentHash = hash))
+                postRepository.save(post.copy(contentHash = hash, createdAt = now))
                 savedCount++
 
-                article.publishedAt?.let { publishedAt ->
+                post.publishedAt?.let { publishedAt ->
                     if (latestTimestamp == null || publishedAt > latestTimestamp!!) {
                         latestTimestamp = publishedAt
                     }
@@ -71,13 +69,13 @@ class SourcePoller(
             }
 
             val newLastSeenId = if (source.type == "twitter" && userId != null) {
-                twitterFetcher.buildLastSeenId(source.lastSeenId, rawArticles, source.url, userId)
+                twitterFetcher.buildLastSeenId(source.lastSeenId, rawPosts, source.url, userId)
             } else {
                 latestTimestamp
             }
 
             sourceRepository.save(source.copy(lastPolled = Instant.now().toString(), lastSeenId = newLastSeenId))
-            log.info("[Polling] Source {} polled: {} new articles saved", source.id, savedCount)
+            log.info("[Polling] Source {} polled: {} new posts saved", source.id, savedCount)
         } catch (e: Exception) {
             log.error("[Polling] Error polling source {}: {}", source.id, e.message, e)
             sourceRepository.save(source.copy(lastPolled = Instant.now().toString()))

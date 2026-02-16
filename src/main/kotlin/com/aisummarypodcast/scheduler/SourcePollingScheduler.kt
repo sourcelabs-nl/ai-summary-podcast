@@ -4,6 +4,7 @@ import com.aisummarypodcast.config.AppProperties
 import com.aisummarypodcast.podcast.PodcastService
 import com.aisummarypodcast.source.SourcePoller
 import com.aisummarypodcast.store.ArticleRepository
+import com.aisummarypodcast.store.PostRepository
 import com.aisummarypodcast.store.SourceRepository
 import org.slf4j.LoggerFactory
 import org.springframework.scheduling.annotation.Scheduled
@@ -16,6 +17,7 @@ class SourcePollingScheduler(
     private val sourcePoller: SourcePoller,
     private val sourceRepository: SourceRepository,
     private val articleRepository: ArticleRepository,
+    private val postRepository: PostRepository,
     private val appProperties: AppProperties,
     private val podcastService: PodcastService
 ) {
@@ -46,5 +48,6 @@ class SourcePollingScheduler(
     private fun cleanupOldArticles() {
         val cutoff = Instant.now().minus(appProperties.source.maxArticleAgeDays.toLong(), ChronoUnit.DAYS)
         articleRepository.deleteOldUnprocessedArticles(cutoff.toString())
+        postRepository.deleteOldUnlinkedPosts(cutoff.toString())
     }
 }

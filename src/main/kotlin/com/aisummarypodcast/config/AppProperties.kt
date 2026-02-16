@@ -22,8 +22,7 @@ data class EncryptionProperties(
 
 data class LlmProperties(
     val models: Map<String, ModelDefinition> = emptyMap(),
-    val defaults: StageDefaults = StageDefaults(),
-    val summarizationMinWords: Int = 500
+    val defaults: StageDefaults = StageDefaults()
 )
 
 data class ModelDefinition(

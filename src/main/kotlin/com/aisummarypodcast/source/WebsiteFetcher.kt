@@ -1,6 +1,6 @@
 package com.aisummarypodcast.source
 
-import com.aisummarypodcast.store.Article
+import com.aisummarypodcast.store.Post
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.slf4j.LoggerFactory
@@ -11,7 +11,7 @@ class WebsiteFetcher(private val contentExtractor: ContentExtractor) {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    fun fetch(url: String, sourceId: String): Article? {
+    fun fetch(url: String, sourceId: String): Post? {
         val document = Jsoup.connect(url)
             .userAgent("AiSummaryPodcast/1.0")
             .timeout(30_000)
@@ -27,13 +27,14 @@ class WebsiteFetcher(private val contentExtractor: ContentExtractor) {
 
         val author = extractAuthor(document)
 
-        return Article(
+        return Post(
             sourceId = sourceId,
             title = title,
             body = body,
             url = url,
             author = author,
-            contentHash = "" // computed by SourcePoller
+            contentHash = "",
+            createdAt = ""
         )
     }
 

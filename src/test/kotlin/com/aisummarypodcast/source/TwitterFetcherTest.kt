@@ -62,9 +62,9 @@ class TwitterFetcherTest {
     }
 
     @Test
-    fun `mapTweetToArticle with short text`() {
+    fun `mapTweetToPost with short text`() {
         val tweet = XTweet(id = "123", text = "Short tweet", createdAt = "2026-02-15T10:00:00.000Z")
-        val article = fetcher.mapTweetToArticle(tweet, "testuser", "s1")
+        val article = fetcher.mapTweetToPost(tweet, "testuser", "s1")
 
         assertEquals("Short tweet", article.title)
         assertEquals("Short tweet", article.body)
@@ -74,10 +74,10 @@ class TwitterFetcherTest {
     }
 
     @Test
-    fun `mapTweetToArticle with long text truncates title`() {
+    fun `mapTweetToPost with long text truncates title`() {
         val longText = "A".repeat(150)
         val tweet = XTweet(id = "456", text = longText, createdAt = "2026-02-15T10:00:00.000Z")
-        val article = fetcher.mapTweetToArticle(tweet, "testuser", "s1")
+        val article = fetcher.mapTweetToPost(tweet, "testuser", "s1")
 
         assertEquals("A".repeat(100) + "...", article.title)
         assertEquals(longText, article.body)
@@ -180,8 +180,8 @@ class TwitterFetcherTest {
     @Test
     fun `buildLastSeenId creates userId colon tweetId format`() {
         val articles = listOf(
-            fetcher.mapTweetToArticle(XTweet(id = "100", text = "older"), "user", "s1"),
-            fetcher.mapTweetToArticle(XTweet(id = "200", text = "newer"), "user", "s1")
+            fetcher.mapTweetToPost(XTweet(id = "100", text = "older"), "user", "s1"),
+            fetcher.mapTweetToPost(XTweet(id = "200", text = "newer"), "user", "s1")
         )
 
         val result = fetcher.buildLastSeenId("999:50", articles, "user", "user1")

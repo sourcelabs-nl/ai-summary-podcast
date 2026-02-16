@@ -1,11 +1,3 @@
-# Capability: Source Aggregation
-
-## Purpose
-
-Hybrid auto-detect + per-source override aggregation of short-form content items (tweets, microposts) into a single article per source per poll cycle for more effective LLM processing.
-
-## Requirements
-
 ## MODIFIED Requirements
 
 ### Requirement: Source article aggregation

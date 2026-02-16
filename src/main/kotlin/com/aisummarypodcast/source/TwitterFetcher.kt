@@ -1,6 +1,6 @@
 package com.aisummarypodcast.source
 
-import com.aisummarypodcast.store.Article
+import com.aisummarypodcast.store.Post
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import org.springframework.web.client.HttpClientErrorException
@@ -15,7 +15,7 @@ class TwitterFetcher(
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    fun fetch(url: String, sourceId: String, lastSeenId: String?, userId: String): List<Article> {
+    fun fetch(url: String, sourceId: String, lastSeenId: String?, userId: String): List<Post> {
         return try {
             val username = extractUsername(url)
             val accessToken = xTokenManager.getValidAccessToken(userId)
@@ -24,7 +24,7 @@ class TwitterFetcher(
             val xUserId = cachedUserId ?: resolveUserId(accessToken, username)
             val tweets = xClient.getUserTimeline(accessToken, xUserId, sinceId)
 
-            tweets.map { tweet -> mapTweetToArticle(tweet, username, sourceId) }
+            tweets.map { tweet -> mapTweetToPost(tweet, username, sourceId) }
         } catch (e: HttpClientErrorException) {
             handleApiError(e, sourceId)
             emptyList()
@@ -34,16 +34,14 @@ class TwitterFetcher(
         }
     }
 
-    fun buildLastSeenId(currentLastSeenId: String?, articles: List<Article>, url: String, userId: String): String? {
-        if (articles.isEmpty() && currentLastSeenId != null) return currentLastSeenId
+    fun buildLastSeenId(currentLastSeenId: String?, posts: List<Post>, url: String, userId: String): String? {
+        if (posts.isEmpty() && currentLastSeenId != null) return currentLastSeenId
 
         val (cachedUserId, _) = parseLastSeenId(currentLastSeenId)
         val xUserId = cachedUserId ?: return currentLastSeenId
 
-        // Articles from X have URLs like https://x.com/user/status/TWEET_ID
-        // The latest tweet ID is the highest one (tweets are returned newest first)
-        val latestTweetId = articles.mapNotNull { article ->
-            article.url.substringAfterLast("/").toLongOrNull()
+        val latestTweetId = posts.mapNotNull { post ->
+            post.url.substringAfterLast("/").toLongOrNull()
         }.maxOrNull()
 
         return if (latestTweetId != null) {
@@ -86,7 +84,7 @@ class TwitterFetcher(
         }
     }
 
-    internal fun mapTweetToArticle(tweet: XTweet, username: String, sourceId: String): Article {
+    internal fun mapTweetToPost(tweet: XTweet, username: String, sourceId: String): Post {
         val title = if (tweet.text.length > 100) {
             tweet.text.take(100) + "..."
         } else {
@@ -101,14 +99,15 @@ class TwitterFetcher(
             }
         }
 
-        return Article(
+        return Post(
             sourceId = sourceId,
             title = title,
             body = tweet.text,
             url = "https://x.com/$username/status/${tweet.id}",
             publishedAt = publishedAt,
             author = "@$username",
-            contentHash = ""
+            contentHash = "",
+            createdAt = ""
         )
     }
 

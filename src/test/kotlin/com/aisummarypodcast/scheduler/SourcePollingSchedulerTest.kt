@@ -11,6 +11,7 @@ import com.aisummarypodcast.podcast.PodcastService
 import com.aisummarypodcast.source.SourcePoller
 import com.aisummarypodcast.store.ArticleRepository
 import com.aisummarypodcast.store.Podcast
+import com.aisummarypodcast.store.PostRepository
 import com.aisummarypodcast.store.Source
 import com.aisummarypodcast.store.SourceRepository
 import io.mockk.every
@@ -29,6 +30,9 @@ class SourcePollingSchedulerTest {
     private val articleRepository = mockk<ArticleRepository> {
         every { deleteOldUnprocessedArticles(any()) } returns Unit
     }
+    private val postRepository = mockk<PostRepository> {
+        every { deleteOldUnlinkedPosts(any()) } returns Unit
+    }
     private val podcastService = mockk<PodcastService>()
 
     private fun appProperties(maxArticleAgeDays: Int = 7) = AppProperties(
@@ -42,7 +46,7 @@ class SourcePollingSchedulerTest {
 
     @Test
     fun `cleans up old unprocessed articles before polling`() {
-        val scheduler = SourcePollingScheduler(sourcePoller, sourceRepository, articleRepository, appProperties(), podcastService)
+        val scheduler = SourcePollingScheduler(sourcePoller, sourceRepository, articleRepository, postRepository, appProperties(), podcastService)
 
         scheduler.pollSources()
 
@@ -50,6 +54,19 @@ class SourcePollingSchedulerTest {
             val parsed = Instant.parse(cutoff)
             val expectedCutoff = Instant.now().minus(7, ChronoUnit.DAYS)
             // Allow 5 seconds of tolerance for test execution time
+            parsed.isAfter(expectedCutoff.minusSeconds(5)) && parsed.isBefore(expectedCutoff.plusSeconds(5))
+        }) }
+    }
+
+    @Test
+    fun `cleans up old unlinked posts before polling`() {
+        val scheduler = SourcePollingScheduler(sourcePoller, sourceRepository, articleRepository, postRepository, appProperties(), podcastService)
+
+        scheduler.pollSources()
+
+        verify { postRepository.deleteOldUnlinkedPosts(match { cutoff ->
+            val parsed = Instant.parse(cutoff)
+            val expectedCutoff = Instant.now().minus(7, ChronoUnit.DAYS)
             parsed.isAfter(expectedCutoff.minusSeconds(5)) && parsed.isBefore(expectedCutoff.plusSeconds(5))
         }) }
     }
@@ -68,7 +85,7 @@ class SourcePollingSchedulerTest {
         every { podcastService.findById("p1") } returns podcast
         every { sourcePoller.poll(twitterSource, "owner-1") } returns Unit
 
-        val scheduler = SourcePollingScheduler(sourcePoller, sourceRepository, articleRepository, appProperties(), podcastService)
+        val scheduler = SourcePollingScheduler(sourcePoller, sourceRepository, articleRepository, postRepository, appProperties(), podcastService)
         scheduler.pollSources()
 
         verify { podcastService.findById("p1") }
@@ -85,7 +102,7 @@ class SourcePollingSchedulerTest {
         every { sourceRepository.findAll() } returns listOf(rssSource)
         every { sourcePoller.poll(rssSource, null) } returns Unit
 
-        val scheduler = SourcePollingScheduler(sourcePoller, sourceRepository, articleRepository, appProperties(), podcastService)
+        val scheduler = SourcePollingScheduler(sourcePoller, sourceRepository, articleRepository, postRepository, appProperties(), podcastService)
         scheduler.pollSources()
 
         verify(exactly = 0) { podcastService.findById(any()) }

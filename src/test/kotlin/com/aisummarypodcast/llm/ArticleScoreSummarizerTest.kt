@@ -9,6 +9,7 @@ import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.springframework.ai.chat.client.ChatClient
@@ -19,12 +20,11 @@ import org.springframework.ai.chat.metadata.DefaultUsage
 import org.springframework.ai.chat.model.ChatResponse
 import org.springframework.ai.chat.model.Generation
 
-class RelevanceScorerTest {
+class ArticleScoreSummarizerTest {
 
     private val articleRepository = mockk<ArticleRepository> {
         every { save(any()) } answers { firstArg() }
     }
-    private val modelResolver = mockk<ModelResolver>()
     private val chatClientFactory = mockk<ChatClientFactory>()
     private val chatClient = mockk<ChatClient>()
 
@@ -33,11 +33,11 @@ class RelevanceScorerTest {
         inputCostPerMtok = 0.15, outputCostPerMtok = 0.60
     )
 
-    private val scorer = RelevanceScorer(articleRepository, modelResolver, chatClientFactory)
+    private val scoreSummarizer = ArticleScoreSummarizer(articleRepository, chatClientFactory)
 
     private val podcast = Podcast(id = "p1", userId = "u1", name = "Tech Daily", topic = "AI engineering")
 
-    private fun mockLlmResponse(result: RelevanceScoringResult, inputTokens: Int = 500, outputTokens: Int = 50) {
+    private fun mockLlmResponse(result: ScoreSummarizeResult, inputTokens: Int = 500, outputTokens: Int = 80) {
         val metadata = ChatResponseMetadata.builder()
             .usage(DefaultUsage(inputTokens, outputTokens))
             .build()
@@ -45,7 +45,7 @@ class RelevanceScorerTest {
         val responseEntity = ResponseEntity(chatResponse, result)
 
         val callResponseSpec = mockk<ChatClient.CallResponseSpec>()
-        every { callResponseSpec.responseEntity(RelevanceScoringResult::class.java) } returns responseEntity
+        every { callResponseSpec.responseEntity(ScoreSummarizeResult::class.java) } returns responseEntity
 
         val chatClientRequestSpec = mockk<ChatClient.ChatClientRequestSpec>()
         every { chatClientRequestSpec.user(any<String>()) } returns chatClientRequestSpec
@@ -57,39 +57,38 @@ class RelevanceScorerTest {
     }
 
     @Test
-    fun `article receives relevance score and is persisted`() {
+    fun `article receives relevance score and summary`() {
         val article = Article(
             id = 1, sourceId = "s1", title = "GPT-5 Released", body = "OpenAI released GPT-5 today.",
             url = "https://example.com/1", contentHash = "hash1"
         )
-        mockLlmResponse(RelevanceScoringResult(score = 8, justification = "Directly about AI"))
+        mockLlmResponse(ScoreSummarizeResult(relevanceScore = 8, summary = "OpenAI launched GPT-5, a major AI milestone."))
 
-        val result = scorer.score(listOf(article), podcast, filterModelDef)
+        val result = scoreSummarizer.scoreSummarize(listOf(article), podcast, filterModelDef)
 
         assertEquals(1, result.size)
         assertEquals(8, result[0].relevanceScore)
+        assertEquals("OpenAI launched GPT-5, a major AI milestone.", result[0].summary)
 
         val saved = slot<Article>()
         verify { articleRepository.save(capture(saved)) }
         assertEquals(8, saved.captured.relevanceScore)
+        assertNotNull(saved.captured.summary)
     }
 
     @Test
-    fun `low scoring article is still persisted with score`() {
+    fun `irrelevant article receives low score and null summary`() {
         val article = Article(
             id = 2, sourceId = "s1", title = "Best Pizza Recipes", body = "Here are the best pizza recipes.",
             url = "https://example.com/2", contentHash = "hash2"
         )
-        mockLlmResponse(RelevanceScoringResult(score = 1, justification = "Not about AI"))
+        mockLlmResponse(ScoreSummarizeResult(relevanceScore = 1, summary = ""))
 
-        val result = scorer.score(listOf(article), podcast, filterModelDef)
+        val result = scoreSummarizer.scoreSummarize(listOf(article), podcast, filterModelDef)
 
         assertEquals(1, result.size)
         assertEquals(1, result[0].relevanceScore)
-
-        val saved = slot<Article>()
-        verify { articleRepository.save(capture(saved)) }
-        assertEquals(1, saved.captured.relevanceScore)
+        assertEquals(null, result[0].summary) // blank summary is stored as null
     }
 
     @Test
@@ -106,35 +105,21 @@ class RelevanceScorerTest {
         every { chatClient.prompt() } returns chatClientRequestSpec
         every { chatClientFactory.createForModel(podcast.userId, filterModelDef) } returns chatClient
 
-        val result = scorer.score(listOf(article), podcast, filterModelDef)
+        val result = scoreSummarizer.scoreSummarize(listOf(article), podcast, filterModelDef)
 
         assertTrue(result.isEmpty())
         verify(exactly = 0) { articleRepository.save(any()) }
     }
 
     @Test
-    fun `score of zero is persisted`() {
-        val article = Article(
-            id = 4, sourceId = "s1", title = "Completely Off Topic", body = "Unrelated content.",
-            url = "https://example.com/4", contentHash = "hash4"
-        )
-        mockLlmResponse(RelevanceScoringResult(score = 0, justification = "Completely unrelated"))
-
-        val result = scorer.score(listOf(article), podcast, filterModelDef)
-
-        assertEquals(1, result.size)
-        assertEquals(0, result[0].relevanceScore)
-    }
-
-    @Test
-    fun `token counts are persisted on article after scoring`() {
+    fun `token counts and cost are persisted on article`() {
         val article = Article(
             id = 5, sourceId = "s1", title = "AI News", body = "AI content",
             url = "https://example.com/5", contentHash = "hash5"
         )
-        mockLlmResponse(RelevanceScoringResult(score = 7, justification = "Relevant"), inputTokens = 800, outputTokens = 120)
+        mockLlmResponse(ScoreSummarizeResult(relevanceScore = 7, summary = "Summary of AI news."), inputTokens = 800, outputTokens = 120)
 
-        scorer.score(listOf(article), podcast, filterModelDef)
+        scoreSummarizer.scoreSummarize(listOf(article), podcast, filterModelDef)
 
         val saved = slot<Article>()
         verify { articleRepository.save(capture(saved)) }
@@ -143,19 +128,15 @@ class RelevanceScorerTest {
     }
 
     @Test
-    fun `cost cents are persisted on article after scoring`() {
+    fun `attribution preserved in summary prompt`() {
         val article = Article(
-            id = 6, sourceId = "s1", title = "AI News", body = "AI content",
+            id = 6, sourceId = "s1", title = "MIT Study", body = "Researchers at MIT published a study showing AI advances.",
             url = "https://example.com/6", contentHash = "hash6"
         )
-        // With inputCostPerMtok=0.15, outputCostPerMtok=0.60:
-        // (1000000 * 0.15 + 200000 * 0.60) / 1_000_000 * 100 = (150000 + 120000) / 1_000_000 * 100 = 27 cents
-        mockLlmResponse(RelevanceScoringResult(score = 7, justification = "Relevant"), inputTokens = 1000000, outputTokens = 200000)
+        mockLlmResponse(ScoreSummarizeResult(relevanceScore = 9, summary = "MIT researchers found significant AI advances."))
 
-        scorer.score(listOf(article), podcast, filterModelDef)
+        val result = scoreSummarizer.scoreSummarize(listOf(article), podcast, filterModelDef)
 
-        val saved = slot<Article>()
-        verify { articleRepository.save(capture(saved)) }
-        assertEquals(27, saved.captured.llmCostCents)
+        assertEquals("MIT researchers found significant AI advances.", result[0].summary)
     }
 }

@@ -1,6 +1,5 @@
 package com.aisummarypodcast.llm
 
-import com.aisummarypodcast.config.AppProperties
 import com.aisummarypodcast.config.ModelDefinition
 import com.aisummarypodcast.store.Article
 import com.aisummarypodcast.store.ArticleRepository
@@ -9,47 +8,42 @@ import org.slf4j.LoggerFactory
 import org.springframework.ai.openai.OpenAiChatOptions
 import org.springframework.stereotype.Component
 
-data class SummarizationResult(
+data class ScoreSummarizeResult(
+    val relevanceScore: Int = 0,
     val summary: String = ""
 )
 
 @Component
-class ArticleSummarizer(
+class ArticleScoreSummarizer(
     private val articleRepository: ArticleRepository,
-    private val modelResolver: ModelResolver,
-    private val chatClientFactory: ChatClientFactory,
-    private val appProperties: AppProperties
+    private val chatClientFactory: ChatClientFactory
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    fun summarize(articles: List<Article>, podcast: Podcast): List<Article> {
-        val filterModelDef = modelResolver.resolve(podcast, "filter")
-        return summarize(articles, podcast, filterModelDef)
-    }
-
-    fun summarize(articles: List<Article>, podcast: Podcast, filterModelDef: ModelDefinition): List<Article> {
-        val minWords = appProperties.llm.summarizationMinWords
-        val chatClient by lazy { chatClientFactory.createForModel(podcast.userId, filterModelDef) }
+    fun scoreSummarize(articles: List<Article>, podcast: Podcast, filterModelDef: ModelDefinition): List<Article> {
+        val chatClient = chatClientFactory.createForModel(podcast.userId, filterModelDef)
         val model = filterModelDef.model
 
-        return articles.map { article ->
-            val wordCount = article.body.split("\\s+".toRegex()).size
-            if (wordCount < minWords) {
-                log.info("[LLM] Skipping summarization for '{}' ({} words < {} threshold)", article.title, wordCount, minWords)
-                return@map article
-            }
-
-            log.info("[LLM] Summarizing article '{}' ({} words)", article.title, wordCount)
+        return articles.mapNotNull { article ->
+            log.info("[LLM] Scoring and summarizing article {}: '{}'", article.id, article.title)
             try {
                 val prompt = """
-                    You are a summarizer. Given an article, provide a 2-3 sentence summary capturing the key information.
+                    You are a relevance scorer and summarizer. Given the topic of interest and an article, perform the following:
+                    1. Rate the article's relevance to the topic on a scale of 0-10
+                    2. Summarize the relevant content in 2-3 sentences, filtering out any irrelevant parts
+
+                    Topic of interest: ${podcast.topic}
 
                     Article title: ${article.title}
                     Article text: ${article.body}
 
-                    Respond with a JSON object containing "summary" (2-3 sentences capturing the key information).
+                    Respond with a JSON object containing:
+                    - "relevanceScore" (integer 0-10)
+                    - "summary" (2-3 sentences capturing the key relevant information)
+
                     If the article attributes information to a specific person, organization, or study, preserve that attribution in your summary.
+                    If the article is completely irrelevant (score 0-2), you may leave the summary empty.
                 """.trimIndent()
 
                 val responseEntity = chatClient.prompt()
@@ -61,27 +55,30 @@ class ArticleSummarizer(
                             .build()
                     )
                     .call()
-                    .responseEntity(SummarizationResult::class.java)
+                    .responseEntity(ScoreSummarizeResult::class.java)
 
                 val result = responseEntity.entity()
                 val usage = TokenUsage.fromChatResponse(responseEntity.response())
                 val costCents = CostEstimator.estimateLlmCostCents(usage.inputTokens, usage.outputTokens, filterModelDef)
 
+                val score = result?.relevanceScore ?: 0
+                val summary = result?.summary?.takeIf { it.isNotBlank() }
+
                 val updated = article.copy(
-                    summary = result?.summary,
+                    relevanceScore = score,
+                    summary = summary,
                     llmInputTokens = (article.llmInputTokens ?: 0) + usage.inputTokens,
                     llmOutputTokens = (article.llmOutputTokens ?: 0) + usage.outputTokens,
                     llmCostCents = CostEstimator.addNullableCosts(article.llmCostCents, costCents)
                 )
                 articleRepository.save(updated)
 
-                log.info("[LLM] Summarized '{}' — {} chars", article.title, result?.summary?.length ?: 0)
+                log.info("[LLM] Article '{}' scored {} — summary: {} chars", article.title, score, summary?.length ?: 0)
                 updated
             } catch (e: Exception) {
-                log.error("[LLM] Error summarizing article '{}': {}", article.title, e.message, e)
-                article
+                log.error("[LLM] Error scoring/summarizing article '{}': {}", article.title, e.message, e)
+                null
             }
         }
     }
-
 }

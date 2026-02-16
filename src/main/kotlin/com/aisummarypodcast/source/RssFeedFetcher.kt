@@ -1,6 +1,6 @@
 package com.aisummarypodcast.source
 
-import com.aisummarypodcast.store.Article
+import com.aisummarypodcast.store.Post
 import com.rometools.rome.io.SyndFeedInput
 import com.rometools.rome.io.XmlReader
 import org.jsoup.Jsoup
@@ -14,7 +14,7 @@ class RssFeedFetcher {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    fun fetch(url: String, sourceId: String, lastSeenId: String?): List<Article> {
+    fun fetch(url: String, sourceId: String, lastSeenId: String?): List<Post> {
         val input = SyndFeedInput()
         @Suppress("DEPRECATION")
         val feed = input.build(XmlReader(URI(url).toURL()))
@@ -37,14 +37,15 @@ class RssFeedFetcher {
                 val author = entry.author?.takeIf { it.isNotBlank() }
                     ?: entry.authors?.firstOrNull()?.name?.takeIf { it.isNotBlank() }
 
-                Article(
+                Post(
                     sourceId = sourceId,
                     title = title,
                     body = body,
                     url = link,
                     publishedAt = publishedAt,
                     author = author,
-                    contentHash = ""
+                    contentHash = "",
+                    createdAt = ""
                 )
             }
             .also { log.info("Fetched {} new entries from RSS feed {}", it.size, sourceId) }

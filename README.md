@@ -6,20 +6,21 @@ Self-hosted pipeline that monitors content sources (RSS feeds, websites), filter
 
 ```mermaid
 flowchart LR
-    A[Source Poller] --> B[Relevance Scorer]
-    B --> C[Summarizer]
-    C --> D[Briefing Composer]
-    D --> E[TTS + FFmpeg]
-    E --> F[RSS Feed]
+    A[Source Poller] --> B[Posts Table]
+    B --> C[Aggregator]
+    C --> D[Score + Summarize]
+    D --> E[Briefing Composer]
+    E --> F[TTS + FFmpeg]
+    F --> G[RSS Feed]
 ```
 
-1. **Source Poller** — Periodically fetches new content from configured RSS feeds, websites, and X (Twitter) accounts. Articles older than a configurable threshold (default 7 days) are automatically discarded to keep briefings current.
-2. **LLM Processing** — Three sequential stages, each using a configurable model from the named model registry:
-   - **Relevance Scoring** — Scores each article 0–10 for relevance to the podcast's topic. Articles below the `relevanceThreshold` (default 5) are excluded.
-   - **Summarization** — Condenses relevant articles into 2–3 sentence summaries. Short articles (below 500 words) skip this step and use their original text.
+1. **Source Poller** — Periodically fetches new content from configured RSS feeds, websites, and X (Twitter) accounts. Individual items (tweets, RSS entries, scraped pages) are stored as **posts** in a dedicated table. Posts older than a configurable threshold (default 7 days) are automatically discarded.
+2. **Aggregation** — At briefing generation time, unprocessed posts are aggregated into articles. For short-form sources (tweets, nitter feeds), multiple posts are merged into a single digest article. For long-form sources, each post maps 1:1 to an article. A `post_articles` join table maintains full traceability.
+3. **LLM Processing** — Two sequential stages, each using a configurable model from the named model registry:
+   - **Score + Summarize** — A single LLM call per article that scores relevance (0–10), filters out irrelevant content, and summarizes the relevant parts. Articles below the `relevanceThreshold` (default 5) are excluded.
    - **Briefing Composition** — Composes a coherent briefing script from all relevant articles with natural transitions.
-3. **TTS Generation** — Converts the script to speech via OpenAI TTS, chunking at sentence boundaries and concatenating with FFmpeg.
-4. **Podcast Feed** — Serves an RSS 2.0 feed with `<enclosure>` tags so any podcast app can subscribe.
+4. **TTS Generation** — Converts the script to speech via OpenAI TTS, chunking at sentence boundaries and concatenating with FFmpeg.
+5. **Podcast Feed** — Serves an RSS 2.0 feed with `<enclosure>` tags so any podcast app can subscribe.
 
 Each user can create multiple podcasts, each with its own sources, topic, language, LLM models, TTS voice, style, and generation schedule (cron).
 
@@ -77,7 +78,7 @@ app:
         provider: ollama
         model: llama3
     defaults:
-      filter: cheap      # used for relevance scoring and summarization
+      filter: cheap      # used for scoring and summarization
       compose: capable    # used for briefing composition
 ```
 
@@ -271,9 +272,9 @@ PUT    /users/{userId}/podcasts/{podcastId}/sources/{sourceId}  — Update sourc
 DELETE /users/{userId}/podcasts/{podcastId}/sources/{sourceId}  — Delete source
 ```
 
-Sources can be of type `rss`, `website`, or `twitter`. Each source has a configurable `pollIntervalMinutes` and can be toggled with `enabled`. Twitter sources require an X OAuth connection (see below). An optional `aggregate` field (boolean) controls whether fetched items are merged into a single digest article per poll cycle — useful for short-form sources like tweets. When `null` (default), aggregation is auto-detected for `twitter` type sources and nitter.net RSS feeds.
+Sources can be of type `rss`, `website`, or `twitter`. Each source has a configurable `pollIntervalMinutes` and can be toggled with `enabled`. Twitter sources require an X OAuth connection (see below). An optional `aggregate` field (boolean) controls whether posts are merged into a single digest article at briefing generation time — useful for short-form sources like tweets. When `null` (default), aggregation is auto-detected for `twitter` type sources and nitter.net RSS feeds.
 
-Articles older than `app.source.max-article-age-days` (default: 7) are skipped during ingestion and periodically cleaned up. This prevents stale content from appearing in briefings when adding a new source with a large backlog.
+Posts older than `app.source.max-article-age-days` (default: 7) are skipped during ingestion and periodically cleaned up. This prevents stale content from appearing in briefings when adding a new source with a large backlog.
 
 ### Publishing
 

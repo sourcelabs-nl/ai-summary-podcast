@@ -9,9 +9,6 @@ interface ArticleRepository : CrudRepository<Article, Long> {
     @Query("SELECT * FROM articles WHERE relevance_score IS NULL AND source_id IN (:sourceIds)")
     fun findUnscoredBySourceIds(sourceIds: List<String>): List<Article>
 
-    @Query("SELECT * FROM articles WHERE relevance_score >= :threshold AND summary IS NULL AND source_id IN (:sourceIds)")
-    fun findRelevantUnsummarizedBySourceIds(sourceIds: List<String>, threshold: Int): List<Article>
-
     @Query("SELECT * FROM articles WHERE relevance_score >= :threshold AND is_processed = 0 AND source_id IN (:sourceIds)")
     fun findRelevantUnprocessedBySourceIds(sourceIds: List<String>, threshold: Int): List<Article>
 

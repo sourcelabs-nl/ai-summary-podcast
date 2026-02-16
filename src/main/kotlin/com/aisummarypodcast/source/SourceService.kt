@@ -1,6 +1,7 @@
 package com.aisummarypodcast.source
 
 import com.aisummarypodcast.store.ArticleRepository
+import com.aisummarypodcast.store.PostRepository
 import com.aisummarypodcast.store.Source
 import com.aisummarypodcast.store.SourceRepository
 import org.slf4j.LoggerFactory
@@ -10,7 +11,8 @@ import java.util.UUID
 @Service
 class SourceService(
     private val sourceRepository: SourceRepository,
-    private val articleRepository: ArticleRepository
+    private val articleRepository: ArticleRepository,
+    private val postRepository: PostRepository
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -39,9 +41,10 @@ class SourceService(
 
     fun delete(sourceId: String): Boolean {
         val source = findById(sourceId) ?: return false
+        postRepository.deleteBySourceId(sourceId)
         articleRepository.deleteBySourceId(sourceId)
         sourceRepository.delete(source)
-        log.info("Deleted source {} and its articles", sourceId)
+        log.info("Deleted source {} and its posts and articles", sourceId)
         return true
     }
 }
