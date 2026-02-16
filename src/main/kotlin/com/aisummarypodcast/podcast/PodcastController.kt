@@ -6,6 +6,7 @@ import com.aisummarypodcast.user.UserService
 import org.slf4j.LoggerFactory
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
+import com.fasterxml.jackson.annotation.JsonProperty
 import java.net.URI
 import java.time.Instant
 
@@ -15,13 +16,13 @@ data class CreatePodcastRequest(
     val language: String? = null,
     val llmModels: Map<String, String>? = null,
     val ttsVoice: String? = null,
-    val ttsSpeed: Double? = null,
+    @JsonProperty("ttsSpeed") val ttsSpeed: Double? = null,
     val style: String? = null,
-    val targetWords: Int? = null,
+    @JsonProperty("targetWords") val targetWords: Int? = null,
     val cron: String? = null,
     val customInstructions: String? = null,
-    val relevanceThreshold: Int? = null,
-    val requireReview: Boolean? = null
+    @JsonProperty("relevanceThreshold") val relevanceThreshold: Int? = null,
+    @JsonProperty("requireReview") val requireReview: Boolean? = null
 )
 
 data class UpdatePodcastRequest(
@@ -30,13 +31,13 @@ data class UpdatePodcastRequest(
     val language: String? = null,
     val llmModels: Map<String, String>? = null,
     val ttsVoice: String? = null,
-    val ttsSpeed: Double? = null,
+    @JsonProperty("ttsSpeed") val ttsSpeed: Double? = null,
     val style: String? = null,
-    val targetWords: Int? = null,
+    @JsonProperty("targetWords") val targetWords: Int? = null,
     val cron: String? = null,
     val customInstructions: String? = null,
-    val relevanceThreshold: Int? = null,
-    val requireReview: Boolean? = null
+    @JsonProperty("relevanceThreshold") val relevanceThreshold: Int? = null,
+    @JsonProperty("requireReview") val requireReview: Boolean? = null
 )
 
 data class PodcastResponse(

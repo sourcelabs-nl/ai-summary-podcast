@@ -123,7 +123,7 @@ Each podcast SHALL have a `language` field (TEXT, NOT NULL, default `"en"`). The
 - **THEN** the system returns HTTP 400 with an error indicating the language is not supported
 
 ### Requirement: Customization fields in podcast CRUD
-All customization fields SHALL be accepted as optional fields in the podcast create (`POST`) and update (`PUT`) endpoints. The API response for a podcast SHALL include all customization fields with their effective values (stored value or default). The `llmModels` field SHALL be accepted and returned as a JSON object mapping stage names to model names (e.g., `{"filter": "cheap", "compose": "capable"}`). The old `llmModel` field SHALL no longer be accepted.
+All customization fields SHALL be accepted as optional fields in the podcast create (`POST`) and update (`PUT`) endpoints. The API response for a podcast SHALL include all customization fields with their effective values (stored value or default). The `llmModels` field SHALL be accepted and returned as a JSON object mapping stage names to model names (e.g., `{"filter": "cheap", "compose": "capable"}`). The old `llmModel` field SHALL no longer be accepted. All nullable primitive-typed DTO fields (`Int?`, `Boolean?`, `Double?`) SHALL use Jackson 3 `@JsonProperty` annotations to ensure correct deserialization.
 
 #### Scenario: Create podcast with per-stage model config
 - **WHEN** a `POST /users/{userId}/podcasts` request includes `llmModels: {"compose": "local"}`
@@ -150,11 +150,15 @@ All customization fields SHALL be accepted as optional fields in the podcast cre
 - **THEN** the response includes all customization fields (llmModels, ttsVoice, ttsSpeed, style, targetWords, cron, customInstructions, language)
 
 ### Requirement: Relevance threshold per podcast
-Each podcast SHALL have a `relevance_threshold` field (INTEGER, NOT NULL, default 5). The LLM pipeline SHALL use this threshold to determine which scored articles are relevant: articles with `relevance_score >= relevance_threshold` are considered relevant. Valid values are 0-10. The field SHALL be accepted in podcast create (`POST`) and update (`PUT`) endpoints and included in GET responses.
+Each podcast SHALL have a `relevance_threshold` field (INTEGER, NOT NULL, default 5). The LLM pipeline SHALL use this threshold to determine which scored articles are relevant: articles with `relevance_score >= relevance_threshold` are considered relevant. Valid values are 0-10. The field SHALL be accepted in podcast create (`POST`) and update (`PUT`) endpoints and included in GET responses. Jackson 3 `@JsonProperty` annotations SHALL be used on the `relevanceThreshold` DTO field to ensure correct deserialization of nullable `Int?` values.
 
-#### Scenario: Podcast with custom relevance threshold
-- **WHEN** a podcast has `relevance_threshold` set to 7
-- **THEN** only articles with `relevance_score` >= 7 are considered relevant for summarization and briefing composition
+#### Scenario: Create podcast with custom relevance threshold
+- **WHEN** a `POST /users/{userId}/podcasts` request includes `"relevanceThreshold": 3`
+- **THEN** the system creates the podcast with `relevance_threshold` set to 3 and the response body SHALL contain `"relevanceThreshold": 3`
+
+#### Scenario: Update podcast relevance threshold
+- **WHEN** a `PUT /users/{userId}/podcasts/{podcastId}` request includes `"relevanceThreshold": 8`
+- **THEN** the podcast's `relevance_threshold` is updated to 8 and the response body SHALL contain `"relevanceThreshold": 8`
 
 #### Scenario: Podcast with default relevance threshold
 - **WHEN** a podcast is created without specifying `relevance_threshold`
@@ -171,7 +175,3 @@ Each podcast SHALL have a `relevance_threshold` field (INTEGER, NOT NULL, defaul
 #### Scenario: Relevance threshold included in API response
 - **WHEN** a `GET /users/{userId}/podcasts/{podcastId}` request is received
 - **THEN** the response includes `relevanceThreshold` with its current value
-
-#### Scenario: Relevance threshold updated via API
-- **WHEN** a `PUT /users/{userId}/podcasts/{podcastId}` request includes `relevanceThreshold: 8`
-- **THEN** the podcast's `relevance_threshold` is updated to 8

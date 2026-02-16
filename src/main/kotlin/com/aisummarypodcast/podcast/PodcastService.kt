@@ -32,7 +32,9 @@ class PodcastService(
             style = podcast?.style ?: "news-briefing",
             targetWords = podcast?.targetWords,
             cron = podcast?.cron ?: "0 0 6 * * *",
-            customInstructions = podcast?.customInstructions
+            customInstructions = podcast?.customInstructions,
+            relevanceThreshold = podcast?.relevanceThreshold ?: 5,
+            requireReview = podcast?.requireReview ?: false
         )
         return podcastRepository.save(newPodcast)
     }
@@ -53,7 +55,9 @@ class PodcastService(
             style = updates.style,
             targetWords = updates.targetWords,
             cron = updates.cron,
-            customInstructions = updates.customInstructions
+            customInstructions = updates.customInstructions,
+            relevanceThreshold = updates.relevanceThreshold,
+            requireReview = updates.requireReview
         )
         return podcastRepository.save(updated)
     }
