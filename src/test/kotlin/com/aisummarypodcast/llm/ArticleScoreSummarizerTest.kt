@@ -139,4 +139,63 @@ class ArticleScoreSummarizerTest {
 
         assertEquals("MIT researchers found significant AI advances.", result[0].summary)
     }
+
+    @Test
+    fun `aggregated article prompt includes social media post context and author name`() {
+        val article = Article(
+            id = 7, sourceId = "s1", title = "Posts from @rauchg — Feb 15, 2026",
+            body = "Post content here", url = "https://nitter.net/rauchg/rss",
+            contentHash = "hash7", author = "@rauchg"
+        )
+
+        val prompt = scoreSummarizer.buildPrompt(article, podcast)
+
+        assertTrue(prompt.contains("multiple social media posts by @rauchg"))
+        assertTrue(prompt.contains("Post content here"))
+        assertTrue(!prompt.contains("Content title:"))
+    }
+
+    @Test
+    fun `non-aggregated article uses neutral content framing`() {
+        val article = Article(
+            id = 8, sourceId = "s1", title = "New AI Breakthrough",
+            body = "Details about the breakthrough.", url = "https://example.com/8",
+            contentHash = "hash8", author = "John Smith"
+        )
+
+        val prompt = scoreSummarizer.buildPrompt(article, podcast)
+
+        assertTrue(prompt.contains("Content title: New AI Breakthrough"))
+        assertTrue(prompt.contains("Content author: John Smith"))
+        assertTrue(prompt.contains("Content: Details about the breakthrough."))
+        assertTrue(!prompt.contains("social media posts"))
+    }
+
+    @Test
+    fun `prompt works correctly when author is null`() {
+        val article = Article(
+            id = 9, sourceId = "s1", title = "Some News",
+            body = "News content.", url = "https://example.com/9",
+            contentHash = "hash9", author = null
+        )
+
+        val prompt = scoreSummarizer.buildPrompt(article, podcast)
+
+        assertTrue(prompt.contains("Content title: Some News"))
+        assertTrue(!prompt.contains("Content author:"))
+        assertTrue(prompt.contains("Content: News content."))
+    }
+
+    @Test
+    fun `prompt includes direct summarization instruction with negative example`() {
+        val article = Article(
+            id = 10, sourceId = "s1", title = "Test Article",
+            body = "Test body.", url = "https://example.com/10",
+            contentHash = "hash10"
+        )
+
+        val prompt = scoreSummarizer.buildPrompt(article, podcast)
+
+        assertTrue(prompt.contains("say \"Anthropic launched X\" not \"The article discusses Anthropic launching X\""))
+    }
 }

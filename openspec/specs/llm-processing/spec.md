@@ -42,6 +42,14 @@ Stage 1 SHALL use the model resolved for the `filter` stage. Stage 2 SHALL use t
 ### Requirement: Score, summarize, and filter stage
 The system SHALL process each article through a single LLM call that performs scoring, summarization, and content filtering simultaneously. The LLM prompt SHALL include the podcast's topic, the full article content, and instructions to: (1) assign a relevance score of 0-10, (2) summarize the relevant content in 2-3 sentences, (3) identify which posts are relevant and which are not. The prompt SHALL request a JSON response with the structure: `{ "relevanceScore": <int>, "summary": "<text>", "includedPostIds": [<ids>], "excludedPostIds": [<ids>] }`. The prompt SHALL instruct the LLM to preserve attribution in the summary. The system SHALL persist the `relevanceScore` and `summary` on the article immediately after the call. Token usage SHALL be extracted and persisted on the article.
 
+The prompt SHALL use content-type-aware framing:
+- For aggregated articles (title starts with "Posts from"): The prompt SHALL state that the content consists of multiple social media posts and SHALL name the author (from `article.author`) when available.
+- For non-aggregated articles: The prompt SHALL use neutral framing ("Content title" / "Content") instead of "Article title" / "Article text".
+
+The prompt SHALL include the author name (from `article.author`) as context when available, regardless of content type.
+
+The prompt SHALL instruct the LLM to write summaries as direct factual statements about what happened, not meta-descriptions of the content. The prompt SHALL include an explicit negative example: say "Anthropic launched X" not "The article discusses Anthropic launching X".
+
 #### Scenario: Article with mixed relevant and irrelevant posts
 - **WHEN** an aggregated article contains posts about AI and posts about celebrity gossip, scored against topic "artificial intelligence"
 - **THEN** the response has `relevanceScore` 6-8, a summary covering only the AI posts, and `excludedPostIds` listing the gossip posts
@@ -65,6 +73,22 @@ The system SHALL process each article through a single LLM call that performs sc
 #### Scenario: Token usage persisted
 - **WHEN** the LLM call uses 500 input tokens and 80 output tokens
 - **THEN** the article's `llmInputTokens` is set to 500 and `llmOutputTokens` to 80
+
+#### Scenario: Aggregated article prompt includes post context
+- **WHEN** an aggregated article with title "Posts from @rauchg — Feb 15, 2026" and author "@rauchg" is scored
+- **THEN** the LLM prompt states the content consists of multiple social media posts by @rauchg
+
+#### Scenario: Non-aggregated article uses neutral framing
+- **WHEN** a single article titled "New AI Breakthrough" is scored
+- **THEN** the LLM prompt uses "Content title" and "Content" labels, not "Article title" and "Article text"
+
+#### Scenario: Summary uses direct factual statements
+- **WHEN** an article about Anthropic's funding round is summarized
+- **THEN** the summary states facts directly (e.g., "Anthropic closed a $30B Series G round") rather than meta-describing (e.g., "The article discusses Anthropic's funding round")
+
+#### Scenario: Author context included in prompt
+- **WHEN** an article has `author` = "@simonw"
+- **THEN** the LLM prompt includes "@simonw" as the content author for attribution context
 
 ### Requirement: Briefing script composition
 The system SHALL compose all relevant articles into a single coherent briefing script. For each article, the composer SHALL use the article's `summary` if available, or the article's `body` if no summary exists (short articles). The prompt SHALL include the current date (human-readable format), the podcast name, and the podcast topic as context. The prompt SHALL instruct the LLM to mention the podcast name, topic, and current date in the introduction. Each article in the summary block SHALL include the source domain name (extracted from the article URL) and the author name when available (format: `[domain, by Author]` or `[domain]` when author is null). The prompt SHALL instruct the LLM to naturally attribute information to its source and credit original authors when known — without over-citing. The prompt SHALL instruct the LLM to use natural spoken language (not written style), include transitions between topics, and target approximately the configured word count (default: 1500 words for ~10 minutes of audio). The prompt SHALL explicitly prohibit bracketed section headers (e.g., `[Opening]`, `[Closing]`, `[Transition]`), stage directions, sound effects, and any other non-spoken text. After receiving the LLM response, the system SHALL sanitize the script by removing any lines consisting solely of bracketed headers (pattern: lines matching `[...]` with no other content). This step SHALL use a more capable model (configurable, e.g., `anthropic/claude-sonnet-4-20250514`). When the podcast's language is not English, the prompt SHALL instruct the LLM to write the entire script in the specified language. The current date in the prompt SHALL be formatted using the locale corresponding to the podcast's language.

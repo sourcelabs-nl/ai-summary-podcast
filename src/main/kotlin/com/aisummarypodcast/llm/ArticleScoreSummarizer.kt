@@ -28,23 +28,7 @@ class ArticleScoreSummarizer(
         return articles.mapNotNull { article ->
             log.info("[LLM] Scoring and summarizing article {}: '{}'", article.id, article.title)
             try {
-                val prompt = """
-                    You are a relevance scorer and summarizer. Given the topic of interest and an article, perform the following:
-                    1. Rate the article's relevance to the topic on a scale of 0-10
-                    2. Summarize the relevant content in 2-3 sentences, filtering out any irrelevant parts
-
-                    Topic of interest: ${podcast.topic}
-
-                    Article title: ${article.title}
-                    Article text: ${article.body}
-
-                    Respond with a JSON object containing:
-                    - "relevanceScore" (integer 0-10)
-                    - "summary" (2-3 sentences capturing the key relevant information)
-
-                    If the article attributes information to a specific person, organization, or study, preserve that attribution in your summary.
-                    If the article is completely irrelevant (score 0-2), you may leave the summary empty.
-                """.trimIndent()
+                val prompt = buildPrompt(article, podcast)
 
                 val responseEntity = chatClient.prompt()
                     .user(prompt)
@@ -80,5 +64,42 @@ class ArticleScoreSummarizer(
                 null
             }
         }
+    }
+
+    internal fun buildPrompt(article: Article, podcast: Podcast): String {
+        val isAggregated = article.title.startsWith("Posts from")
+        val authorContext = article.author?.let { "by $it" } ?: ""
+
+        val contentBlock = if (isAggregated) {
+            val postContext = if (authorContext.isNotEmpty()) {
+                "The following content consists of multiple social media posts $authorContext."
+            } else {
+                "The following content consists of multiple social media posts."
+            }
+            "$postContext\n\n${article.body}"
+        } else {
+            val titleLine = "Content title: ${article.title}"
+            val authorLine = if (authorContext.isNotEmpty()) "\nContent author: ${article.author}" else ""
+            "$titleLine$authorLine\nContent: ${article.body}"
+        }
+
+        return """
+            You are a relevance scorer and summarizer. Given the topic of interest and content, perform the following:
+            1. Rate the content's relevance to the topic on a scale of 0-10
+            2. Summarize the relevant information in 2-3 sentences, filtering out any irrelevant parts
+
+            Write directly about what happened — say "Anthropic launched X" not "The article discusses Anthropic launching X".
+
+            Topic of interest: ${podcast.topic}
+
+            $contentBlock
+
+            Respond with a JSON object containing:
+            - "relevanceScore" (integer 0-10)
+            - "summary" (2-3 sentences of direct, factual statements about the key relevant information)
+
+            If the content attributes information to a specific person, organization, or study, preserve that attribution in your summary.
+            If the content is completely irrelevant (score 0-2), you may leave the summary empty.
+        """.trimIndent()
     }
 }
