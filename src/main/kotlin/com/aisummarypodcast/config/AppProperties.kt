@@ -58,7 +58,9 @@ data class LlmCacheProperties(
 )
 
 data class SourceProperties(
-    val maxArticleAgeDays: Int = 7
+    val maxArticleAgeDays: Int = 7,
+    val maxFailures: Int = 5,
+    val maxBackoffHours: Int = 24
 )
 
 data class TtsProperties(

@@ -7,14 +7,14 @@ Scheduled polling of configured content sources (RSS feeds and websites), extrac
 ## Requirements
 
 ### Requirement: Scheduled source polling
-The system SHALL poll each enabled source on a configurable schedule using Spring's `@Scheduled`. A `SourcePollingScheduler` SHALL run on a fixed interval, iterate over all enabled sources, and poll each source whose individual `pollIntervalMinutes` has elapsed since its last poll. For source types that require per-user API keys (e.g., `"twitter"`), the scheduler SHALL resolve the podcast's owner user ID and pass it to the `SourcePoller`.
+The system SHALL poll each enabled source on a configurable schedule using Spring's `@Scheduled`. A `SourcePollingScheduler` SHALL run on a fixed interval, iterate over all enabled sources, and poll each source whose effective poll interval has elapsed since its last poll. The effective poll interval SHALL account for exponential backoff: for sources with `consecutiveFailures > 0`, the interval is `pollIntervalMinutes × 2^consecutiveFailures`, capped at `app.source.max-backoff-hours` converted to minutes. For sources with `consecutiveFailures = 0`, the normal `pollIntervalMinutes` is used. For source types that require per-user API keys (e.g., `"twitter"`), the scheduler SHALL resolve the podcast's owner user ID and pass it to the `SourcePoller`.
 
 #### Scenario: Source polled when interval has elapsed
-- **WHEN** the scheduler runs and a source's `pollIntervalMinutes` has elapsed since its `last_polled` timestamp
+- **WHEN** the scheduler runs and a source's effective poll interval has elapsed since its `last_polled` timestamp
 - **THEN** the source is polled for new content
 
 #### Scenario: Source skipped when interval has not elapsed
-- **WHEN** the scheduler runs and a source was polled less than `pollIntervalMinutes` ago
+- **WHEN** the scheduler runs and a source was polled less than its effective poll interval ago
 - **THEN** the source is skipped in this polling cycle
 
 #### Scenario: Disabled source never polled
@@ -25,7 +25,9 @@ The system SHALL poll each enabled source on a configurable schedule using Sprin
 - **WHEN** the scheduler runs and a source with `type: "twitter"` is due for polling
 - **THEN** the scheduler resolves the podcast owner's user ID and passes it to the poller so the fetcher can look up the user's X API key
 
-## MODIFIED Requirements
+#### Scenario: Source with failures uses backoff interval
+- **WHEN** the scheduler runs and a source has `consecutiveFailures = 2` and `pollIntervalMinutes = 60`
+- **THEN** the source is only polled if at least 240 minutes (60 × 2²) have elapsed since `lastPolled`
 
 ### Requirement: RSS/Atom feed polling
 The system SHALL parse RSS and Atom feeds using ROME (`com.rometools:rome`). For sources with type `rss`, the system SHALL fetch the feed, extract entries published after the source's `last_seen_id` timestamp, and store each new entry as a post in the `posts` table. The system SHALL strip HTML markup from the entry content and description using `Jsoup.parse(value).text()` before storing the post body. The system SHALL extract the author from the RSS entry: use `SyndEntry.author` if non-blank, otherwise use the `name` of the first entry in `SyndEntry.authors` if available. If neither provides a non-blank value, `post.author` SHALL be null. The `SourceAggregator` SHALL NOT be called during polling — aggregation is deferred to script generation time.

@@ -74,11 +74,34 @@ class SourcePoller(
                 latestTimestamp
             }
 
-            sourceRepository.save(source.copy(lastPolled = Instant.now().toString(), lastSeenId = newLastSeenId))
+            sourceRepository.save(source.copy(
+                lastPolled = Instant.now().toString(),
+                lastSeenId = newLastSeenId,
+                consecutiveFailures = 0,
+                lastFailureType = null
+            ))
             log.info("[Polling] Source {} polled: {} new posts saved", source.id, savedCount)
         } catch (e: Exception) {
-            log.error("[Polling] Error polling source {}: {}", source.id, e.message, e)
-            sourceRepository.save(source.copy(lastPolled = Instant.now().toString()))
+            val failure = PollFailure.classify(e)
+            val failureType = if (failure is PollFailure.Permanent) "permanent" else "transient"
+            val newFailureCount = source.consecutiveFailures + 1
+
+            log.error("[Polling] {} failure polling source {} (attempt {}): {}",
+                failureType, source.id, newFailureCount, failure.message, e)
+
+            var updatedSource = source.copy(
+                lastPolled = Instant.now().toString(),
+                consecutiveFailures = newFailureCount,
+                lastFailureType = failureType
+            )
+
+            if (failure is PollFailure.Permanent && newFailureCount >= appProperties.source.maxFailures) {
+                val reason = "Auto-disabled after $newFailureCount consecutive ${failure.message} errors"
+                log.warn("[Polling] Disabling source {}: {}", source.id, reason)
+                updatedSource = updatedSource.copy(enabled = false, disabledReason = reason)
+            }
+
+            sourceRepository.save(updatedSource)
         }
     }
 

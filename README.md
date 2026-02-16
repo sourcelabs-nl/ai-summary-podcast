@@ -276,6 +276,8 @@ Sources can be of type `rss`, `website`, or `twitter`. Each source has a configu
 
 Posts older than `app.source.max-article-age-days` (default: 7) are skipped during ingestion and periodically cleaned up. This prevents stale content from appearing in briefings when adding a new source with a large backlog.
 
+Source responses include failure tracking fields: `consecutiveFailures`, `lastFailureType` (`"transient"` or `"permanent"`), and `disabledReason`. Sources that fail repeatedly use **exponential backoff** — the poll interval doubles with each consecutive failure, capped at `app.source.max-backoff-hours` (default: 24). Sources with **permanent** errors (404, 410, 401, 403, DNS failure) are auto-disabled after `app.source.max-failures` (default: 5) consecutive failures. Transient errors (timeouts, 5xx, rate limits) trigger backoff but never auto-disable. Re-enabling a disabled source via the API resets all failure tracking.
+
 ### Publishing
 
 ```

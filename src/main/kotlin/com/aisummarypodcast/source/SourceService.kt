@@ -36,7 +36,12 @@ class SourceService(
 
     fun update(sourceId: String, type: String, url: String, pollIntervalMinutes: Int, enabled: Boolean, aggregate: Boolean? = null): Source? {
         val source = findById(sourceId) ?: return null
-        return sourceRepository.save(source.copy(type = type, url = url, pollIntervalMinutes = pollIntervalMinutes, enabled = enabled, aggregate = aggregate))
+        val reEnabling = enabled && !source.enabled
+        var updated = source.copy(type = type, url = url, pollIntervalMinutes = pollIntervalMinutes, enabled = enabled, aggregate = aggregate)
+        if (reEnabling) {
+            updated = updated.copy(consecutiveFailures = 0, lastFailureType = null, disabledReason = null)
+        }
+        return sourceRepository.save(updated)
     }
 
     fun delete(sourceId: String): Boolean {

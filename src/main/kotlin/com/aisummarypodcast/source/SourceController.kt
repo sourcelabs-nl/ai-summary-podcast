@@ -31,7 +31,10 @@ data class SourceResponse(
     val enabled: Boolean,
     val aggregate: Boolean?,
     val lastPolled: String?,
-    val lastSeenId: String?
+    val lastSeenId: String?,
+    val consecutiveFailures: Int,
+    val lastFailureType: String?,
+    val disabledReason: String?
 )
 
 @RestController
@@ -105,6 +108,8 @@ class SourceController(
     private fun com.aisummarypodcast.store.Source.toResponse() = SourceResponse(
         id = id, podcastId = podcastId, type = type, url = url,
         pollIntervalMinutes = pollIntervalMinutes, enabled = enabled, aggregate = aggregate,
-        lastPolled = lastPolled, lastSeenId = lastSeenId
+        lastPolled = lastPolled, lastSeenId = lastSeenId,
+        consecutiveFailures = consecutiveFailures, lastFailureType = lastFailureType,
+        disabledReason = disabledReason
     )
 }

@@ -9,8 +9,10 @@ import com.aisummarypodcast.store.SourceRepository
 import org.slf4j.LoggerFactory
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
+import com.aisummarypodcast.store.Source
 import java.time.Instant
 import java.time.temporal.ChronoUnit
+import kotlin.math.min
 
 @Component
 class SourcePollingScheduler(
@@ -33,8 +35,9 @@ class SourcePollingScheduler(
 
         for (source in allSources) {
             val lastPolled = source.lastPolled?.let { Instant.parse(it) }
+            val effectiveInterval = effectivePollIntervalMinutes(source)
 
-            if (lastPolled == null || lastPolled.plus(source.pollIntervalMinutes.toLong(), ChronoUnit.MINUTES).isBefore(Instant.now())) {
+            if (lastPolled == null || lastPolled.plus(effectiveInterval, ChronoUnit.MINUTES).isBefore(Instant.now())) {
                 val userId = if (source.type == "twitter") {
                     podcastService.findById(source.podcastId)?.userId
                 } else {
@@ -43,6 +46,13 @@ class SourcePollingScheduler(
                 sourcePoller.poll(source, userId)
             }
         }
+    }
+
+    internal fun effectivePollIntervalMinutes(source: Source): Long {
+        if (source.consecutiveFailures == 0) return source.pollIntervalMinutes.toLong()
+        val maxBackoffMinutes = appProperties.source.maxBackoffHours.toLong() * 60
+        val backoff = source.pollIntervalMinutes.toLong() * (1L shl min(source.consecutiveFailures, 30))
+        return min(backoff, maxBackoffMinutes)
     }
 
     private fun cleanupOldArticles() {
