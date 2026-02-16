@@ -206,6 +206,18 @@ curl -X POST http://localhost:8080/users/{userId}/podcasts/{podcastId}/sources \
 
 The `url` field accepts a plain username (e.g., `elonmusk`), `@username`, or a full URL (e.g., `https://x.com/elonmusk`). Posts are polled on the configured interval and included in briefings. X tokens are automatically refreshed (they expire every 2 hours).
 
+### Using Nitter as an Alternative to X
+
+If you don't have an X developer account, you can use [Nitter](https://nitter.net) as a free alternative. Nitter is an open-source front-end for Twitter that exposes public RSS feeds — no API key or OAuth setup required. Add a Nitter feed as a regular RSS source:
+
+```bash
+curl -X POST http://localhost:8080/users/{userId}/podcasts/{podcastId}/sources \
+  -H 'Content-Type: application/json' \
+  -d '{"type": "rss", "url": "https://nitter.net/elonmusk/rss", "pollIntervalMinutes": 60}'
+```
+
+Nitter sources are automatically detected for aggregation — individual tweets are merged into a single digest article at briefing time, just like native X sources. Note that Nitter coverage may not be fully on par with the X API (e.g., missing replies, retweets, or media context), but it works well for following public accounts without any paid API access.
+
 ### Example: Create a Customized Podcast
 
 ```bash
