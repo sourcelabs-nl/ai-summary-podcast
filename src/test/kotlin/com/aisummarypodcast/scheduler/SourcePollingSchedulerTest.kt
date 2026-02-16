@@ -83,13 +83,13 @@ class SourcePollingSchedulerTest {
 
         every { sourceRepository.findAll() } returns listOf(twitterSource)
         every { podcastService.findById("p1") } returns podcast
-        every { sourcePoller.poll(twitterSource, "owner-1") } returns Unit
+        every { sourcePoller.poll(twitterSource, "owner-1", 7) } returns Unit
 
         val scheduler = SourcePollingScheduler(sourcePoller, sourceRepository, articleRepository, postRepository, appProperties(), podcastService)
         scheduler.pollSources()
 
         verify { podcastService.findById("p1") }
-        verify { sourcePoller.poll(twitterSource, "owner-1") }
+        verify { sourcePoller.poll(twitterSource, "owner-1", 7) }
     }
 
     @Test
@@ -99,13 +99,14 @@ class SourcePollingSchedulerTest {
             lastPolled = null, enabled = true
         )
 
+        val podcast = Podcast(id = "p1", userId = "owner-1", name = "Test", topic = "tech")
         every { sourceRepository.findAll() } returns listOf(rssSource)
-        every { sourcePoller.poll(rssSource, null) } returns Unit
+        every { podcastService.findById("p1") } returns podcast
+        every { sourcePoller.poll(rssSource, null, 7) } returns Unit
 
         val scheduler = SourcePollingScheduler(sourcePoller, sourceRepository, articleRepository, postRepository, appProperties(), podcastService)
         scheduler.pollSources()
 
-        verify(exactly = 0) { podcastService.findById(any()) }
-        verify { sourcePoller.poll(rssSource, null) }
+        verify { sourcePoller.poll(rssSource, null, 7) }
     }
 }

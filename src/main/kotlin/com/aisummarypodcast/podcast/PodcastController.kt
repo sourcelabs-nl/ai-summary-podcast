@@ -23,7 +23,8 @@ data class CreatePodcastRequest(
     val customInstructions: String? = null,
     @JsonProperty("relevanceThreshold") val relevanceThreshold: Int? = null,
     @JsonProperty("requireReview") val requireReview: Boolean? = null,
-    @JsonProperty("maxLlmCostCents") val maxLlmCostCents: Int? = null
+    @JsonProperty("maxLlmCostCents") val maxLlmCostCents: Int? = null,
+    @JsonProperty("maxArticleAgeDays") val maxArticleAgeDays: Int? = null
 )
 
 data class UpdatePodcastRequest(
@@ -39,7 +40,8 @@ data class UpdatePodcastRequest(
     val customInstructions: String? = null,
     @JsonProperty("relevanceThreshold") val relevanceThreshold: Int? = null,
     @JsonProperty("requireReview") val requireReview: Boolean? = null,
-    @JsonProperty("maxLlmCostCents") val maxLlmCostCents: Int? = null
+    @JsonProperty("maxLlmCostCents") val maxLlmCostCents: Int? = null,
+    @JsonProperty("maxArticleAgeDays") val maxArticleAgeDays: Int? = null
 )
 
 data class PodcastResponse(
@@ -58,6 +60,7 @@ data class PodcastResponse(
     val relevanceThreshold: Int,
     val requireReview: Boolean,
     val maxLlmCostCents: Int?,
+    val maxArticleAgeDays: Int?,
     val lastGeneratedAt: String?
 )
 
@@ -99,7 +102,8 @@ class PodcastController(
                 customInstructions = request.customInstructions,
                 relevanceThreshold = request.relevanceThreshold ?: 5,
                 requireReview = request.requireReview ?: false,
-                maxLlmCostCents = request.maxLlmCostCents
+                maxLlmCostCents = request.maxLlmCostCents,
+                maxArticleAgeDays = request.maxArticleAgeDays
             )
         )
         return ResponseEntity.created(URI.create("/users/$userId/podcasts/${podcast.id}"))
@@ -147,7 +151,8 @@ class PodcastController(
                 customInstructions = request.customInstructions ?: existing.customInstructions,
                 relevanceThreshold = request.relevanceThreshold ?: existing.relevanceThreshold,
                 requireReview = request.requireReview ?: existing.requireReview,
-                maxLlmCostCents = request.maxLlmCostCents ?: existing.maxLlmCostCents
+                maxLlmCostCents = request.maxLlmCostCents ?: existing.maxLlmCostCents,
+                maxArticleAgeDays = request.maxArticleAgeDays ?: existing.maxArticleAgeDays
             )
         ) ?: return ResponseEntity.notFound().build()
         return ResponseEntity.ok(updated.toResponse())
@@ -217,6 +222,7 @@ class PodcastController(
         language = language, llmModels = llmModels, ttsVoice = ttsVoice, ttsSpeed = ttsSpeed,
         style = style, targetWords = targetWords, cron = cron,
         customInstructions = customInstructions, relevanceThreshold = relevanceThreshold,
-        requireReview = requireReview, maxLlmCostCents = maxLlmCostCents, lastGeneratedAt = lastGeneratedAt
+        requireReview = requireReview, maxLlmCostCents = maxLlmCostCents,
+        maxArticleAgeDays = maxArticleAgeDays, lastGeneratedAt = lastGeneratedAt
     )
 }

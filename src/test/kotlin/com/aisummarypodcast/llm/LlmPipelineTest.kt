@@ -164,6 +164,34 @@ class LlmPipelineTest {
         verify(exactly = 0) { articleScoreSummarizer.scoreSummarize(any(), any(), any()) }
     }
 
+    @Test
+    fun `per-podcast maxArticleAgeDays override is used for cutoff`() {
+        // Global max is 7 days. Podcast overrides to 30 days.
+        // We have an unlinked post from 15 days ago — should be included with the 30-day override.
+        val podcastWith30Days = podcast.copy(maxArticleAgeDays = 30)
+
+        every { sourceRepository.findByPodcastId("p1") } returns listOf(source)
+        every { modelResolver.resolve(podcastWith30Days, "filter") } returns filterModelDef
+        every { modelResolver.resolve(podcastWith30Days, "compose") } returns composeModelDef
+        // The cutoff string is dynamic, so use any() matcher
+        every { postRepository.findUnlinkedBySourceIds(listOf("s1"), any()) } returns emptyList()
+        every { articleRepository.findUnscoredBySourceIds(listOf("s1")) } returns emptyList()
+        every { articleRepository.findRelevantUnprocessedBySourceIds(listOf("s1"), 5) } returns emptyList()
+
+        pipeline.run(podcastWith30Days)
+
+        // Verify the cutoff passed to findUnlinkedBySourceIds is ~30 days ago, not 7
+        verify {
+            postRepository.findUnlinkedBySourceIds(listOf("s1"), match { cutoff ->
+                // The cutoff should be roughly 30 days ago (within a minute tolerance)
+                val cutoffInstant = java.time.Instant.parse(cutoff)
+                val expected = java.time.Instant.now().minus(30, java.time.temporal.ChronoUnit.DAYS)
+                val diff = kotlin.math.abs(cutoffInstant.epochSecond - expected.epochSecond)
+                diff < 60 // within 60 seconds
+            })
+        }
+    }
+
     // --- Cost gate tests ---
 
     private val pricedFilterModel = ModelDefinition(

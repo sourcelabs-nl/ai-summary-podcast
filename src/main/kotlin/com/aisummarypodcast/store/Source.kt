@@ -15,6 +15,8 @@ data class Source(
     val lastPolled: String? = null,
     val lastSeenId: String? = null,
     val aggregate: Boolean? = null,
+    val maxFailures: Int? = null,
+    val maxBackoffHours: Int? = null,
     val consecutiveFailures: Int = 0,
     val lastFailureType: String? = null,
     val disabledReason: String? = null,

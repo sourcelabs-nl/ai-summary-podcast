@@ -22,7 +22,7 @@ class SourcePoller(
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    fun poll(source: Source, userId: String? = null) {
+    fun poll(source: Source, userId: String? = null, maxArticleAgeDays: Int? = null) {
         log.info("[Polling] Polling source: {} ({})", source.id, source.type)
 
         try {
@@ -46,7 +46,8 @@ class SourcePoller(
             var latestTimestamp = source.lastSeenId
             var savedCount = 0
 
-            val maxAgeCutoff = Instant.now().minus(appProperties.source.maxArticleAgeDays.toLong(), ChronoUnit.DAYS)
+            val effectiveMaxArticleAgeDays = maxArticleAgeDays ?: appProperties.source.maxArticleAgeDays
+            val maxAgeCutoff = Instant.now().minus(effectiveMaxArticleAgeDays.toLong(), ChronoUnit.DAYS)
             val now = Instant.now().toString()
 
             for (post in rawPosts) {
@@ -95,7 +96,8 @@ class SourcePoller(
                 lastFailureType = failureType
             )
 
-            if (failure is PollFailure.Permanent && newFailureCount >= appProperties.source.maxFailures) {
+            val effectiveMaxFailures = source.maxFailures ?: appProperties.source.maxFailures
+            if (failure is PollFailure.Permanent && newFailureCount >= effectiveMaxFailures) {
                 val reason = "Auto-disabled after $newFailureCount consecutive ${failure.message} errors"
                 log.warn("[Polling] Disabling source {}: {}", source.id, reason)
                 updatedSource = updatedSource.copy(enabled = false, disabledReason = reason)

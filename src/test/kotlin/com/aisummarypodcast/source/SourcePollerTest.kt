@@ -15,6 +15,8 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import org.junit.jupiter.api.Test
+import org.springframework.http.HttpStatusCode
+import org.springframework.web.client.HttpClientErrorException
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 
@@ -96,6 +98,49 @@ class SourcePollerTest {
 
         val pollerWith14Days = SourcePoller(rssFeedFetcher, websiteFetcher, twitterFetcher, postRepository, sourceRepository, appProperties(maxArticleAgeDays = 14))
         pollerWith14Days.poll(source)
+        verify { postRepository.save(any()) }
+    }
+
+    @Test
+    fun `per-source maxFailures override disables source at custom threshold`() {
+        val failingSource = source.copy(consecutiveFailures = 2, maxFailures = 3)
+        every { rssFeedFetcher.fetch(any(), any(), any()) } throws HttpClientErrorException(HttpStatusCode.valueOf(404))
+
+        val poller = SourcePoller(rssFeedFetcher, websiteFetcher, twitterFetcher, postRepository, sourceRepository, appProperties())
+        poller.poll(failingSource)
+
+        verify {
+            sourceRepository.save(match {
+                !it.enabled && it.consecutiveFailures == 3 && it.disabledReason != null
+            })
+        }
+    }
+
+    @Test
+    fun `source without maxFailures override uses global default`() {
+        // Global default is 15, source at 2 consecutive failures — should NOT be disabled
+        val failingSource = source.copy(consecutiveFailures = 2)
+        every { rssFeedFetcher.fetch(any(), any(), any()) } throws HttpClientErrorException(HttpStatusCode.valueOf(404))
+
+        val poller = SourcePoller(rssFeedFetcher, websiteFetcher, twitterFetcher, postRepository, sourceRepository, appProperties())
+        poller.poll(failingSource)
+
+        verify {
+            sourceRepository.save(match {
+                it.enabled && it.consecutiveFailures == 3
+            })
+        }
+    }
+
+    @Test
+    fun `per-source maxArticleAgeDays passed to poll overrides global`() {
+        // Post is 10 days old, global max is 7, but we pass 14 as override
+        val post10DaysOld = post(publishedAt = Instant.now().minus(10, ChronoUnit.DAYS).toString())
+        every { rssFeedFetcher.fetch(any(), any(), any()) } returns listOf(post10DaysOld)
+
+        val poller = SourcePoller(rssFeedFetcher, websiteFetcher, twitterFetcher, postRepository, sourceRepository, appProperties(maxArticleAgeDays = 7))
+        poller.poll(source, maxArticleAgeDays = 14)
+
         verify { postRepository.save(any()) }
     }
 

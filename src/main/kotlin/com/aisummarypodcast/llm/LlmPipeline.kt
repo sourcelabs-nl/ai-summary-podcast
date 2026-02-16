@@ -48,7 +48,8 @@ class LlmPipeline(
         val threshold = podcast.relevanceThreshold
 
         // Step 1: Aggregate unlinked posts into articles
-        val cutoff = Instant.now().minus(appProperties.source.maxArticleAgeDays.toLong(), ChronoUnit.DAYS).toString()
+        val effectiveMaxArticleAgeDays = podcast.maxArticleAgeDays ?: appProperties.source.maxArticleAgeDays
+        val cutoff = Instant.now().minus(effectiveMaxArticleAgeDays.toLong(), ChronoUnit.DAYS).toString()
         val unlinkedPosts = postRepository.findUnlinkedBySourceIds(sourceIds, cutoff)
 
         if (unlinkedPosts.isNotEmpty()) {

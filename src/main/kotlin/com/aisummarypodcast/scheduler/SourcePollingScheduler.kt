@@ -38,19 +38,17 @@ class SourcePollingScheduler(
             val effectiveInterval = effectivePollIntervalMinutes(source)
 
             if (lastPolled == null || lastPolled.plus(effectiveInterval, ChronoUnit.MINUTES).isBefore(Instant.now())) {
-                val userId = if (source.type == "twitter") {
-                    podcastService.findById(source.podcastId)?.userId
-                } else {
-                    null
-                }
-                sourcePoller.poll(source, userId)
+                val podcast = podcastService.findById(source.podcastId)
+                val userId = if (source.type == "twitter") podcast?.userId else null
+                val maxArticleAgeDays = podcast?.maxArticleAgeDays ?: appProperties.source.maxArticleAgeDays
+                sourcePoller.poll(source, userId, maxArticleAgeDays)
             }
         }
     }
 
     internal fun effectivePollIntervalMinutes(source: Source): Long {
         if (source.consecutiveFailures == 0) return source.pollIntervalMinutes.toLong()
-        val maxBackoffMinutes = appProperties.source.maxBackoffHours.toLong() * 60
+        val maxBackoffMinutes = (source.maxBackoffHours ?: appProperties.source.maxBackoffHours).toLong() * 60
         val backoff = source.pollIntervalMinutes.toLong() * (1L shl min(source.consecutiveFailures, 30))
         return min(backoff, maxBackoffMinutes)
     }

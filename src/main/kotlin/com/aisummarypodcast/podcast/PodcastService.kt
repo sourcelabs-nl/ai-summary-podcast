@@ -34,7 +34,9 @@ class PodcastService(
             cron = podcast?.cron ?: "0 0 6 * * *",
             customInstructions = podcast?.customInstructions,
             relevanceThreshold = podcast?.relevanceThreshold ?: 5,
-            requireReview = podcast?.requireReview ?: false
+            requireReview = podcast?.requireReview ?: false,
+            maxLlmCostCents = podcast?.maxLlmCostCents,
+            maxArticleAgeDays = podcast?.maxArticleAgeDays
         )
         return podcastRepository.save(newPodcast)
     }
@@ -57,7 +59,9 @@ class PodcastService(
             cron = updates.cron,
             customInstructions = updates.customInstructions,
             relevanceThreshold = updates.relevanceThreshold,
-            requireReview = updates.requireReview
+            requireReview = updates.requireReview,
+            maxLlmCostCents = updates.maxLlmCostCents,
+            maxArticleAgeDays = updates.maxArticleAgeDays
         )
         return podcastRepository.save(updated)
     }

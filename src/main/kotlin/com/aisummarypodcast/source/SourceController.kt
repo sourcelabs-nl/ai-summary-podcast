@@ -11,7 +11,9 @@ data class CreateSourceRequest(
     val url: String,
     val pollIntervalMinutes: Int = 60,
     val enabled: Boolean = true,
-    val aggregate: Boolean? = null
+    val aggregate: Boolean? = null,
+    val maxFailures: Int? = null,
+    val maxBackoffHours: Int? = null
 )
 
 data class UpdateSourceRequest(
@@ -19,7 +21,9 @@ data class UpdateSourceRequest(
     val url: String,
     val pollIntervalMinutes: Int = 60,
     val enabled: Boolean = true,
-    val aggregate: Boolean? = null
+    val aggregate: Boolean? = null,
+    val maxFailures: Int? = null,
+    val maxBackoffHours: Int? = null
 )
 
 data class SourceResponse(
@@ -30,6 +34,8 @@ data class SourceResponse(
     val pollIntervalMinutes: Int,
     val enabled: Boolean,
     val aggregate: Boolean?,
+    val maxFailures: Int?,
+    val maxBackoffHours: Int?,
     val lastPolled: String?,
     val lastSeenId: String?,
     val consecutiveFailures: Int,
@@ -55,7 +61,7 @@ class SourceController(
         val podcast = podcastService.findById(podcastId) ?: return ResponseEntity.notFound().build()
         if (podcast.userId != userId) return ResponseEntity.notFound().build()
 
-        val source = sourceService.create(podcastId, request.type, request.url, request.pollIntervalMinutes, request.enabled, request.aggregate)
+        val source = sourceService.create(podcastId, request.type, request.url, request.pollIntervalMinutes, request.enabled, request.aggregate, request.maxFailures, request.maxBackoffHours)
         return ResponseEntity.created(URI.create("/users/$userId/podcasts/$podcastId/sources/${source.id}"))
             .body(source.toResponse())
     }
@@ -83,7 +89,7 @@ class SourceController(
         val source = sourceService.findById(sourceId) ?: return ResponseEntity.notFound().build()
         if (source.podcastId != podcastId) return ResponseEntity.notFound().build()
 
-        val updated = sourceService.update(sourceId, request.type, request.url, request.pollIntervalMinutes, request.enabled, request.aggregate)
+        val updated = sourceService.update(sourceId, request.type, request.url, request.pollIntervalMinutes, request.enabled, request.aggregate, request.maxFailures, request.maxBackoffHours)
             ?: return ResponseEntity.notFound().build()
         return ResponseEntity.ok(updated.toResponse())
     }
@@ -108,6 +114,7 @@ class SourceController(
     private fun com.aisummarypodcast.store.Source.toResponse() = SourceResponse(
         id = id, podcastId = podcastId, type = type, url = url,
         pollIntervalMinutes = pollIntervalMinutes, enabled = enabled, aggregate = aggregate,
+        maxFailures = maxFailures, maxBackoffHours = maxBackoffHours,
         lastPolled = lastPolled, lastSeenId = lastSeenId,
         consecutiveFailures = consecutiveFailures, lastFailureType = lastFailureType,
         disabledReason = disabledReason

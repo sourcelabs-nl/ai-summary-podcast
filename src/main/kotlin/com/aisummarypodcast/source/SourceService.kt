@@ -17,7 +17,7 @@ class SourceService(
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    fun create(podcastId: String, type: String, url: String, pollIntervalMinutes: Int = 60, enabled: Boolean = true, aggregate: Boolean? = null): Source {
+    fun create(podcastId: String, type: String, url: String, pollIntervalMinutes: Int = 60, enabled: Boolean = true, aggregate: Boolean? = null, maxFailures: Int? = null, maxBackoffHours: Int? = null): Source {
         val source = Source(
             id = UUID.randomUUID().toString(),
             podcastId = podcastId,
@@ -25,7 +25,9 @@ class SourceService(
             url = url,
             pollIntervalMinutes = pollIntervalMinutes,
             enabled = enabled,
-            aggregate = aggregate
+            aggregate = aggregate,
+            maxFailures = maxFailures,
+            maxBackoffHours = maxBackoffHours
         )
         return sourceRepository.save(source)
     }
@@ -34,10 +36,10 @@ class SourceService(
 
     fun findById(sourceId: String): Source? = sourceRepository.findById(sourceId).orElse(null)
 
-    fun update(sourceId: String, type: String, url: String, pollIntervalMinutes: Int, enabled: Boolean, aggregate: Boolean? = null): Source? {
+    fun update(sourceId: String, type: String, url: String, pollIntervalMinutes: Int, enabled: Boolean, aggregate: Boolean? = null, maxFailures: Int? = null, maxBackoffHours: Int? = null): Source? {
         val source = findById(sourceId) ?: return null
         val reEnabling = enabled && !source.enabled
-        var updated = source.copy(type = type, url = url, pollIntervalMinutes = pollIntervalMinutes, enabled = enabled, aggregate = aggregate)
+        var updated = source.copy(type = type, url = url, pollIntervalMinutes = pollIntervalMinutes, enabled = enabled, aggregate = aggregate, maxFailures = maxFailures, maxBackoffHours = maxBackoffHours)
         if (reEnabling) {
             updated = updated.copy(consecutiveFailures = 0, lastFailureType = null, disabledReason = null)
         }

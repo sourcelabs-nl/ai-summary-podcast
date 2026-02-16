@@ -11,6 +11,7 @@ import com.aisummarypodcast.podcast.PodcastService
 import com.aisummarypodcast.source.SourcePoller
 import com.aisummarypodcast.store.ArticleRepository
 import com.aisummarypodcast.store.PostRepository
+import com.aisummarypodcast.store.Podcast
 import com.aisummarypodcast.store.Source
 import com.aisummarypodcast.store.SourceRepository
 import io.mockk.every
@@ -76,6 +77,8 @@ class SourcePollingSchedulerBackoffTest {
         assertEquals(360L, scheduler(maxBackoffHours = 6).effectivePollIntervalMinutes(source))
     }
 
+    private val podcast = Podcast(id = "p1", userId = "u1", name = "Test", topic = "tech")
+
     @Test
     fun `source with failures is skipped when backoff interval has not elapsed`() {
         val source = Source(
@@ -88,7 +91,7 @@ class SourcePollingSchedulerBackoffTest {
 
         scheduler().pollSources()
 
-        verify(exactly = 0) { sourcePoller.poll(any(), any()) }
+        verify(exactly = 0) { sourcePoller.poll(any(), any(), any()) }
     }
 
     @Test
@@ -100,10 +103,22 @@ class SourcePollingSchedulerBackoffTest {
             enabled = true
         )
         every { sourceRepository.findAll() } returns listOf(source)
-        every { sourcePoller.poll(source, null) } returns Unit
+        every { podcastService.findById("p1") } returns podcast
+        every { sourcePoller.poll(source, null, 7) } returns Unit
 
         scheduler().pollSources()
 
-        verify { sourcePoller.poll(source, null) }
+        verify { sourcePoller.poll(source, null, 7) }
+    }
+
+    @Test
+    fun `per-source maxBackoffHours override is respected`() {
+        val source = Source(
+            id = "s1", podcastId = "p1", type = "rss", url = "u",
+            pollIntervalMinutes = 60, consecutiveFailures = 10,
+            maxBackoffHours = 48
+        )
+        // With maxBackoffHours=48, cap is 2880 min. Backoff = 60 * 2^10 = 61440, capped to 2880.
+        assertEquals(2880L, scheduler(maxBackoffHours = 24).effectivePollIntervalMinutes(source))
     }
 }
