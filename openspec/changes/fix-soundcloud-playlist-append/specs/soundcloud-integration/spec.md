@@ -45,6 +45,24 @@ The `SoundCloudPublisher` SHALL provide a `rebuildPlaylist(podcast, userId, trac
 - **WHEN** `rebuildPlaylist` is called and `addTrackToPlaylist` returns 404
 - **THEN** a new playlist is created with all track IDs and the podcast's `soundcloudPlaylistId` is updated
 
+### Requirement: SoundCloud update track metadata
+The `SoundCloudClient` SHALL provide an `updateTrack` method that updates a track's permalink via `PUT https://api.soundcloud.com/tracks/{trackId}` with the user's access token as a Bearer token. The request SHALL include a JSON body with `track.permalink` set to the new permalink slug. The method SHALL return the updated track response.
+
+#### Scenario: Update track permalink
+- **WHEN** `updateTrack` is called with track ID 100 and permalink `"tech-news-2026-02-13"`
+- **THEN** the SoundCloud API updates the track's permalink and returns the updated track
+
+### Requirement: Update track permalinks during rebuild
+The `SoundCloudPublisher` SHALL provide an `updateTrackPermalinks(podcast, userId, episodes, publications)` method that updates the permalink of each published SoundCloud track. For each publication, the method SHALL look up the corresponding episode, derive the episode date from `generatedAt`, compute the permalink slug using the same `buildPermalink` logic as the publish flow (podcast name + date, lowercased, non-alphanumeric replaced with hyphens), and call `SoundCloudClient.updateTrack` with the track ID and new permalink. The playlist rebuild endpoint SHALL call `updateTrackPermalinks` before rebuilding the playlist.
+
+#### Scenario: Update permalinks for two published tracks
+- **WHEN** `updateTrackPermalinks` is called with a podcast named "Tech News" and two episodes (2026-02-13, 2026-02-14) with SoundCloud track IDs 100 and 200
+- **THEN** `updateTrack` is called with track 100 and permalink `"tech-news-2026-02-13"`, and track 200 and permalink `"tech-news-2026-02-14"`
+
+#### Scenario: Publication with missing episode is skipped
+- **WHEN** `updateTrackPermalinks` is called and a publication references an episode ID not in the provided episodes list
+- **THEN** that publication is skipped without error
+
 ### Requirement: Query published publications by podcast and target
 The `EpisodePublicationRepository` SHALL provide a `findPublishedByPodcastIdAndTarget(podcastId, target)` method that returns all `EpisodePublication` records with `status = 'PUBLISHED'` and the given `target` for episodes belonging to the given podcast. The query SHALL join `episode_publications` with `episodes` on `episode_id` where `episodes.podcast_id = :podcastId`.
 
@@ -72,3 +90,10 @@ The `SoundCloudPublisher` SHALL manage playlists automatically during the publis
 #### Scenario: Stale playlist ID triggers recreation
 - **WHEN** an episode is published and fetching the existing playlist fails with HTTP 404
 - **THEN** the publisher creates a new playlist containing the track, updates the podcast's `soundcloudPlaylistId`, and returns the publish result successfully
+
+### Requirement: SoundCloud track upload
+The `SoundCloudPublisher` SHALL set a `track[permalink]` field when uploading tracks to SoundCloud. The permalink SHALL be a URL-safe slug derived from the podcast name and episode date (e.g., `"the-daily-agentic-ai-podcast-2026-02-16"`). The slug SHALL be computed by concatenating the podcast name and date with a hyphen, converting to lowercase, replacing non-alphanumeric characters (except hyphens) with hyphens, collapsing consecutive hyphens, and trimming leading/trailing hyphens.
+
+#### Scenario: Permalink generated for upload
+- **WHEN** an episode for podcast "The Daily Agentic AI Podcast" generated on 2026-02-16 is uploaded
+- **THEN** `track[permalink]` is set to `"the-daily-agentic-ai-podcast-2026-02-16"`

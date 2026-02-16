@@ -2,6 +2,7 @@ package com.aisummarypodcast.publishing
 
 import com.aisummarypodcast.podcast.PodcastService
 import com.aisummarypodcast.store.EpisodePublicationRepository
+import com.aisummarypodcast.store.EpisodeRepository
 import com.aisummarypodcast.user.UserService
 import org.slf4j.LoggerFactory
 import org.springframework.http.ResponseEntity
@@ -12,6 +13,7 @@ import org.springframework.web.bind.annotation.*
 class PlaylistController(
     private val userService: UserService,
     private val podcastService: PodcastService,
+    private val episodeRepository: EpisodeRepository,
     private val episodePublicationRepository: EpisodePublicationRepository,
     private val soundCloudPublisher: SoundCloudPublisher
 ) {
@@ -38,8 +40,11 @@ class PlaylistController(
         }
 
         return try {
+            val episodeIds = publications.map { it.episodeId }.distinct()
+            val episodes = episodeIds.mapNotNull { episodeRepository.findById(it).orElse(null) }
+            soundCloudPublisher.updateTrackPermalinks(podcast, userId, episodes, publications)
             soundCloudPublisher.rebuildPlaylist(podcast, userId, trackIds)
-            log.info("Rebuilt SoundCloud playlist for podcast {} with {} tracks", podcastId, trackIds.size)
+            log.info("Updated permalinks and rebuilt SoundCloud playlist for podcast {} with {} tracks", podcastId, trackIds.size)
             ResponseEntity.ok(mapOf("trackIds" to trackIds))
         } catch (e: Exception) {
             log.error("Failed to rebuild playlist for podcast {}: {}", podcastId, e.message, e)

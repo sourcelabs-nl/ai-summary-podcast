@@ -7,6 +7,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
+import com.aisummarypodcast.store.EpisodePublication
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
@@ -54,6 +55,7 @@ class SoundCloudPublisherTest {
 
         val uploadRequest = requestSlot.captured
         assertEquals("Tech News - 2026-02-13", uploadRequest.title)
+        assertEquals("tech-news-2026-02-13", uploadRequest.permalink)
         assertEquals("This is the episode script about AI and tech news.", uploadRequest.description)
         assertEquals("AI \"machine learning\"", uploadRequest.tagList)
     }
@@ -166,6 +168,23 @@ class SoundCloudPublisherTest {
         val savedPodcast = slot<Podcast>()
         verify { podcastRepository.save(capture(savedPodcast)) }
         assertEquals("789", savedPodcast.captured.soundcloudPlaylistId)
+    }
+
+    @Test
+    fun `updateTrackPermalinks updates each track with correct permalink`() {
+        val episode1 = episode.copy(id = 1L, generatedAt = "2026-02-13T10:00:00Z")
+        val episode2 = episode.copy(id = 2L, generatedAt = "2026-02-14T10:00:00Z")
+        val pub1 = EpisodePublication(id = 10, episodeId = 1L, target = "soundcloud", status = "PUBLISHED", externalId = "100", createdAt = "2026-02-13T10:00:00Z")
+        val pub2 = EpisodePublication(id = 11, episodeId = 2L, target = "soundcloud", status = "PUBLISHED", externalId = "200", createdAt = "2026-02-14T10:00:00Z")
+
+        every { tokenManager.getValidAccessToken("user1") } returns "access-token"
+        every { soundCloudClient.updateTrack("access-token", 100, "tech-news-2026-02-13") } returns trackResponse
+        every { soundCloudClient.updateTrack("access-token", 200, "tech-news-2026-02-14") } returns trackResponse
+
+        publisher.updateTrackPermalinks(podcast, "user1", listOf(episode1, episode2), listOf(pub1, pub2))
+
+        verify { soundCloudClient.updateTrack("access-token", 100, "tech-news-2026-02-13") }
+        verify { soundCloudClient.updateTrack("access-token", 200, "tech-news-2026-02-14") }
     }
 
     @Test

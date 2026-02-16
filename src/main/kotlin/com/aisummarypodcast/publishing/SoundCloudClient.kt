@@ -51,6 +51,7 @@ data class TrackUploadRequest(
     val title: String,
     val description: String,
     val tagList: String,
+    val permalink: String,
     val audioFilePath: Path
 )
 
@@ -122,6 +123,7 @@ class SoundCloudClient(restTemplateBuilder: RestTemplateBuilder) {
             add("track[title]", request.title)
             add("track[description]", request.description)
             add("track[tag_list]", request.tagList)
+            add("track[permalink]", request.permalink)
             add("track[sharing]", "public")
             add("track[asset_data]", FileSystemResource(request.audioFilePath))
         }
@@ -139,6 +141,30 @@ class SoundCloudClient(restTemplateBuilder: RestTemplateBuilder) {
             SoundCloudTrackResponse::class.java
         )
         return response.body ?: throw RuntimeException("Empty response from SoundCloud track upload")
+    }
+
+    fun updateTrack(
+        accessToken: String,
+        trackId: Long,
+        permalink: String
+    ): SoundCloudTrackResponse {
+        val body = mapOf(
+            "track" to mapOf("permalink" to permalink)
+        )
+
+        val headers = HttpHeaders().apply {
+            contentType = MediaType.APPLICATION_JSON
+            setBearerAuth(accessToken)
+        }
+
+        log.info("Updating SoundCloud track {} permalink to {}", trackId, permalink)
+        val response = restTemplate.exchange(
+            "https://api.soundcloud.com/tracks/$trackId",
+            HttpMethod.PUT,
+            HttpEntity(body, headers),
+            SoundCloudTrackResponse::class.java
+        )
+        return response.body ?: throw RuntimeException("Empty response from SoundCloud track update")
     }
 
     fun createPlaylist(

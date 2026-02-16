@@ -30,6 +30,7 @@ class SoundCloudPublisher(
             DateTimeFormatter.ISO_INSTANT.withZone(ZoneOffset.UTC)
         )
         val title = "${podcast.name} - $episodeDate"
+        val permalink = buildPermalink(podcast.name, episodeDate)
         val description = episode.scriptText.take(500)
         val tagList = buildTagList(podcast.topic)
 
@@ -39,6 +40,7 @@ class SoundCloudPublisher(
                 title = title,
                 description = description,
                 tagList = tagList,
+                permalink = permalink,
                 audioFilePath = Path.of(episode.audioFilePath!!)
             )
         )
@@ -76,6 +78,22 @@ class SoundCloudPublisher(
         log.info("Created SoundCloud playlist {} for podcast {}", playlist.id, podcast.id)
     }
 
+    fun updateTrackPermalinks(podcast: Podcast, userId: String, episodes: List<Episode>, publications: List<com.aisummarypodcast.store.EpisodePublication>) {
+        val accessToken = tokenManager.getValidAccessToken(userId)
+        val episodeById = episodes.associateBy { it.id }
+
+        for (publication in publications) {
+            val episode = episodeById[publication.episodeId] ?: continue
+            val trackId = publication.externalId?.toLongOrNull() ?: continue
+            val episodeDate = LocalDate.parse(
+                episode.generatedAt,
+                DateTimeFormatter.ISO_INSTANT.withZone(ZoneOffset.UTC)
+            )
+            val permalink = buildPermalink(podcast.name, episodeDate)
+            soundCloudClient.updateTrack(accessToken, trackId, permalink)
+        }
+    }
+
     fun rebuildPlaylist(podcast: Podcast, userId: String, trackIds: List<Long>) {
         val accessToken = tokenManager.getValidAccessToken(userId)
         val playlistId = podcast.soundcloudPlaylistId?.toLongOrNull()
@@ -96,6 +114,14 @@ class SoundCloudPublisher(
             podcastRepository.save(podcast.copy(soundcloudPlaylistId = playlist.id.toString()))
             log.info("Created SoundCloud playlist {} with {} tracks for podcast {}", playlist.id, trackIds.size, podcast.id)
         }
+    }
+
+    private fun buildPermalink(podcastName: String, episodeDate: LocalDate): String {
+        return "${podcastName}-${episodeDate}"
+            .lowercase()
+            .replace(Regex("[^a-z0-9-]"), "-")
+            .replace(Regex("-+"), "-")
+            .trim('-')
     }
 
     private fun buildTagList(topic: String): String {
