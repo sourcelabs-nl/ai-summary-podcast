@@ -38,7 +38,9 @@ class SourcePollingScheduler(
     suspend fun pollSources() {
         cleanupOldArticles()
 
-        val allSources = sourceRepository.findAll().filter { it.enabled }
+        val allSources = withContext(Dispatchers.IO) {
+            sourceRepository.findAll()
+        }.filter { it.enabled }
         log.info("[Polling] Checking {} enabled sources", allSources.count())
 
         val jitteredSources = applyStartupJitter(allSources)
@@ -85,7 +87,7 @@ class SourcePollingScheduler(
         }
     }
 
-    internal fun applyStartupJitter(sources: Iterable<Source>): List<Source> {
+    internal suspend fun applyStartupJitter(sources: Iterable<Source>): List<Source> {
         val now = Instant.now()
         return sources.map { source ->
             if (source.lastPolled != null) return@map source
@@ -93,7 +95,7 @@ class SourcePollingScheduler(
             val jitterMinutes = Random.nextInt(0, source.pollIntervalMinutes + 1)
             val syntheticLastPolled = now.minus(jitterMinutes.toLong(), ChronoUnit.MINUTES)
             val updated = source.copy(lastPolled = syntheticLastPolled.toString())
-            sourceRepository.save(updated)
+            withContext(Dispatchers.IO) { sourceRepository.save(updated) }
             log.info("[Polling] Applied startup jitter to source {}: synthetic lastPolled = {} ({} min ago)",
                 source.id, syntheticLastPolled, jitterMinutes)
             updated
@@ -120,9 +122,11 @@ class SourcePollingScheduler(
             null
         }
 
-    private fun cleanupOldArticles() {
+    private suspend fun cleanupOldArticles() {
         val cutoff = Instant.now().minus(appProperties.source.maxArticleAgeDays.toLong(), ChronoUnit.DAYS)
-        articleRepository.deleteOldUnprocessedArticles(cutoff.toString())
-        postRepository.deleteOldUnlinkedPosts(cutoff.toString())
+        withContext(Dispatchers.IO) {
+            articleRepository.deleteOldUnprocessedArticles(cutoff.toString())
+            postRepository.deleteOldUnlinkedPosts(cutoff.toString())
+        }
     }
 }

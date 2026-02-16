@@ -128,7 +128,7 @@ class SourcePollingSchedulerTest {
     // --- 5.1 Startup jitter tests ---
 
     @Test
-    fun `applyStartupJitter sets synthetic lastPolled for sources with null lastPolled`() {
+    fun `applyStartupJitter sets synthetic lastPolled for sources with null lastPolled`() = runTest {
         val source = Source(id = "s1", podcastId = "p1", type = "rss", url = "https://example.com/rss", pollIntervalMinutes = 60)
         val saved = slot<Source>()
         every { sourceRepository.save(capture(saved)) } answers { saved.captured }
@@ -145,7 +145,7 @@ class SourcePollingSchedulerTest {
     }
 
     @Test
-    fun `applyStartupJitter does not modify sources with existing lastPolled`() {
+    fun `applyStartupJitter does not modify sources with existing lastPolled`() = runTest {
         val existingLastPolled = Instant.now().minus(30, ChronoUnit.MINUTES).toString()
         val source = Source(
             id = "s1", podcastId = "p1", type = "rss", url = "https://example.com/rss",
