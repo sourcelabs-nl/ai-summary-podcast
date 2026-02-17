@@ -17,6 +17,8 @@ Stage 2 (composition) SHALL query articles where `relevance_score >= podcast.rel
 
 Both stages SHALL track token usage. Stage 1 SHALL persist token counts on each article. Stage 2 SHALL return token counts in the `PipelineResult`.
 
+The `PipelineResult` SHALL include a `processedArticleIds` field containing the IDs of all articles that were marked as processed. This enables the caller (`BriefingGenerationScheduler`) to record episode-article links after the episode is persisted.
+
 Stage 1 SHALL use the model resolved for the `filter` stage. Stage 2 SHALL use the model resolved for the `compose` stage.
 
 #### Scenario: Full pipeline produces a briefing script
@@ -38,6 +40,14 @@ Stage 1 SHALL use the model resolved for the `filter` stage. Stage 2 SHALL use t
 #### Scenario: Irrelevant posts filtered during summarization
 - **WHEN** an aggregated article contains 10 posts, 3 of which are irrelevant to the topic
 - **THEN** the LLM's summary covers only the 7 relevant posts, and `excludedPostIds` lists the 3 irrelevant post IDs
+
+#### Scenario: PipelineResult contains processed article IDs
+- **WHEN** the pipeline composes a briefing from 5 relevant articles
+- **THEN** the `PipelineResult.processedArticleIds` contains the IDs of all 5 articles
+
+#### Scenario: Episode-article links recorded after episode creation
+- **WHEN** the `BriefingGenerationScheduler` creates an episode from a `PipelineResult`
+- **THEN** the scheduler records one `episode_articles` row for each article ID in `PipelineResult.processedArticleIds`
 
 ### Requirement: Score, summarize, and filter stage
 The system SHALL process each article through a single LLM call that performs scoring, summarization, and content filtering simultaneously. The LLM prompt SHALL include the podcast's topic, the full article content, and instructions to: (1) assign a relevance score of 0-10, (2) summarize the relevant content in 2-3 sentences, (3) identify which posts are relevant and which are not. The prompt SHALL request a JSON response with the structure: `{ "relevanceScore": <int>, "summary": "<text>", "includedPostIds": [<ids>], "excludedPostIds": [<ids>] }`. The prompt SHALL instruct the LLM to preserve attribution in the summary. The system SHALL persist the `relevanceScore` and `summary` on the article immediately after the call. Token usage SHALL be extracted and persisted on the article.

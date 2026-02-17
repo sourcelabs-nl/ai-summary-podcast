@@ -18,7 +18,8 @@ data class PipelineResult(
     val composeModel: String,
     val llmInputTokens: Int = 0,
     val llmOutputTokens: Int = 0,
-    val llmCostCents: Int? = null
+    val llmCostCents: Int? = null,
+    val processedArticleIds: List<Long> = emptyList()
 )
 
 @Component
@@ -98,6 +99,8 @@ class LlmPipeline(
 
         val compositionResult = briefingComposer.compose(toCompose, podcast, composeModelDef)
 
+        val processedArticleIds = toCompose.mapNotNull { it.id }
+
         for (article in toCompose) {
             articleRepository.save(article.copy(isProcessed = true))
         }
@@ -113,7 +116,8 @@ class LlmPipeline(
             composeModel = composeModelDef.model,
             llmInputTokens = compositionResult.usage.inputTokens,
             llmOutputTokens = compositionResult.usage.outputTokens,
-            llmCostCents = costCents
+            llmCostCents = costCents,
+            processedArticleIds = processedArticleIds
         )
     }
 }

@@ -9,6 +9,9 @@ interface PostRepository : CrudRepository<Post, Long> {
     @Query("SELECT * FROM posts WHERE source_id = :sourceId AND content_hash = :contentHash")
     fun findBySourceIdAndContentHash(sourceId: String, contentHash: String): Post?
 
+    @Query("SELECT * FROM posts WHERE content_hash = :contentHash AND source_id IN (:sourceIds) LIMIT 1")
+    fun findByContentHashAndSourceIdIn(contentHash: String, sourceIds: List<String>): Post?
+
     @Query("""
         SELECT p.* FROM posts p
         LEFT JOIN post_articles pa ON p.id = pa.post_id

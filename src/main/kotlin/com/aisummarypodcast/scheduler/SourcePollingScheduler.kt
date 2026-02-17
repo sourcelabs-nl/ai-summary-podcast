@@ -48,13 +48,15 @@ class SourcePollingScheduler(
         val dueSources = jitteredSources.filter { isDue(it) }
         log.info("[Polling] {} sources are due for polling", dueSources.size)
 
+        val sourcesByPodcast = allSources.groupBy { it.podcastId }
+
         val hostGroups = dueSources.groupBy { extractHost(it.url) }
 
         supervisorScope {
             hostGroups.map { (host, sources) ->
                 async {
                     withContext(Dispatchers.IO) {
-                        pollHostGroup(host, sources)
+                        pollHostGroup(host, sources, sourcesByPodcast)
                     }
                 }
             }.forEach { deferred ->
@@ -67,13 +69,14 @@ class SourcePollingScheduler(
         }
     }
 
-    private suspend fun pollHostGroup(host: String?, sources: List<Source>) {
+    private suspend fun pollHostGroup(host: String?, sources: List<Source>, sourcesByPodcast: Map<String, List<Source>>) {
         for ((index, source) in sources.withIndex()) {
             try {
                 val podcast = podcastService.findById(source.podcastId)
                 val userId = if (source.type == "twitter") podcast?.userId else null
                 val maxArticleAgeDays = podcast?.maxArticleAgeDays ?: appProperties.source.maxArticleAgeDays
-                sourcePoller.poll(source, userId, maxArticleAgeDays)
+                val siblingSourceIds = sourcesByPodcast[source.podcastId]?.map { it.id } ?: listOf(source.id)
+                sourcePoller.poll(source, userId, maxArticleAgeDays, siblingSourceIds)
             } catch (e: Exception) {
                 log.error("[Polling] Unexpected error polling source {} in host group {}", source.id, host, e)
             }

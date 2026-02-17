@@ -1,7 +1,10 @@
 package com.aisummarypodcast.scheduler
 
 import com.aisummarypodcast.llm.LlmPipeline
+import com.aisummarypodcast.llm.PipelineResult
 import com.aisummarypodcast.store.Episode
+import com.aisummarypodcast.store.EpisodeArticle
+import com.aisummarypodcast.store.EpisodeArticleRepository
 import com.aisummarypodcast.store.EpisodeRepository
 import com.aisummarypodcast.store.PodcastRepository
 import com.aisummarypodcast.tts.TtsPipeline
@@ -19,7 +22,8 @@ class BriefingGenerationScheduler(
     private val podcastRepository: PodcastRepository,
     private val llmPipeline: LlmPipeline,
     private val ttsPipeline: TtsPipeline,
-    private val episodeRepository: EpisodeRepository
+    private val episodeRepository: EpisodeRepository,
+    private val episodeArticleRepository: EpisodeArticleRepository
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -73,7 +77,7 @@ class BriefingGenerationScheduler(
         }
 
         if (podcast.requireReview) {
-            episodeRepository.save(
+            val savedEpisode = episodeRepository.save(
                 Episode(
                     podcastId = podcastId,
                     generatedAt = Instant.now().toString(),
@@ -86,6 +90,7 @@ class BriefingGenerationScheduler(
                     llmCostCents = result.llmCostCents
                 )
             )
+            saveEpisodeArticleLinks(savedEpisode, result)
             podcastRepository.save(podcast.copy(lastGeneratedAt = Instant.now().toString()))
             log.info("[Pipeline] Script ready for review for podcast {} — total {}", podcastId, mark.elapsedNow())
         } else {
@@ -97,9 +102,16 @@ class BriefingGenerationScheduler(
                 llmOutputTokens = result.llmOutputTokens,
                 llmCostCents = result.llmCostCents
             )
-            episodeRepository.save(episodeWithModels)
+            val savedEpisode = episodeRepository.save(episodeWithModels)
+            saveEpisodeArticleLinks(savedEpisode, result)
             podcastRepository.save(podcast.copy(lastGeneratedAt = Instant.now().toString()))
-            log.info("[Pipeline] Briefing generation complete for podcast {}: episode {} ({} seconds) — total {}", podcastId, episode.id, episode.durationSeconds, mark.elapsedNow())
+            log.info("[Pipeline] Briefing generation complete for podcast {}: episode {} ({} seconds) — total {}", podcastId, savedEpisode.id, savedEpisode.durationSeconds, mark.elapsedNow())
+        }
+    }
+
+    private fun saveEpisodeArticleLinks(episode: Episode, result: PipelineResult) {
+        for (articleId in result.processedArticleIds) {
+            episodeArticleRepository.save(EpisodeArticle(episodeId = episode.id!!, articleId = articleId))
         }
     }
 

@@ -42,6 +42,7 @@ data class SourceResponse(
     val maxBackoffHours: Int?,
     val pollDelaySeconds: Int?,
     val categoryFilter: String?,
+    val createdAt: String,
     val lastPolled: String?,
     val lastSeenId: String?,
     val consecutiveFailures: Int,
@@ -121,7 +122,7 @@ class SourceController(
         id = id, podcastId = podcastId, type = type, url = url,
         pollIntervalMinutes = pollIntervalMinutes, enabled = enabled, aggregate = aggregate,
         maxFailures = maxFailures, maxBackoffHours = maxBackoffHours, pollDelaySeconds = pollDelaySeconds,
-        categoryFilter = categoryFilter, lastPolled = lastPolled, lastSeenId = lastSeenId,
+        categoryFilter = categoryFilter, createdAt = createdAt, lastPolled = lastPolled, lastSeenId = lastSeenId,
         consecutiveFailures = consecutiveFailures, lastFailureType = lastFailureType,
         disabledReason = disabledReason
     )

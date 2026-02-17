@@ -6,6 +6,7 @@ import com.aisummarypodcast.store.Source
 import com.aisummarypodcast.store.SourceRepository
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
+import java.time.Instant
 import java.util.UUID
 
 @Service
@@ -29,7 +30,8 @@ class SourceService(
             maxFailures = maxFailures,
             maxBackoffHours = maxBackoffHours,
             pollDelaySeconds = pollDelaySeconds,
-            categoryFilter = categoryFilter
+            categoryFilter = categoryFilter,
+            createdAt = Instant.now().toString()
         )
         return sourceRepository.save(source)
     }

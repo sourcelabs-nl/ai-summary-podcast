@@ -107,7 +107,7 @@ class SourcePollingSchedulerTest {
         scheduler().pollSources()
 
         verify { podcastService.findById("p1") }
-        verify { sourcePoller.poll(twitterSource, "owner-1", 7) }
+        verify { sourcePoller.poll(twitterSource, "owner-1", 7, listOf("s1")) }
     }
 
     @Test
@@ -122,7 +122,7 @@ class SourcePollingSchedulerTest {
 
         scheduler().pollSources()
 
-        verify { sourcePoller.poll(rssSource, null, 7) }
+        verify { sourcePoller.poll(rssSource, null, 7, listOf("s2")) }
     }
 
     // --- 5.1 Startup jitter tests ---
@@ -180,9 +180,9 @@ class SourcePollingSchedulerTest {
 
         scheduler().pollSources()
 
-        verify(exactly = 1) { sourcePoller.poll(source1, null, 7) }
-        verify(exactly = 1) { sourcePoller.poll(source2, null, 7) }
-        verify(exactly = 1) { sourcePoller.poll(source3, null, 7) }
+        verify(exactly = 1) { sourcePoller.poll(source1, null, 7, listOf("s1", "s2", "s3")) }
+        verify(exactly = 1) { sourcePoller.poll(source2, null, 7, listOf("s1", "s2", "s3")) }
+        verify(exactly = 1) { sourcePoller.poll(source3, null, 7, listOf("s1", "s2", "s3")) }
     }
 
     // --- 5.3 supervisorScope isolation tests ---
@@ -199,11 +199,11 @@ class SourcePollingSchedulerTest {
         )
         every { sourceRepository.findAll() } returns listOf(source1, source2)
         every { podcastService.findById("p1") } returns podcast
-        every { sourcePoller.poll(source1, null, 7) } throws RuntimeException("Host down")
+        every { sourcePoller.poll(source1, null, 7, listOf("s1", "s2")) } throws RuntimeException("Host down")
 
         scheduler().pollSources()
 
-        verify(exactly = 1) { sourcePoller.poll(source2, null, 7) }
+        verify(exactly = 1) { sourcePoller.poll(source2, null, 7, listOf("s1", "s2")) }
     }
 
     // --- 5.4 Delay application tests ---

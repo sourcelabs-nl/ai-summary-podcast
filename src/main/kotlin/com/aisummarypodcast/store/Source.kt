@@ -19,6 +19,7 @@ data class Source(
     val maxBackoffHours: Int? = null,
     val pollDelaySeconds: Int? = null,
     val categoryFilter: String? = null,
+    val createdAt: String = "1970-01-01T00:00:00Z",
     val consecutiveFailures: Int = 0,
     val lastFailureType: String? = null,
     val disabledReason: String? = null,

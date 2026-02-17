@@ -96,7 +96,7 @@ class SourcePollingSchedulerBackoffTest {
 
         scheduler().pollSources()
 
-        verify(exactly = 0) { sourcePoller.poll(any(), any(), any()) }
+        verify(exactly = 0) { sourcePoller.poll(any(), any(), any(), any()) }
     }
 
     @Test
@@ -112,7 +112,7 @@ class SourcePollingSchedulerBackoffTest {
 
         scheduler().pollSources()
 
-        verify { sourcePoller.poll(source, null, 7) }
+        verify { sourcePoller.poll(source, null, 7, listOf("s1")) }
     }
 
     @Test

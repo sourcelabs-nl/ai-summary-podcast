@@ -22,7 +22,7 @@ class SourcePoller(
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    fun poll(source: Source, userId: String? = null, maxArticleAgeDays: Int? = null) {
+    fun poll(source: Source, userId: String? = null, maxArticleAgeDays: Int? = null, siblingSourceIds: List<String> = emptyList()) {
         log.info("[Polling] Polling source: {} ({})", source.url, source.type)
 
         try {
@@ -50,14 +50,27 @@ class SourcePoller(
             val maxAgeCutoff = Instant.now().minus(effectiveMaxArticleAgeDays.toLong(), ChronoUnit.DAYS)
             val now = Instant.now().toString()
 
+            val isFirstPoll = source.lastPolled == null
+            val sourceCreatedAt = Instant.parse(source.createdAt)
+
             for (post in rawPosts) {
                 if (post.publishedAt != null && Instant.parse(post.publishedAt).isBefore(maxAgeCutoff)) {
                     log.debug("[Polling] Skipping old post '{}' (published {})", post.title, post.publishedAt)
                     continue
                 }
 
+                if (isFirstPoll && post.publishedAt != null && Instant.parse(post.publishedAt).isBefore(sourceCreatedAt)) {
+                    log.debug("[Polling] Skipping pre-creation post '{}' (published {}, source created {})", post.title, post.publishedAt, source.createdAt)
+                    continue
+                }
+
                 val hash = sha256(post.body)
                 if (postRepository.findBySourceIdAndContentHash(source.id, hash) != null) continue
+
+                if (siblingSourceIds.isNotEmpty() && postRepository.findByContentHashAndSourceIdIn(hash, siblingSourceIds) != null) {
+                    log.debug("[Polling] Skipping cross-source duplicate '{}' (hash {})", post.title, hash)
+                    continue
+                }
 
                 postRepository.save(post.copy(contentHash = hash, createdAt = now))
                 savedCount++

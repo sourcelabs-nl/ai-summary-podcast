@@ -27,6 +27,7 @@ class SourcePollerTest {
     private val twitterFetcher = mockk<TwitterFetcher>()
     private val postRepository = mockk<PostRepository> {
         every { findBySourceIdAndContentHash(any(), any()) } returns null
+        every { findByContentHashAndSourceIdIn(any(), any()) } returns null
         every { save(any()) } answers { firstArg() }
     }
     private val sourceRepository = mockk<SourceRepository> {
@@ -187,5 +188,85 @@ class SourcePollerTest {
         poller.poll(twitterSource, userId = null)
 
         verify(exactly = 0) { twitterFetcher.fetch(any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `first poll skips posts published before source createdAt`() {
+        val createdAt = Instant.now().toString()
+        val newSource = source.copy(lastPolled = null, createdAt = createdAt)
+        val oldPost = post(publishedAt = Instant.now().minus(2, ChronoUnit.DAYS).toString())
+        every { rssFeedFetcher.fetch(any(), any(), any(), any()) } returns listOf(oldPost)
+
+        val poller = SourcePoller(rssFeedFetcher, websiteFetcher, twitterFetcher, postRepository, sourceRepository, appProperties())
+        poller.poll(newSource)
+
+        verify(exactly = 0) { postRepository.save(match { it.sourceId == "s1" && it.title == "Test Post" }) }
+    }
+
+    @Test
+    fun `first poll accepts posts published after source createdAt`() {
+        val createdAt = Instant.now().minus(1, ChronoUnit.HOURS).toString()
+        val newSource = source.copy(lastPolled = null, createdAt = createdAt)
+        val recentPost = post(publishedAt = Instant.now().toString())
+        every { rssFeedFetcher.fetch(any(), any(), any(), any()) } returns listOf(recentPost)
+
+        val poller = SourcePoller(rssFeedFetcher, websiteFetcher, twitterFetcher, postRepository, sourceRepository, appProperties())
+        poller.poll(newSource)
+
+        verify { postRepository.save(any()) }
+    }
+
+    @Test
+    fun `subsequent polls ignore createdAt filter`() {
+        val createdAt = Instant.now().toString()
+        val polledSource = source.copy(lastPolled = Instant.now().minus(1, ChronoUnit.HOURS).toString(), createdAt = createdAt)
+        val olderPost = post(publishedAt = Instant.now().minus(2, ChronoUnit.DAYS).toString())
+        every { rssFeedFetcher.fetch(any(), any(), any(), any()) } returns listOf(olderPost)
+
+        val poller = SourcePoller(rssFeedFetcher, websiteFetcher, twitterFetcher, postRepository, sourceRepository, appProperties())
+        poller.poll(polledSource)
+
+        verify { postRepository.save(any()) }
+    }
+
+    @Test
+    fun `cross-source duplicate is skipped within same podcast`() {
+        val recentPost = post(publishedAt = Instant.now().toString())
+        every { rssFeedFetcher.fetch(any(), any(), any(), any()) } returns listOf(recentPost)
+        every { postRepository.findByContentHashAndSourceIdIn(any(), any()) } returns Post(
+            id = 99, sourceId = "s2", title = "Existing", body = "Post body content",
+            url = "https://example.com/other", contentHash = "abc", createdAt = ""
+        )
+
+        val poller = SourcePoller(rssFeedFetcher, websiteFetcher, twitterFetcher, postRepository, sourceRepository, appProperties())
+        poller.poll(source.copy(lastPolled = Instant.now().toString()), siblingSourceIds = listOf("s1", "s2"))
+
+        verify(exactly = 0) { postRepository.save(any()) }
+    }
+
+    @Test
+    fun `same content hash allowed across different podcasts`() {
+        val recentPost = post(publishedAt = Instant.now().toString())
+        every { rssFeedFetcher.fetch(any(), any(), any(), any()) } returns listOf(recentPost)
+        // No cross-source match when sibling IDs are only this source's podcast
+        every { postRepository.findByContentHashAndSourceIdIn(any(), listOf("s1")) } returns null
+
+        val poller = SourcePoller(rssFeedFetcher, websiteFetcher, twitterFetcher, postRepository, sourceRepository, appProperties())
+        poller.poll(source.copy(lastPolled = Instant.now().toString()), siblingSourceIds = listOf("s1"))
+
+        verify { postRepository.save(any()) }
+    }
+
+    @Test
+    fun `first poll does not filter posts with null publishedAt`() {
+        val createdAt = Instant.now().toString()
+        val newSource = source.copy(lastPolled = null, createdAt = createdAt)
+        val nullDatePost = post(publishedAt = null)
+        every { rssFeedFetcher.fetch(any(), any(), any(), any()) } returns listOf(nullDatePost)
+
+        val poller = SourcePoller(rssFeedFetcher, websiteFetcher, twitterFetcher, postRepository, sourceRepository, appProperties())
+        poller.poll(newSource)
+
+        verify { postRepository.save(any()) }
     }
 }
