@@ -13,6 +13,8 @@ The scheduler's `pollSources()` method SHALL be a `suspend fun`, using Spring 6.
 
 Sources with `lastPolled = null` (never polled) SHALL receive startup jitter before being checked for due status (as defined by the `poll-rate-limiting` capability).
 
+All `[Polling]` log messages in `SourcePoller` that identify a source SHALL use `source.url` instead of `source.id` so that operators can identify sources without a database lookup.
+
 #### Scenario: Source polled when interval has elapsed
 - **WHEN** the scheduler runs and a source's effective poll interval has elapsed since its `last_polled` timestamp
 - **THEN** the source is polled for new content
@@ -40,6 +42,10 @@ Sources with `lastPolled = null` (never polled) SHALL receive startup jitter bef
 #### Scenario: Scheduler method is a suspend function
 - **WHEN** the scheduler tick fires
 - **THEN** `pollSources()` executes as a Kotlin `suspend fun` using Spring's native coroutine scheduling support
+
+#### Scenario: Log messages show source URL
+- **WHEN** a source is polled and log messages are emitted
+- **THEN** the log messages identify the source by its URL (not its UUID)
 
 ### Requirement: RSS/Atom feed polling
 The system SHALL parse RSS and Atom feeds using ROME (`com.rometools:rome`). For sources with type `rss`, the system SHALL fetch the feed, extract entries published after the source's `last_seen_id` timestamp, and store each new entry as a post in the `posts` table. The system SHALL strip HTML markup from the entry content and description using `Jsoup.parse(value).text()` before storing the post body. The system SHALL extract the author from the RSS entry: use `SyndEntry.author` if non-blank, otherwise use the `name` of the first entry in `SyndEntry.authors` if available. If neither provides a non-blank value, `post.author` SHALL be null. The `SourceAggregator` SHALL NOT be called during polling — aggregation is deferred to script generation time.
