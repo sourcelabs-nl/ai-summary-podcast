@@ -6,6 +6,7 @@ import org.jsoup.Jsoup
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import java.io.StringReader
@@ -152,5 +153,80 @@ class RssFeedFetcherTest {
 
         assertEquals(1, articles.size)
         assertNull(articles[0].author)
+    }
+
+    private fun rssWithCategories(vararg categories: String): String {
+        val categoryTags = categories.joinToString("\n") { "                  <category>$it</category>" }
+        return """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <rss version="2.0">
+              <channel>
+                <title>Test Feed</title>
+                <item>
+                  <title>Test Article</title>
+                  <link>https://example.com/1</link>
+                  <description>Some content</description>
+$categoryTags
+                </item>
+              </channel>
+            </rss>
+        """.trimIndent()
+    }
+
+    @Test
+    fun `category filter includes entry with matching category`() {
+        serveRss(rssWithCategories("Kotlin", "Programming"))
+
+        val results = fetcher.fetch("http://localhost:$port/feed", "src-1", null, "kotlin,AI")
+
+        assertEquals(1, results.size)
+    }
+
+    @Test
+    fun `category filter excludes entry with no matching category`() {
+        serveRss(rssWithCategories("Sports", "Football"))
+
+        val results = fetcher.fetch("http://localhost:$port/feed", "src-1", null, "kotlin,AI")
+
+        assertTrue(results.isEmpty())
+    }
+
+    @Test
+    fun `category filter passes entries with no categories`() {
+        serveRss("""
+            <?xml version="1.0" encoding="UTF-8"?>
+            <rss version="2.0">
+              <channel>
+                <title>Test Feed</title>
+                <item>
+                  <title>Test Article</title>
+                  <link>https://example.com/1</link>
+                  <description>Some content</description>
+                </item>
+              </channel>
+            </rss>
+        """.trimIndent())
+
+        val results = fetcher.fetch("http://localhost:$port/feed", "src-1", null, "kotlin,AI")
+
+        assertEquals(1, results.size)
+    }
+
+    @Test
+    fun `no category filter passes all entries`() {
+        serveRss(rssWithCategories("Sports", "Football"))
+
+        val results = fetcher.fetch("http://localhost:$port/feed", "src-1", null, null)
+
+        assertEquals(1, results.size)
+    }
+
+    @Test
+    fun `category filter uses case-insensitive contains matching`() {
+        serveRss(rssWithCategories("Technology"))
+
+        val results = fetcher.fetch("http://localhost:$port/feed", "src-1", null, "tech")
+
+        assertEquals(1, results.size)
     }
 }

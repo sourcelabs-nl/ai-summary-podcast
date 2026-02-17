@@ -14,7 +14,8 @@ data class CreateSourceRequest(
     val aggregate: Boolean? = null,
     val maxFailures: Int? = null,
     val maxBackoffHours: Int? = null,
-    val pollDelaySeconds: Int? = null
+    val pollDelaySeconds: Int? = null,
+    val categoryFilter: String? = null
 )
 
 data class UpdateSourceRequest(
@@ -25,7 +26,8 @@ data class UpdateSourceRequest(
     val aggregate: Boolean? = null,
     val maxFailures: Int? = null,
     val maxBackoffHours: Int? = null,
-    val pollDelaySeconds: Int? = null
+    val pollDelaySeconds: Int? = null,
+    val categoryFilter: String? = null
 )
 
 data class SourceResponse(
@@ -39,6 +41,7 @@ data class SourceResponse(
     val maxFailures: Int?,
     val maxBackoffHours: Int?,
     val pollDelaySeconds: Int?,
+    val categoryFilter: String?,
     val lastPolled: String?,
     val lastSeenId: String?,
     val consecutiveFailures: Int,
@@ -64,7 +67,7 @@ class SourceController(
         val podcast = podcastService.findById(podcastId) ?: return ResponseEntity.notFound().build()
         if (podcast.userId != userId) return ResponseEntity.notFound().build()
 
-        val source = sourceService.create(podcastId, request.type, request.url, request.pollIntervalMinutes, request.enabled, request.aggregate, request.maxFailures, request.maxBackoffHours, request.pollDelaySeconds)
+        val source = sourceService.create(podcastId, request.type, request.url, request.pollIntervalMinutes, request.enabled, request.aggregate, request.maxFailures, request.maxBackoffHours, request.pollDelaySeconds, request.categoryFilter)
         return ResponseEntity.created(URI.create("/users/$userId/podcasts/$podcastId/sources/${source.id}"))
             .body(source.toResponse())
     }
@@ -92,7 +95,7 @@ class SourceController(
         val source = sourceService.findById(sourceId) ?: return ResponseEntity.notFound().build()
         if (source.podcastId != podcastId) return ResponseEntity.notFound().build()
 
-        val updated = sourceService.update(sourceId, request.type, request.url, request.pollIntervalMinutes, request.enabled, request.aggregate, request.maxFailures, request.maxBackoffHours, request.pollDelaySeconds)
+        val updated = sourceService.update(sourceId, request.type, request.url, request.pollIntervalMinutes, request.enabled, request.aggregate, request.maxFailures, request.maxBackoffHours, request.pollDelaySeconds, request.categoryFilter)
             ?: return ResponseEntity.notFound().build()
         return ResponseEntity.ok(updated.toResponse())
     }
@@ -118,7 +121,7 @@ class SourceController(
         id = id, podcastId = podcastId, type = type, url = url,
         pollIntervalMinutes = pollIntervalMinutes, enabled = enabled, aggregate = aggregate,
         maxFailures = maxFailures, maxBackoffHours = maxBackoffHours, pollDelaySeconds = pollDelaySeconds,
-        lastPolled = lastPolled, lastSeenId = lastSeenId,
+        categoryFilter = categoryFilter, lastPolled = lastPolled, lastSeenId = lastSeenId,
         consecutiveFailures = consecutiveFailures, lastFailureType = lastFailureType,
         disabledReason = disabledReason
     )

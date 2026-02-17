@@ -14,17 +14,24 @@ class RssFeedFetcher {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    fun fetch(url: String, sourceId: String, lastSeenId: String?): List<Post> {
+    fun fetch(url: String, sourceId: String, lastSeenId: String?, categoryFilter: String? = null): List<Post> {
         val input = SyndFeedInput()
         @Suppress("DEPRECATION")
         val feed = input.build(XmlReader(URI(url).toURL()))
         val lastSeenInstant = lastSeenId?.let { Instant.parse(it) }
+        val filterTerms = categoryFilter?.split(",")?.map { it.trim().lowercase() }?.filter { it.isNotEmpty() }
 
         return feed.entries
             .filter { entry ->
                 val publishedDate = entry.publishedDate ?: entry.updatedDate
                 if (publishedDate == null) return@filter true
                 lastSeenInstant == null || publishedDate.toInstant().isAfter(lastSeenInstant)
+            }
+            .filter { entry ->
+                if (filterTerms.isNullOrEmpty()) return@filter true
+                val categories = entry.categories.map { it.name }
+                if (categories.isEmpty()) return@filter true
+                categories.any { cat -> filterTerms.any { term -> cat.lowercase().contains(term) } }
             }
             .mapNotNull { entry ->
                 val title = entry.title ?: return@mapNotNull null
@@ -48,6 +55,6 @@ class RssFeedFetcher {
                     createdAt = ""
                 )
             }
-            .also { log.info("Fetched {} new entries from RSS feed {}", it.size, sourceId) }
+            .also { log.info("Fetched {} new entries from RSS feed {}", it.size, url) }
     }
 }

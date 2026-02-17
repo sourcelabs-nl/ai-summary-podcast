@@ -57,7 +57,7 @@ class SourcePollerTest {
     @Test
     fun `saves post within max age`() {
         val recentPost = post(publishedAt = Instant.now().minus(2, ChronoUnit.DAYS).toString())
-        every { rssFeedFetcher.fetch(any(), any(), any()) } returns listOf(recentPost)
+        every { rssFeedFetcher.fetch(any(), any(), any(), any()) } returns listOf(recentPost)
 
         val poller = SourcePoller(rssFeedFetcher, websiteFetcher, twitterFetcher, postRepository, sourceRepository, appProperties())
         poller.poll(source)
@@ -68,7 +68,7 @@ class SourcePollerTest {
     @Test
     fun `skips post older than max age`() {
         val oldPost = post(publishedAt = Instant.now().minus(30, ChronoUnit.DAYS).toString())
-        every { rssFeedFetcher.fetch(any(), any(), any()) } returns listOf(oldPost)
+        every { rssFeedFetcher.fetch(any(), any(), any(), any()) } returns listOf(oldPost)
 
         val poller = SourcePoller(rssFeedFetcher, websiteFetcher, twitterFetcher, postRepository, sourceRepository, appProperties())
         poller.poll(source)
@@ -79,7 +79,7 @@ class SourcePollerTest {
     @Test
     fun `saves post with null publishedAt`() {
         val nullDatePost = post(publishedAt = null)
-        every { rssFeedFetcher.fetch(any(), any(), any()) } returns listOf(nullDatePost)
+        every { rssFeedFetcher.fetch(any(), any(), any(), any()) } returns listOf(nullDatePost)
 
         val poller = SourcePoller(rssFeedFetcher, websiteFetcher, twitterFetcher, postRepository, sourceRepository, appProperties())
         poller.poll(source)
@@ -90,7 +90,7 @@ class SourcePollerTest {
     @Test
     fun `respects custom max article age`() {
         val post10DaysOld = post(publishedAt = Instant.now().minus(10, ChronoUnit.DAYS).toString())
-        every { rssFeedFetcher.fetch(any(), any(), any()) } returns listOf(post10DaysOld)
+        every { rssFeedFetcher.fetch(any(), any(), any(), any()) } returns listOf(post10DaysOld)
 
         val pollerWith7Days = SourcePoller(rssFeedFetcher, websiteFetcher, twitterFetcher, postRepository, sourceRepository, appProperties(maxArticleAgeDays = 7))
         pollerWith7Days.poll(source)
@@ -104,7 +104,7 @@ class SourcePollerTest {
     @Test
     fun `per-source maxFailures override disables source at custom threshold`() {
         val failingSource = source.copy(consecutiveFailures = 2, maxFailures = 3)
-        every { rssFeedFetcher.fetch(any(), any(), any()) } throws HttpClientErrorException(HttpStatusCode.valueOf(404))
+        every { rssFeedFetcher.fetch(any(), any(), any(), any()) } throws HttpClientErrorException(HttpStatusCode.valueOf(404))
 
         val poller = SourcePoller(rssFeedFetcher, websiteFetcher, twitterFetcher, postRepository, sourceRepository, appProperties())
         poller.poll(failingSource)
@@ -120,7 +120,7 @@ class SourcePollerTest {
     fun `source without maxFailures override uses global default`() {
         // Global default is 15, source at 2 consecutive failures — should NOT be disabled
         val failingSource = source.copy(consecutiveFailures = 2)
-        every { rssFeedFetcher.fetch(any(), any(), any()) } throws HttpClientErrorException(HttpStatusCode.valueOf(404))
+        every { rssFeedFetcher.fetch(any(), any(), any(), any()) } throws HttpClientErrorException(HttpStatusCode.valueOf(404))
 
         val poller = SourcePoller(rssFeedFetcher, websiteFetcher, twitterFetcher, postRepository, sourceRepository, appProperties())
         poller.poll(failingSource)
@@ -136,12 +136,24 @@ class SourcePollerTest {
     fun `per-source maxArticleAgeDays passed to poll overrides global`() {
         // Post is 10 days old, global max is 7, but we pass 14 as override
         val post10DaysOld = post(publishedAt = Instant.now().minus(10, ChronoUnit.DAYS).toString())
-        every { rssFeedFetcher.fetch(any(), any(), any()) } returns listOf(post10DaysOld)
+        every { rssFeedFetcher.fetch(any(), any(), any(), any()) } returns listOf(post10DaysOld)
 
         val poller = SourcePoller(rssFeedFetcher, websiteFetcher, twitterFetcher, postRepository, sourceRepository, appProperties(maxArticleAgeDays = 7))
         poller.poll(source, maxArticleAgeDays = 14)
 
         verify { postRepository.save(any()) }
+    }
+
+    @Test
+    fun `passes categoryFilter to rssFeedFetcher`() {
+        val sourceWithFilter = source.copy(categoryFilter = "kotlin,AI")
+        val recentPost = post(publishedAt = Instant.now().minus(1, ChronoUnit.DAYS).toString())
+        every { rssFeedFetcher.fetch(any(), any(), any(), "kotlin,AI") } returns listOf(recentPost)
+
+        val poller = SourcePoller(rssFeedFetcher, websiteFetcher, twitterFetcher, postRepository, sourceRepository, appProperties())
+        poller.poll(sourceWithFilter)
+
+        verify { rssFeedFetcher.fetch(sourceWithFilter.url, sourceWithFilter.id, sourceWithFilter.lastSeenId, "kotlin,AI") }
     }
 
     @Test
