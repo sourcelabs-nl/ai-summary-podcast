@@ -23,15 +23,15 @@ class SourcePoller(
     private val log = LoggerFactory.getLogger(javaClass)
 
     fun poll(source: Source, userId: String? = null, maxArticleAgeDays: Int? = null) {
-        log.info("[Polling] Polling source: {} ({})", source.id, source.type)
+        log.info("[Polling] Polling source: {} ({})", source.url, source.type)
 
         try {
             val rawPosts = when (source.type) {
-                "rss" -> rssFeedFetcher.fetch(source.url, source.id, source.lastSeenId)
+                "rss" -> rssFeedFetcher.fetch(source.url, source.id, source.lastSeenId, source.categoryFilter)
                 "website" -> listOfNotNull(websiteFetcher.fetch(source.url, source.id))
                 "twitter" -> {
                     if (userId == null) {
-                        log.warn("[Polling] Twitter source {} requires user context for OAuth — skipping", source.id)
+                        log.warn("[Polling] Twitter source {} requires user context for OAuth — skipping", source.url)
                         emptyList()
                     } else {
                         twitterFetcher.fetch(source.url, source.id, source.lastSeenId, userId)
@@ -81,14 +81,14 @@ class SourcePoller(
                 consecutiveFailures = 0,
                 lastFailureType = null
             ))
-            log.info("[Polling] Source {} polled: {} new posts saved", source.id, savedCount)
+            log.info("[Polling] Source {} polled: {} new posts saved", source.url, savedCount)
         } catch (e: Exception) {
             val failure = PollFailure.classify(e)
             val failureType = if (failure is PollFailure.Permanent) "permanent" else "transient"
             val newFailureCount = source.consecutiveFailures + 1
 
             log.error("[Polling] {} failure polling source {} (attempt {}): {}",
-                failureType, source.id, newFailureCount, failure.message, e)
+                failureType, source.url, newFailureCount, failure.message, e)
 
             var updatedSource = source.copy(
                 lastPolled = Instant.now().toString(),
@@ -99,7 +99,7 @@ class SourcePoller(
             val effectiveMaxFailures = source.maxFailures ?: appProperties.source.maxFailures
             if (failure is PollFailure.Permanent && newFailureCount >= effectiveMaxFailures) {
                 val reason = "Auto-disabled after $newFailureCount consecutive ${failure.message} errors"
-                log.warn("[Polling] Disabling source {}: {}", source.id, reason)
+                log.warn("[Polling] Disabling source {}: {}", source.url, reason)
                 updatedSource = updatedSource.copy(enabled = false, disabledReason = reason)
             }
 
