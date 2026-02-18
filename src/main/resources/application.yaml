@@ -29,7 +29,7 @@ app:
         output-cost-per-mtok: 0.60
       capable:
         provider: openrouter
-        model: anthropic/claude-sonnet-4.5
+        model: anthropic/claude-sonnet-4.6
         input-cost-per-mtok: 3.00
         output-cost-per-mtok: 15.00
     defaults:

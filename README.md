@@ -74,7 +74,7 @@ app:
         model: openai/gpt-4o-mini
       capable:
         provider: openrouter
-        model: anthropic/claude-sonnet-4.5
+        model: anthropic/claude-sonnet-4.6
       local:
         provider: ollama
         model: llama3
