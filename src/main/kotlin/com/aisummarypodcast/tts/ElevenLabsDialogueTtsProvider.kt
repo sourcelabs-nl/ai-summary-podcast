@@ -10,6 +10,10 @@ class ElevenLabsDialogueTtsProvider(
 
     private val log = LoggerFactory.getLogger(javaClass)
 
+    companion object {
+        const val MAX_CHARS = 5000
+    }
+
     override fun generate(request: TtsRequest): TtsResult {
         val turns = DialogueScriptParser.parse(request.script)
         if (turns.isEmpty()) {
@@ -25,16 +29,42 @@ class ElevenLabsDialogueTtsProvider(
         }
 
         val uniqueVoices = inputs.map { it.voice_id }.distinct()
-        log.info("Generating ElevenLabs dialogue: {} turns, {} unique voices", inputs.size, uniqueVoices.size)
+        val batches = batchInputs(inputs)
+        log.info("Generating ElevenLabs dialogue: {} turns, {} unique voices, {} batch(es)", inputs.size, uniqueVoices.size, batches.size)
 
         val settings = request.ttsSettings.ifEmpty { null }
-        val audio = apiClient.textToDialogue(request.userId, inputs, settings)
+        val audioChunks = batches.mapIndexed { index, batch ->
+            log.info("Generating dialogue batch {}/{} ({} turns, {} chars)", index + 1, batches.size, batch.size, batch.sumOf { it.text.length })
+            apiClient.textToDialogue(request.userId, batch, settings)
+        }
         val totalCharacters = turns.sumOf { it.text.length }
 
         return TtsResult(
-            audioChunks = listOf(audio),
+            audioChunks = audioChunks,
             totalCharacters = totalCharacters,
-            requiresConcatenation = false
+            requiresConcatenation = batches.size > 1
         )
+    }
+
+    internal fun batchInputs(inputs: List<DialogueInput>): List<List<DialogueInput>> {
+        val batches = mutableListOf<MutableList<DialogueInput>>()
+        var currentBatch = mutableListOf<DialogueInput>()
+        var currentChars = 0
+
+        for (input in inputs) {
+            if (currentBatch.isNotEmpty() && currentChars + input.text.length > MAX_CHARS) {
+                batches.add(currentBatch)
+                currentBatch = mutableListOf()
+                currentChars = 0
+            }
+            currentBatch.add(input)
+            currentChars += input.text.length
+        }
+
+        if (currentBatch.isNotEmpty()) {
+            batches.add(currentBatch)
+        }
+
+        return batches
     }
 }

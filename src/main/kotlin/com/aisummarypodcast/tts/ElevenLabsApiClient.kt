@@ -101,7 +101,13 @@ class ElevenLabsApiClient(
     private fun handleError(status: HttpStatusCode, body: ByteArray) {
         val bodyStr = String(body)
         when (status.value()) {
-            401 -> throw IllegalStateException("ElevenLabs API key is invalid or expired")
+            401 -> {
+                if (bodyStr.contains("quota_exceeded")) {
+                    log.error("ElevenLabs quota exceeded: {}", bodyStr)
+                    throw IllegalStateException("ElevenLabs quota exceeded. Check your plan credits.")
+                }
+                throw IllegalStateException("ElevenLabs API key is invalid or expired")
+            }
             429 -> throw IllegalStateException("ElevenLabs rate limit exceeded. Please try again later.")
             else -> {
                 log.error("ElevenLabs API error (HTTP {}): {}", status.value(), bodyStr)
