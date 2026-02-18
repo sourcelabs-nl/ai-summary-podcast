@@ -98,11 +98,11 @@ class PodcastControllerTest {
         mockMvc.perform(
             post("/users/$userId/podcasts")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("""{"name":"My Podcast","topic":"tech","ttsVoice":"alloy","ttsSpeed":1.25,"style":"casual","targetWords":800,"relevanceThreshold":3,"requireReview":true,"cron":"0 0 8 * * MON-FRI"}""")
+                .content("""{"name":"My Podcast","topic":"tech","ttsProvider":"openai","ttsVoices":{"default":"alloy"},"ttsSettings":{"speed":"1.25"},"style":"casual","targetWords":800,"relevanceThreshold":3,"requireReview":true,"cron":"0 0 8 * * MON-FRI"}""")
         )
             .andExpect(status().isCreated)
-            .andExpect(jsonPath("$.ttsVoice").value("alloy"))
-            .andExpect(jsonPath("$.ttsSpeed").value(1.25))
+            .andExpect(jsonPath("$.ttsProvider").value("openai"))
+            .andExpect(jsonPath("$.ttsVoices.default").value("alloy"))
             .andExpect(jsonPath("$.style").value("casual"))
             .andExpect(jsonPath("$.targetWords").value(800))
             .andExpect(jsonPath("$.relevanceThreshold").value(3))
@@ -126,7 +126,7 @@ class PodcastControllerTest {
             .andExpect(status().isCreated)
             .andExpect(jsonPath("$.relevanceThreshold").value(5))
             .andExpect(jsonPath("$.requireReview").value(false))
-            .andExpect(jsonPath("$.ttsSpeed").value(1.0))
+            .andExpect(jsonPath("$.ttsProvider").value("openai"))
             .andExpect(jsonPath("$.style").value("news-briefing"))
     }
 }

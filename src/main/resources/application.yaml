@@ -44,7 +44,9 @@ app:
   source:
     max-article-age-days: 7
   tts:
-    cost-per-million-chars: 15.00
+    cost-per-million-chars:
+      openai: 15.00
+      elevenlabs: 30.00
   feed:
     base-url: http://localhost:8080
     title: AI Summary Podcast

@@ -71,7 +71,7 @@ data class HostOverride(
 )
 
 data class TtsProperties(
-    val costPerMillionChars: Double? = null
+    val costPerMillionChars: Map<String, Double> = emptyMap()
 )
 
 data class SoundCloudProperties(

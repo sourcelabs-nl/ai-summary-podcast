@@ -1,0 +1,24 @@
+## ADDED Requirements
+
+### Requirement: Voice listing endpoint
+The system SHALL provide a `GET /users/{userId}/voices` endpoint that returns available voices for a TTS provider. The endpoint SHALL accept a required `provider` query parameter. When `provider` is `"elevenlabs"`, it SHALL proxy the ElevenLabs `GET /v1/voices` API using the user's configured ElevenLabs API key. The response SHALL be a JSON array of voice objects with fields: `voiceId` (String), `name` (String), `category` (String, e.g., "premade", "cloned"), and `previewUrl` (String, nullable).
+
+#### Scenario: List ElevenLabs voices
+- **WHEN** a `GET /users/{userId}/voices?provider=elevenlabs` request is received and the user has an ElevenLabs TTS provider configured
+- **THEN** the system returns HTTP 200 with a JSON array of voices from the ElevenLabs API
+
+#### Scenario: No provider config for ElevenLabs
+- **WHEN** a `GET /users/{userId}/voices?provider=elevenlabs` request is received but the user has no ElevenLabs TTS provider configured
+- **THEN** the system returns HTTP 400 with a message indicating the user must configure an ElevenLabs API key first
+
+#### Scenario: Unsupported provider
+- **WHEN** a `GET /users/{userId}/voices?provider=openai` request is received
+- **THEN** the system returns HTTP 400 indicating voice discovery is not supported for this provider
+
+#### Scenario: Non-existing user
+- **WHEN** a `GET /users/{userId}/voices?provider=elevenlabs` request is received for a user that does not exist
+- **THEN** the system returns HTTP 404
+
+#### Scenario: ElevenLabs API error
+- **WHEN** the ElevenLabs voices API returns an error
+- **THEN** the system returns HTTP 502 with a message indicating the upstream service failed

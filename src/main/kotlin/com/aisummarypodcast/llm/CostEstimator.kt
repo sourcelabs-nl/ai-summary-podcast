@@ -13,9 +13,9 @@ object CostEstimator {
         return (costUsd * 100).roundToInt()
     }
 
-    fun estimateTtsCostCents(characters: Int, costPerMillionChars: Double?): Int? {
-        costPerMillionChars ?: return null
-        val costUsd = characters * costPerMillionChars / 1_000_000.0
+    fun estimateTtsCostCents(characters: Int, costPerMillionChars: Map<String, Double>, provider: String): Int? {
+        val rate = costPerMillionChars[provider] ?: return null
+        val costUsd = characters * rate / 1_000_000.0
         return (costUsd * 100).roundToInt()
     }
 

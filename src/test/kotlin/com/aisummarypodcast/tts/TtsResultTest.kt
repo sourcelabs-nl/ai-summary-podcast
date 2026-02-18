@@ -12,7 +12,8 @@ class TtsResultTest {
 
         val result = TtsResult(
             audioChunks = chunks.map { it.toByteArray() },
-            totalCharacters = expectedCharacters
+            totalCharacters = expectedCharacters,
+            requiresConcatenation = true
         )
 
         assertEquals(36, result.totalCharacters)
@@ -21,7 +22,7 @@ class TtsResultTest {
 
     @Test
     fun `totalCharacters is zero for empty chunks`() {
-        val result = TtsResult(audioChunks = emptyList(), totalCharacters = 0)
+        val result = TtsResult(audioChunks = emptyList(), totalCharacters = 0, requiresConcatenation = false)
 
         assertEquals(0, result.totalCharacters)
         assertEquals(0, result.audioChunks.size)

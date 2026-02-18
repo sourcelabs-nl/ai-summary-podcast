@@ -16,7 +16,7 @@ import java.time.format.DateTimeFormatter
 
 @Component
 class TtsPipeline(
-    private val ttsService: TtsService,
+    private val ttsProviderFactory: TtsProviderFactory,
     private val audioConcatenator: AudioConcatenator,
     private val audioDuration: AudioDuration,
     private val episodeRepository: EpisodeRepository,
@@ -27,14 +27,12 @@ class TtsPipeline(
     private val log = LoggerFactory.getLogger(javaClass)
 
     fun generate(script: String, podcast: Podcast): Episode {
-        log.info("[TTS] Starting audio generation for podcast {}", podcast.id)
-        val chunks = TextChunker.chunk(script)
-        log.info("[TTS] Script split into {} chunks for podcast {}", chunks.size, podcast.id)
+        log.info("[TTS] Starting audio generation for podcast {} (provider: {})", podcast.id, podcast.ttsProvider)
 
-        val ttsResult = ttsService.generateAudio(chunks, podcast)
-        val ttsCostCents = CostEstimator.estimateTtsCostCents(ttsResult.totalCharacters, appProperties.tts.costPerMillionChars)
+        val ttsResult = callProvider(script, podcast)
+        val ttsCostCents = CostEstimator.estimateTtsCostCents(ttsResult.totalCharacters, appProperties.tts.costPerMillionChars, podcast.ttsProvider)
 
-        val (outputPath, duration) = generateAudioFile(ttsResult.audioChunks, podcast)
+        val (outputPath, duration) = generateAudioFile(ttsResult, podcast)
 
         val episode = episodeRepository.save(
             Episode(
@@ -54,14 +52,12 @@ class TtsPipeline(
     }
 
     fun generateForExistingEpisode(episode: Episode, podcast: Podcast): Episode {
-        log.info("[TTS] Starting audio generation for episode {} (podcast {})", episode.id, podcast.id)
-        val chunks = TextChunker.chunk(episode.scriptText)
-        log.info("[TTS] Script split into {} chunks for episode {} (podcast {})", chunks.size, episode.id, podcast.id)
+        log.info("[TTS] Starting audio generation for episode {} (podcast {}, provider: {})", episode.id, podcast.id, podcast.ttsProvider)
 
-        val ttsResult = ttsService.generateAudio(chunks, podcast)
-        val ttsCostCents = CostEstimator.estimateTtsCostCents(ttsResult.totalCharacters, appProperties.tts.costPerMillionChars)
+        val ttsResult = callProvider(episode.scriptText, podcast)
+        val ttsCostCents = CostEstimator.estimateTtsCostCents(ttsResult.totalCharacters, appProperties.tts.costPerMillionChars, podcast.ttsProvider)
 
-        val (outputPath, duration) = generateAudioFile(ttsResult.audioChunks, podcast)
+        val (outputPath, duration) = generateAudioFile(ttsResult, podcast)
 
         val updated = episodeRepository.save(
             episode.copy(
@@ -78,7 +74,19 @@ class TtsPipeline(
         return updated
     }
 
-    private fun generateAudioFile(audioChunks: List<ByteArray>, podcast: Podcast): Pair<Path, Int> {
+    private fun callProvider(script: String, podcast: Podcast): TtsResult {
+        val provider = ttsProviderFactory.resolve(podcast)
+        val request = TtsRequest(
+            script = script,
+            ttsVoices = podcast.ttsVoices ?: mapOf("default" to "nova"),
+            ttsSettings = podcast.ttsSettings ?: emptyMap(),
+            language = podcast.language,
+            userId = podcast.userId
+        )
+        return provider.generate(request)
+    }
+
+    private fun generateAudioFile(ttsResult: TtsResult, podcast: Podcast): Pair<Path, Int> {
         val timestamp = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")
             .withZone(ZoneOffset.UTC)
             .format(Instant.now())
@@ -87,7 +95,11 @@ class TtsPipeline(
         Files.createDirectories(podcastDir)
         val outputPath = podcastDir.resolve(fileName)
 
-        audioConcatenator.concatenate(audioChunks, outputPath)
+        if (ttsResult.requiresConcatenation) {
+            audioConcatenator.concatenate(ttsResult.audioChunks, outputPath)
+        } else {
+            Files.write(outputPath, ttsResult.audioChunks.first())
+        }
 
         val duration = audioDuration.calculate(outputPath)
         return Pair(outputPath, duration)

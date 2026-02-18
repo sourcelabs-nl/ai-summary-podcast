@@ -1,35 +1,34 @@
 package com.aisummarypodcast.tts
 
 import com.aisummarypodcast.store.ApiKeyCategory
-import com.aisummarypodcast.store.Podcast
 import com.aisummarypodcast.user.UserProviderConfigService
 import org.slf4j.LoggerFactory
 import org.springframework.ai.audio.tts.TextToSpeechPrompt
 import org.springframework.ai.openai.OpenAiAudioSpeechModel
 import org.springframework.ai.openai.OpenAiAudioSpeechOptions
 import org.springframework.ai.openai.api.OpenAiAudioApi
-import org.springframework.stereotype.Service
+import org.springframework.stereotype.Component
 
-data class TtsResult(
-    val audioChunks: List<ByteArray>,
-    val totalCharacters: Int
-)
-
-@Service
-class TtsService(
+@Component
+class OpenAiTtsProvider(
     private val providerConfigService: UserProviderConfigService
-) {
+) : TtsProvider {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    fun generateAudio(chunks: List<String>, podcast: Podcast): TtsResult {
-        log.info("Generating TTS audio for {} chunks (voice: {}, speed: {}, language: {})", chunks.size, podcast.ttsVoice, podcast.ttsSpeed, podcast.language)
+    override fun generate(request: TtsRequest): TtsResult {
+        val voice = request.ttsVoices["default"]
+            ?: throw IllegalStateException("OpenAI TTS requires a 'default' voice in ttsVoices")
+        val speed = request.ttsSettings["speed"]?.toDoubleOrNull() ?: 1.0
 
-        val speechModel = createSpeechModel(podcast)
+        val chunks = TextChunker.chunk(request.script)
+        log.info("Generating OpenAI TTS audio for {} chunks (voice: {}, speed: {}, language: {})", chunks.size, voice, speed, request.language)
+
+        val speechModel = createSpeechModel(request.userId)
 
         val options = OpenAiAudioSpeechOptions.builder()
-            .voice(podcast.ttsVoice)
-            .speed(podcast.ttsSpeed)
+            .voice(voice)
+            .speed(speed)
             .build()
 
         val totalCharacters = chunks.sumOf { it.length }
@@ -40,12 +39,12 @@ class TtsService(
             response.result.output
         }
 
-        return TtsResult(audioChunks, totalCharacters)
+        return TtsResult(audioChunks, totalCharacters, requiresConcatenation = chunks.size > 1)
     }
 
-    private fun createSpeechModel(podcast: Podcast): OpenAiAudioSpeechModel {
-        val config = providerConfigService.resolveConfig(podcast.userId, ApiKeyCategory.TTS)
-            ?: throw IllegalStateException("No provider config available for category 'TTS'. Configure a user provider or set the OPENAI_API_KEY environment variable.")
+    private fun createSpeechModel(userId: String): OpenAiAudioSpeechModel {
+        val config = providerConfigService.resolveConfig(userId, ApiKeyCategory.TTS, "openai")
+            ?: throw IllegalStateException("No provider config available for OpenAI TTS. Configure a user provider or set the OPENAI_API_KEY environment variable.")
 
         val audioApi = OpenAiAudioApi.builder()
             .apiKey(config.apiKey ?: "")

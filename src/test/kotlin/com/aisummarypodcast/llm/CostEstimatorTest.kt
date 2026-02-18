@@ -49,13 +49,24 @@ class CostEstimatorTest {
     fun `estimates TTS cost`() {
         // 50000 * 15.00 / 1_000_000 = 0.75 USD = 75 cents... wait
         // Actually: 50000 * 15.00 / 1_000_000 = 0.75 USD → 0.75 * 100 = 75 cents
-        val cost = CostEstimator.estimateTtsCostCents(50000, 15.00)
+        val cost = CostEstimator.estimateTtsCostCents(50000, mapOf("openai" to 15.00), "openai")
         assertEquals(75, cost)
     }
 
     @Test
-    fun `returns null when TTS pricing not configured`() {
-        assertNull(CostEstimator.estimateTtsCostCents(8000, null))
+    fun `returns null when TTS pricing not configured for provider`() {
+        assertNull(CostEstimator.estimateTtsCostCents(8000, mapOf("openai" to 15.00), "elevenlabs"))
+    }
+
+    @Test
+    fun `returns null when TTS pricing map is empty`() {
+        assertNull(CostEstimator.estimateTtsCostCents(8000, emptyMap(), "openai"))
+    }
+
+    @Test
+    fun `estimates ElevenLabs TTS cost`() {
+        val cost = CostEstimator.estimateTtsCostCents(8000, mapOf("elevenlabs" to 30.00), "elevenlabs")
+        assertEquals(24, cost)
     }
 
     @Test

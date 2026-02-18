@@ -15,8 +15,9 @@ data class CreatePodcastRequest(
     val topic: String,
     val language: String? = null,
     val llmModels: Map<String, String>? = null,
-    val ttsVoice: String? = null,
-    @JsonProperty("ttsSpeed") val ttsSpeed: Double? = null,
+    val ttsProvider: String? = null,
+    val ttsVoices: Map<String, String>? = null,
+    val ttsSettings: Map<String, String>? = null,
     val style: String? = null,
     @JsonProperty("targetWords") val targetWords: Int? = null,
     val cron: String? = null,
@@ -32,8 +33,9 @@ data class UpdatePodcastRequest(
     val topic: String,
     val language: String? = null,
     val llmModels: Map<String, String>? = null,
-    val ttsVoice: String? = null,
-    @JsonProperty("ttsSpeed") val ttsSpeed: Double? = null,
+    val ttsProvider: String? = null,
+    val ttsVoices: Map<String, String>? = null,
+    val ttsSettings: Map<String, String>? = null,
     val style: String? = null,
     @JsonProperty("targetWords") val targetWords: Int? = null,
     val cron: String? = null,
@@ -51,8 +53,9 @@ data class PodcastResponse(
     val topic: String,
     val language: String,
     val llmModels: Map<String, String>?,
-    val ttsVoice: String,
-    val ttsSpeed: Double,
+    val ttsProvider: String,
+    val ttsVoices: Map<String, String>?,
+    val ttsSettings: Map<String, String>?,
     val style: String,
     val targetWords: Int?,
     val cron: String,
@@ -76,12 +79,34 @@ class PodcastController(
 
     private val log = LoggerFactory.getLogger(javaClass)
 
+    companion object {
+        val SUPPORTED_TTS_PROVIDERS = setOf("openai", "elevenlabs")
+    }
+
+    private fun validateTtsConfig(ttsProvider: String, style: String, ttsVoices: Map<String, String>?): String? {
+        if (ttsProvider !in SUPPORTED_TTS_PROVIDERS) {
+            return "Unsupported TTS provider: $ttsProvider. Supported: ${SUPPORTED_TTS_PROVIDERS.joinToString()}"
+        }
+        if (style == "dialogue" && ttsProvider != "elevenlabs") {
+            return "Dialogue style requires ElevenLabs as TTS provider"
+        }
+        if (style == "dialogue" && (ttsVoices == null || ttsVoices.size < 2)) {
+            return "Dialogue style requires at least two voice roles in ttsVoices (e.g., host and cohost)"
+        }
+        return null
+    }
+
     @PostMapping
     fun create(@PathVariable userId: String, @RequestBody request: CreatePodcastRequest): ResponseEntity<Any> {
         userService.findById(userId) ?: return ResponseEntity.notFound().build()
         val language = request.language ?: "en"
         if (!SupportedLanguage.isSupported(language)) {
             return ResponseEntity.badRequest().body(mapOf("error" to "Unsupported language: $language"))
+        }
+        val ttsProvider = request.ttsProvider ?: "openai"
+        val style = request.style ?: "news-briefing"
+        validateTtsConfig(ttsProvider, style, request.ttsVoices)?.let {
+            return ResponseEntity.badRequest().body(mapOf("error" to it))
         }
         val podcast = podcastService.create(
             userId = userId,
@@ -94,8 +119,9 @@ class PodcastController(
                 topic = request.topic,
                 language = language,
                 llmModels = request.llmModels,
-                ttsVoice = request.ttsVoice ?: "nova",
-                ttsSpeed = request.ttsSpeed ?: 1.0,
+                ttsProvider = request.ttsProvider ?: "openai",
+                ttsVoices = request.ttsVoices,
+                ttsSettings = request.ttsSettings,
                 style = request.style ?: "news-briefing",
                 targetWords = request.targetWords,
                 cron = request.cron ?: "0 0 6 * * *",
@@ -136,6 +162,12 @@ class PodcastController(
         if (request.language != null && !SupportedLanguage.isSupported(request.language)) {
             return ResponseEntity.badRequest().body(mapOf("error" to "Unsupported language: ${request.language}"))
         }
+        val effectiveTtsProvider = request.ttsProvider ?: existing.ttsProvider
+        val effectiveStyle = request.style ?: existing.style
+        val effectiveVoices = request.ttsVoices ?: existing.ttsVoices
+        validateTtsConfig(effectiveTtsProvider, effectiveStyle, effectiveVoices)?.let {
+            return ResponseEntity.badRequest().body(mapOf("error" to it))
+        }
         val updated = podcastService.update(
             podcastId,
             existing.copy(
@@ -143,8 +175,9 @@ class PodcastController(
                 topic = request.topic,
                 language = request.language ?: existing.language,
                 llmModels = request.llmModels ?: existing.llmModels,
-                ttsVoice = request.ttsVoice ?: existing.ttsVoice,
-                ttsSpeed = request.ttsSpeed ?: existing.ttsSpeed,
+                ttsProvider = request.ttsProvider ?: existing.ttsProvider,
+                ttsVoices = request.ttsVoices ?: existing.ttsVoices,
+                ttsSettings = request.ttsSettings ?: existing.ttsSettings,
                 style = request.style ?: existing.style,
                 targetWords = request.targetWords ?: existing.targetWords,
                 cron = request.cron ?: existing.cron,
@@ -219,7 +252,8 @@ class PodcastController(
 
     private fun com.aisummarypodcast.store.Podcast.toResponse() = PodcastResponse(
         id = id, userId = userId, name = name, topic = topic,
-        language = language, llmModels = llmModels, ttsVoice = ttsVoice, ttsSpeed = ttsSpeed,
+        language = language, llmModels = llmModels, ttsProvider = ttsProvider, ttsVoices = ttsVoices,
+        ttsSettings = ttsSettings,
         style = style, targetWords = targetWords, cron = cron,
         customInstructions = customInstructions, relevanceThreshold = relevanceThreshold,
         requireReview = requireReview, maxLlmCostCents = maxLlmCostCents,

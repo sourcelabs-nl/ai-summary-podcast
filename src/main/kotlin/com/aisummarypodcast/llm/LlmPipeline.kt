@@ -26,6 +26,7 @@ data class PipelineResult(
 class LlmPipeline(
     private val articleScoreSummarizer: ArticleScoreSummarizer,
     private val briefingComposer: BriefingComposer,
+    private val dialogueComposer: DialogueComposer,
     private val modelResolver: ModelResolver,
     private val articleRepository: ArticleRepository,
     private val sourceRepository: SourceRepository,
@@ -97,7 +98,11 @@ class LlmPipeline(
             return null
         }
 
-        val compositionResult = briefingComposer.compose(toCompose, podcast, composeModelDef)
+        val compositionResult = if (podcast.style == "dialogue") {
+            dialogueComposer.compose(toCompose, podcast, composeModelDef)
+        } else {
+            briefingComposer.compose(toCompose, podcast, composeModelDef)
+        }
 
         val processedArticleIds = toCompose.mapNotNull { it.id }
 

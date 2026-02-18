@@ -25,27 +25,50 @@ Each podcast SHALL have an optional `llm_models` field (TEXT, nullable, stored a
 - **WHEN** a podcast has `llm_models` set to `{}`
 - **THEN** both stages use their global defaults from `app.llm.defaults`
 
+### Requirement: TTS provider selection per podcast
+Each podcast SHALL have a `tts_provider` field (TEXT, NOT NULL, default `"openai"`). The field SHALL determine which TTS service is used for audio generation. Supported values: `"openai"`, `"elevenlabs"`. The field SHALL be accepted in podcast create (`POST`) and update (`PUT`) endpoints and included in GET responses.
+
+#### Scenario: Podcast with ElevenLabs provider
+- **WHEN** a podcast has `tts_provider` set to `"elevenlabs"`
+- **THEN** the TTS pipeline uses the ElevenLabs provider for audio generation
+
+#### Scenario: Podcast with default provider
+- **WHEN** a podcast is created without specifying `tts_provider`
+- **THEN** the `tts_provider` defaults to `"openai"`
+
+#### Scenario: Invalid provider rejected
+- **WHEN** a podcast create or update request includes `tts_provider: "azure"`
+- **THEN** the system returns HTTP 400 with an error listing supported providers
+
 ### Requirement: TTS voice selection per podcast
-Each podcast SHALL have a `tts_voice` field (TEXT, default `"nova"`). The TTS pipeline SHALL use this voice when generating audio for the podcast. Valid values are OpenAI TTS voices: `alloy`, `echo`, `fable`, `onyx`, `nova`, `shimmer`.
+Each podcast SHALL have a `tts_voices` field (TEXT, nullable, stored as JSON map). The map keys represent speaker roles and values represent voice identifiers. For monologue styles: `{"default": "nova"}`. For dialogue style: `{"host": "voice_id", "cohost": "voice_id"}`. When null, the system SHALL use a default of `{"default": "nova"}`. The `tts_voices` field SHALL be serialized to/from JSON using a custom Spring Data JDBC converter.
 
-#### Scenario: Podcast with custom voice
-- **WHEN** a podcast has `tts_voice` set to `"alloy"`
-- **THEN** the TTS pipeline generates audio using the "alloy" voice
+#### Scenario: Podcast with single monologue voice
+- **WHEN** a podcast has `tts_voices` set to `{"default": "alloy"}`
+- **THEN** the TTS pipeline uses the "alloy" voice for monologue generation
 
-#### Scenario: Podcast with default voice
-- **WHEN** a podcast is created without specifying `tts_voice`
-- **THEN** the `tts_voice` defaults to `"nova"`
+#### Scenario: Podcast with dialogue voices
+- **WHEN** a podcast has `tts_voices` set to `{"host": "id1", "cohost": "id2"}`
+- **THEN** the TTS pipeline maps host lines to voice id1 and cohost lines to voice id2
 
-### Requirement: TTS speed selection per podcast
-Each podcast SHALL have a `tts_speed` field (REAL, default `1.0`). The TTS pipeline SHALL use this speed multiplier when generating audio. Valid range is `0.25` to `4.0`.
+#### Scenario: Podcast with default voices
+- **WHEN** a podcast is created without specifying `tts_voices`
+- **THEN** the system uses `{"default": "nova"}` as the default
 
-#### Scenario: Podcast with faster speed
-- **WHEN** a podcast has `tts_speed` set to `1.25`
-- **THEN** the TTS pipeline generates audio at 1.25x speed
+### Requirement: TTS settings per podcast
+Each podcast SHALL have a `tts_settings` field (TEXT, nullable, stored as JSON map). The map contains provider-specific settings (e.g., `{"speed": 1.25}` for OpenAI, `{"stability": 0.5, "similarity_boost": 0.8}` for ElevenLabs). When null, provider defaults apply. The `tts_settings` field SHALL be serialized to/from JSON using a custom Spring Data JDBC converter.
 
-#### Scenario: Podcast with default speed
-- **WHEN** a podcast is created without specifying `tts_speed`
-- **THEN** the `tts_speed` defaults to `1.0`
+#### Scenario: Podcast with OpenAI speed setting
+- **WHEN** a podcast has `tts_settings: {"speed": 1.5}`
+- **THEN** the OpenAI TTS provider uses speed 1.5
+
+#### Scenario: Podcast with ElevenLabs stability setting
+- **WHEN** a podcast has `tts_settings: {"stability": 0.3}`
+- **THEN** the ElevenLabs TTS provider applies stability 0.3
+
+#### Scenario: Podcast with no TTS settings
+- **WHEN** a podcast is created without specifying `tts_settings`
+- **THEN** the TTS provider uses its default settings
 
 ### Requirement: Briefing style selection per podcast
 Each podcast SHALL have a `style` field (TEXT, default `"news-briefing"`). The briefing composer SHALL adapt its system prompt based on the selected style. Supported styles:
@@ -53,6 +76,19 @@ Each podcast SHALL have a `style` field (TEXT, default `"news-briefing"`). The b
 - `casual` — conversational, relaxed, like chatting with a friend
 - `deep-dive` — analytical, in-depth exploration
 - `executive-summary` — concise, fact-focused, minimal commentary
+- `dialogue` — multi-speaker conversation (requires ElevenLabs TTS provider)
+
+#### Scenario: Dialogue style accepted
+- **WHEN** a podcast create request includes `style: "dialogue"`
+- **THEN** the podcast is created successfully with the dialogue style
+
+#### Scenario: Dialogue style requires ElevenLabs provider
+- **WHEN** a podcast create request includes `style: "dialogue"` and `tts_provider: "openai"`
+- **THEN** the system returns HTTP 400 indicating dialogue style requires ElevenLabs provider
+
+#### Scenario: Dialogue style requires multiple voices
+- **WHEN** a podcast create request includes `style: "dialogue"` and `tts_voices: {"default": "nova"}`
+- **THEN** the system returns HTTP 400 indicating dialogue style requires at least two voice roles (e.g., host and cohost)
 
 #### Scenario: Podcast with casual style
 - **WHEN** a podcast has `style` set to `"casual"`
@@ -127,6 +163,8 @@ All customization fields SHALL be accepted as optional fields in the podcast cre
 
 The `maxLlmCostCents` field SHALL be accepted as an optional nullable integer in the podcast create (`POST`) and update (`PUT`) endpoints. When set, it overrides the global `app.llm.max-cost-cents` threshold for that podcast's LLM pipeline cost gate. When null, the global default applies. The field SHALL be included in the podcast GET response.
 
+The `ttsProvider`, `ttsVoices`, and `ttsSettings` fields SHALL be accepted in podcast create and update endpoints and included in GET responses. The `ttsVoices` and `ttsSettings` fields SHALL be returned as JSON objects.
+
 #### Scenario: Create podcast with per-stage model config
 - **WHEN** a `POST /users/{userId}/podcasts` request includes `llmModels: {"compose": "local"}`
 - **THEN** the podcast is created with `llm_models` stored as `{"compose": "local"}`
@@ -140,7 +178,7 @@ The `maxLlmCostCents` field SHALL be accepted as an optional nullable integer in
 - **THEN** the response includes `llmModels` (the JSON map, or null if not set) along with all other customization fields
 
 #### Scenario: Create podcast with customization
-- **WHEN** a `POST /users/{userId}/podcasts` request includes `name`, `topic`, `ttsVoice: "alloy"`, `style: "casual"`, `language: "fr"`, and `cron: "0 0 8 * * MON-FRI"`
+- **WHEN** a `POST /users/{userId}/podcasts` request includes `name`, `topic`, `ttsProvider: "openai"`, `ttsVoices: {"default": "alloy"}`, `style: "casual"`, `language: "fr"`, and `cron: "0 0 8 * * MON-FRI"`
 - **THEN** the podcast is created with the specified values and defaults for unspecified fields
 
 #### Scenario: Update podcast customization
@@ -149,7 +187,19 @@ The `maxLlmCostCents` field SHALL be accepted as an optional nullable integer in
 
 #### Scenario: Get podcast includes customization
 - **WHEN** a `GET /users/{userId}/podcasts/{podcastId}` request is received
-- **THEN** the response includes all customization fields (llmModels, ttsVoice, ttsSpeed, style, targetWords, cron, customInstructions, language, maxLlmCostCents)
+- **THEN** the response includes all customization fields (llmModels, ttsProvider, ttsVoices, ttsSettings, style, targetWords, cron, customInstructions, language, maxLlmCostCents)
+
+#### Scenario: Create podcast with TTS provider config
+- **WHEN** a `POST /users/{userId}/podcasts` request includes `ttsProvider: "elevenlabs"`, `ttsVoices: {"host": "id1", "cohost": "id2"}`, and `ttsSettings: {"stability": 0.5}`
+- **THEN** the podcast is created with the specified TTS configuration
+
+#### Scenario: Update podcast TTS provider
+- **WHEN** a `PUT /users/{userId}/podcasts/{podcastId}` request includes `ttsProvider: "elevenlabs"`
+- **THEN** the podcast's TTS provider is updated to ElevenLabs
+
+#### Scenario: Get podcast includes TTS config
+- **WHEN** a `GET /users/{userId}/podcasts/{podcastId}` request is received
+- **THEN** the response includes `ttsProvider`, `ttsVoices`, and `ttsSettings` fields
 
 #### Scenario: Create podcast with cost threshold
 - **WHEN** a `POST /users/{userId}/podcasts` request includes `"maxLlmCostCents": 500`

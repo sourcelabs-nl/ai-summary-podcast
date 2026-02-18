@@ -19,10 +19,10 @@ flowchart LR
 3. **LLM Processing** — Two sequential stages, each using a configurable model from the named model registry:
    - **Score + Summarize** — A single LLM call per article that scores relevance (0–10), filters out irrelevant content, and summarizes the relevant parts. Articles below the `relevanceThreshold` (default 5) are excluded.
    - **Briefing Composition** — Composes a coherent briefing script from all relevant articles with natural transitions.
-4. **TTS Generation** — Converts the script to speech via OpenAI TTS, chunking at sentence boundaries and concatenating with FFmpeg.
+4. **TTS Generation** — Converts the script to speech via OpenAI TTS or ElevenLabs, chunking at sentence boundaries and concatenating with FFmpeg. ElevenLabs also supports multi-speaker dialogue via its Text-to-Dialogue API.
 5. **Podcast Feed** — Serves an RSS 2.0 feed with `<enclosure>` tags so any podcast app can subscribe.
 
-Each user can create multiple podcasts, each with its own sources, topic, language, LLM models, TTS voice, style, and generation schedule (cron).
+Each user can create multiple podcasts, each with its own sources, topic, language, LLM models, TTS provider/voices, style, and generation schedule (cron).
 
 ## Customizing Your Podcast
 
@@ -34,8 +34,9 @@ Each podcast can be tailored to your preferences via the following settings:
 | `topic` | — | Interest area used by the LLM to filter relevant articles |
 | `language` | `"en"` | Language for the briefing script, date formatting, and RSS feed metadata (56 languages supported) |
 | `style` | `"news-briefing"` | Briefing tone — see styles below |
-| `ttsVoice` | `"nova"` | OpenAI TTS voice (`alloy`, `echo`, `fable`, `nova`, `onyx`, `shimmer`) |
-| `ttsSpeed` | `1.0` | TTS playback speed multiplier (e.g. `1.5` for faster speech) |
+| `ttsProvider` | `"openai"` | TTS provider (`openai` or `elevenlabs`) |
+| `ttsVoices` | `{"default": "nova"}` | Voice configuration — see [TTS Configuration](#tts-configuration) below |
+| `ttsSettings` | — | Provider-specific settings (e.g. `{"speed": 1.25}` for OpenAI, `{"stability": 0.5}` for ElevenLabs) |
 | `llmModels` | — | Override the LLM models per pipeline stage — see [Model Configuration](#model-configuration) below |
 | `targetWords` | `1500` | Approximate word count for the briefing script |
 | `cron` | `"0 0 6 * * *"` | Generation schedule in cron format (default: daily at 6 AM) |
@@ -52,6 +53,7 @@ Each podcast can be tailored to your preferences via the following settings:
 | `casual` | Friendly podcast host — conversational, relaxed, like talking to a friend |
 | `deep-dive` | Analytical exploration — in-depth analysis and thoughtful commentary |
 | `executive-summary` | Concise and fact-focused — minimal commentary, straight to the point |
+| `dialogue` | Multi-speaker conversation — requires ElevenLabs TTS and at least two voice roles |
 
 ### Language Support
 
@@ -60,6 +62,26 @@ Briefings can be generated in any of 56 languages. Set the `language` field to a
 `af`, `ar`, `hy`, `az`, `be`, `bs`, `bg`, `ca`, `zh`, `hr`, `cs`, `da`, `nl`, `en`, `et`, `fi`, `fr`, `gl`, `de`, `el`, `he`, `hi`, `hu`, `is`, `id`, `it`, `ja`, `kn`, `kk`, `ko`, `lv`, `lt`, `mk`, `ms`, `mr`, `mi`, `ne`, `no`, `fa`, `pl`, `pt`, `ro`, `ru`, `sr`, `sk`, `sl`, `es`, `sw`, `sv`, `tl`, `ta`, `th`, `tr`, `uk`, `ur`, `vi`, `cy`
 
 The language setting affects the LLM script generation, date formatting in the briefing, and the `<language>` element in the RSS feed.
+
+### TTS Configuration
+
+Two TTS providers are supported: **OpenAI** (default) and **ElevenLabs**.
+
+**OpenAI** — Works out of the box with the global `OPENAI_API_KEY`. Voices: `alloy`, `echo`, `fable`, `nova`, `onyx`, `shimmer`. Settings: `{"speed": 1.25}`.
+
+**ElevenLabs** — Requires a per-user API key configured via the provider API (see below). Supports single-voice monologue and multi-speaker dialogue. Use `GET /users/{userId}/voices?provider=elevenlabs` to discover available voice IDs.
+
+Voice configuration uses the `ttsVoices` map:
+- Monologue: `{"default": "nova"}` (or any ElevenLabs voice ID)
+- Dialogue: `{"host": "<voice_id>", "cohost": "<voice_id>"}` — the key names become the speaker tags in the generated script
+
+To set up ElevenLabs:
+
+```bash
+curl -X PUT http://localhost:8080/users/{userId}/api-keys/TTS \
+  -H 'Content-Type: application/json' \
+  -d '{"provider": "elevenlabs", "apiKey": "<your-elevenlabs-key>"}'
+```
 
 ### Model Configuration
 
@@ -112,7 +134,9 @@ app:
         input-cost-per-mtok: 0.15    # USD per million input tokens
         output-cost-per-mtok: 0.60   # USD per million output tokens
   tts:
-    cost-per-million-chars: 15.00    # USD per million characters
+    cost-per-million-chars:
+      openai: 15.00                  # USD per million characters
+      elevenlabs: 30.00
 ```
 
 Cost fields are `null` when pricing is not configured or when usage metadata is unavailable from the provider.
@@ -244,8 +268,9 @@ curl -X POST http://localhost:8080/users/{userId}/podcasts \
     "language": "en",
     "style": "deep-dive",
     "llmModels": {"filter": "cheap", "compose": "capable"},
-    "ttsVoice": "onyx",
-    "ttsSpeed": 1.1,
+    "ttsProvider": "openai",
+    "ttsVoices": {"default": "onyx"},
+    "ttsSettings": {"speed": 1.1},
     "targetWords": 2000,
     "relevanceThreshold": 6,
     "requireReview": true,
@@ -332,6 +357,12 @@ GET    /users/{userId}/oauth/x/status      — Check connection status
 DELETE /users/{userId}/oauth/x             — Disconnect X account
 ```
 
+### Voices
+
+```
+GET    /users/{userId}/voices?provider=elevenlabs  — List available ElevenLabs voices
+```
+
 ### Provider Configuration
 
 ```
@@ -340,7 +371,7 @@ PUT    /users/{userId}/api-keys/{category}   — Set provider (LLM or TTS)
 DELETE /users/{userId}/api-keys/{category}   — Remove provider config
 ```
 
-Users can configure their own LLM and TTS providers. Supported LLM providers: `openrouter`, `openai`, `ollama`. Supported TTS provider: `openai`. API keys are stored encrypted (AES-256).
+Users can configure their own LLM and TTS providers. Supported LLM providers: `openrouter`, `openai`, `ollama`. Supported TTS providers: `openai`, `elevenlabs`. API keys are stored encrypted (AES-256).
 
 ## Prerequisites
 
@@ -349,7 +380,9 @@ Users can configure their own LLM and TTS providers. Supported LLM providers: `o
 - An LLM provider — one of:
   - [OpenRouter](https://openrouter.ai/) API key (cloud, multiple models)
   - [Ollama](https://ollama.com/) running locally (free, no API key needed)
-- An [OpenAI](https://platform.openai.com/) API key (TTS)
+- A TTS provider — one of:
+  - [OpenAI](https://platform.openai.com/) API key (default)
+  - [ElevenLabs](https://elevenlabs.io/) API key (for advanced voices and multi-speaker dialogue)
 
 ## Setup
 
