@@ -5,7 +5,6 @@ import com.aisummarypodcast.llm.LlmPipeline
 import com.aisummarypodcast.store.EpisodeRepository
 import com.aisummarypodcast.store.Podcast
 import com.aisummarypodcast.store.User
-import com.aisummarypodcast.tts.TtsPipeline
 import com.aisummarypodcast.user.UserService
 import com.ninjasquad.springmockk.MockkBean
 import io.mockk.every
@@ -33,7 +32,7 @@ class PodcastControllerLanguageTest {
     private lateinit var llmPipeline: LlmPipeline
 
     @MockkBean
-    private lateinit var ttsPipeline: TtsPipeline
+    private lateinit var episodeService: EpisodeService
 
     @MockkBean(relaxed = true)
     private lateinit var appProperties: AppProperties

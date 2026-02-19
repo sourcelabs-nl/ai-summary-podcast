@@ -1,14 +1,12 @@
 package com.aisummarypodcast.podcast
 
 import com.aisummarypodcast.llm.LlmPipeline
-import com.aisummarypodcast.tts.TtsPipeline
 import com.aisummarypodcast.user.UserService
 import org.slf4j.LoggerFactory
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 import com.fasterxml.jackson.annotation.JsonProperty
 import java.net.URI
-import java.time.Instant
 
 data class CreatePodcastRequest(
     val name: String,
@@ -76,7 +74,7 @@ class PodcastController(
     private val podcastService: PodcastService,
     private val userService: UserService,
     private val llmPipeline: LlmPipeline,
-    private val ttsPipeline: TtsPipeline,
+    private val episodeService: EpisodeService,
     private val episodeRepository: com.aisummarypodcast.store.EpisodeRepository
 ) {
 
@@ -233,35 +231,13 @@ class PodcastController(
         val result = llmPipeline.run(podcast)
             ?: return ResponseEntity.ok("No relevant articles to process")
 
-        if (podcast.requireReview) {
-            val episode = episodeRepository.save(
-                com.aisummarypodcast.store.Episode(
-                    podcastId = podcastId,
-                    generatedAt = Instant.now().toString(),
-                    scriptText = result.script,
-                    status = "PENDING_REVIEW",
-                    filterModel = result.filterModel,
-                    composeModel = result.composeModel,
-                    llmInputTokens = result.llmInputTokens,
-                    llmOutputTokens = result.llmOutputTokens,
-                    llmCostCents = result.llmCostCents
-                )
-            )
-            podcastService.update(podcastId, podcast.copy(lastGeneratedAt = Instant.now().toString()))
-            return ResponseEntity.ok(mapOf("message" to "Script ready for review", "episodeId" to episode.id))
-        }
+        val episode = episodeService.createEpisodeFromPipelineResult(podcast, result)
 
-        val episode = ttsPipeline.generate(result.script, podcast)
-        val episodeWithModels = episode.copy(
-            filterModel = result.filterModel,
-            composeModel = result.composeModel,
-            llmInputTokens = result.llmInputTokens,
-            llmOutputTokens = result.llmOutputTokens,
-            llmCostCents = result.llmCostCents
-        )
-        episodeRepository.save(episodeWithModels)
-        podcastService.update(podcastId, podcast.copy(lastGeneratedAt = Instant.now().toString()))
-        return ResponseEntity.ok(mapOf("message" to "Episode generated: ${episodeWithModels.id} (${episodeWithModels.durationSeconds}s)"))
+        return if (podcast.requireReview) {
+            ResponseEntity.ok(mapOf("message" to "Script ready for review", "episodeId" to episode.id))
+        } else {
+            ResponseEntity.ok(mapOf("message" to "Episode generated: ${episode.id} (${episode.durationSeconds}s)"))
+        }
     }
 
     private fun com.aisummarypodcast.store.Podcast.toResponse() = PodcastResponse(

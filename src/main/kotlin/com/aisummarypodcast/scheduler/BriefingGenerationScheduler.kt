@@ -1,16 +1,9 @@
 package com.aisummarypodcast.scheduler
 
-import com.aisummarypodcast.llm.EpisodeRecapGenerator
 import com.aisummarypodcast.llm.LlmPipeline
-import com.aisummarypodcast.llm.ModelResolver
-import com.aisummarypodcast.llm.PipelineResult
-import com.aisummarypodcast.store.Episode
-import com.aisummarypodcast.store.EpisodeArticle
-import com.aisummarypodcast.store.EpisodeArticleRepository
+import com.aisummarypodcast.podcast.EpisodeService
 import com.aisummarypodcast.store.EpisodeRepository
-import com.aisummarypodcast.store.Podcast
 import com.aisummarypodcast.store.PodcastRepository
-import com.aisummarypodcast.tts.TtsPipeline
 import org.slf4j.LoggerFactory
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.scheduling.support.CronExpression
@@ -24,11 +17,8 @@ import kotlin.time.TimeSource
 class BriefingGenerationScheduler(
     private val podcastRepository: PodcastRepository,
     private val llmPipeline: LlmPipeline,
-    private val ttsPipeline: TtsPipeline,
     private val episodeRepository: EpisodeRepository,
-    private val episodeArticleRepository: EpisodeArticleRepository,
-    private val episodeRecapGenerator: EpisodeRecapGenerator,
-    private val modelResolver: ModelResolver
+    private val episodeService: EpisodeService
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -81,62 +71,8 @@ class BriefingGenerationScheduler(
             return
         }
 
-        if (podcast.requireReview) {
-            val savedEpisode = episodeRepository.save(
-                Episode(
-                    podcastId = podcastId,
-                    generatedAt = Instant.now().toString(),
-                    scriptText = result.script,
-                    status = "PENDING_REVIEW",
-                    filterModel = result.filterModel,
-                    composeModel = result.composeModel,
-                    llmInputTokens = result.llmInputTokens,
-                    llmOutputTokens = result.llmOutputTokens,
-                    llmCostCents = result.llmCostCents
-                )
-            )
-            saveEpisodeArticleLinks(savedEpisode, result)
-            generateAndStoreRecap(savedEpisode, podcast)
-            podcastRepository.save(podcast.copy(lastGeneratedAt = Instant.now().toString()))
-            log.info("[Pipeline] Script ready for review for podcast {} — total {}", podcastId, mark.elapsedNow())
-        } else {
-            val episode = ttsPipeline.generate(result.script, podcast)
-            val episodeWithModels = episode.copy(
-                filterModel = result.filterModel,
-                composeModel = result.composeModel,
-                llmInputTokens = result.llmInputTokens,
-                llmOutputTokens = result.llmOutputTokens,
-                llmCostCents = result.llmCostCents
-            )
-            val savedEpisode = episodeRepository.save(episodeWithModels)
-            saveEpisodeArticleLinks(savedEpisode, result)
-            generateAndStoreRecap(savedEpisode, podcast)
-            podcastRepository.save(podcast.copy(lastGeneratedAt = Instant.now().toString()))
-            log.info("[Pipeline] Briefing generation complete for podcast {}: episode {} ({} seconds) — total {}", podcastId, savedEpisode.id, savedEpisode.durationSeconds, mark.elapsedNow())
-        }
-    }
-
-    private fun saveEpisodeArticleLinks(episode: Episode, result: PipelineResult) {
-        for (articleId in result.processedArticleIds) {
-            episodeArticleRepository.save(EpisodeArticle(episodeId = episode.id!!, articleId = articleId))
-        }
-    }
-
-    private fun generateAndStoreRecap(episode: Episode, podcast: Podcast) {
-        try {
-            val filterModelDef = modelResolver.resolve(podcast, "filter")
-            val recapResult = episodeRecapGenerator.generate(episode.scriptText, podcast, filterModelDef)
-            episodeRepository.save(
-                episode.copy(
-                    recap = recapResult.recap,
-                    llmInputTokens = (episode.llmInputTokens ?: 0) + recapResult.usage.inputTokens,
-                    llmOutputTokens = (episode.llmOutputTokens ?: 0) + recapResult.usage.outputTokens
-                )
-            )
-            log.info("[Pipeline] Recap generated and stored for episode {}", episode.id)
-        } catch (e: Exception) {
-            log.warn("[Pipeline] Failed to generate recap for episode {} — continuing without recap: {}", episode.id, e.message)
-        }
+        val episode = episodeService.createEpisodeFromPipelineResult(podcast, result)
+        log.info("[Pipeline] Briefing generation complete for podcast {}: episode {} — total {}", podcastId, episode.id, mark.elapsedNow())
     }
 
     private fun hasPendingOrApprovedEpisode(podcastId: String): Boolean {
