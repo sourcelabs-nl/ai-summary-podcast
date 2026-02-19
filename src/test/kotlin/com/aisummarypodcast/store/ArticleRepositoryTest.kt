@@ -62,6 +62,25 @@ class ArticleRepositoryTest {
     }
 
     @Test
+    fun `findRelevantUnprocessedBySourceIds returns articles after isProcessed reset`() {
+        val article = articleRepository.save(
+            Article(sourceId = "s1", title = "Relevant", body = "body", url = "https://example.com/1",
+                contentHash = "hash1", relevanceScore = 8, isProcessed = true)
+        )
+
+        // While processed, article should not be returned
+        assertEquals(0, articleRepository.findRelevantUnprocessedBySourceIds(listOf("s1"), 5).size)
+
+        // Reset isProcessed (simulating discard)
+        articleRepository.save(article.copy(isProcessed = false))
+
+        // Now it should be returned
+        val result = articleRepository.findRelevantUnprocessedBySourceIds(listOf("s1"), 5)
+        assertEquals(1, result.size)
+        assertEquals("Relevant", result[0].title)
+    }
+
+    @Test
     fun `deleteOldUnprocessedArticles retains articles with null publishedAt`() {
         articleRepository.save(Article(sourceId = "s1", title = "No Date", body = "body", url = "https://example.com/1", publishedAt = null, contentHash = "hash1", isProcessed = false))
 

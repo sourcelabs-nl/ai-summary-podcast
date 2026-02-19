@@ -1,5 +1,7 @@
 package com.aisummarypodcast.podcast
 
+import com.aisummarypodcast.store.ArticleRepository
+import com.aisummarypodcast.store.EpisodeArticleRepository
 import com.aisummarypodcast.store.EpisodeRepository
 import com.aisummarypodcast.user.UserService
 import org.slf4j.LoggerFactory
@@ -34,7 +36,9 @@ class EpisodeController(
     private val episodeRepository: EpisodeRepository,
     private val podcastService: PodcastService,
     private val userService: UserService,
-    private val episodeService: EpisodeService
+    private val episodeService: EpisodeService,
+    private val episodeArticleRepository: EpisodeArticleRepository,
+    private val articleRepository: ArticleRepository
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -142,7 +146,18 @@ class EpisodeController(
         }
 
         episodeRepository.save(episode.copy(status = "DISCARDED"))
-        log.info("Episode {} discarded", episodeId)
+
+        val linkedArticles = episodeArticleRepository.findByEpisodeId(episodeId)
+        if (linkedArticles.isEmpty()) {
+            log.warn("Episode {} has no episode-article links; cannot reset articles for reprocessing", episodeId)
+        } else {
+            for (link in linkedArticles) {
+                articleRepository.findById(link.articleId).ifPresent { article ->
+                    articleRepository.save(article.copy(isProcessed = false))
+                }
+            }
+            log.info("Episode {} discarded, reset {} linked articles for reprocessing", episodeId, linkedArticles.size)
+        }
         return ResponseEntity.ok(mapOf("message" to "Episode discarded"))
     }
 
