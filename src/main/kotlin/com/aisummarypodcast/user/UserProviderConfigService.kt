@@ -83,6 +83,7 @@ class UserProviderConfigService(
         val envKey = when {
             category == ApiKeyCategory.LLM && provider == "openrouter" -> "OPENROUTER_API_KEY"
             category == ApiKeyCategory.TTS && provider == "openai" -> "OPENAI_API_KEY"
+            category == ApiKeyCategory.TTS && provider == "elevenlabs" -> "ELEVENLABS_API_KEY"
             else -> return null
         }
         return System.getenv(envKey)?.let {

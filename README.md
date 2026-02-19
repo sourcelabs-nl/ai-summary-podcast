@@ -390,13 +390,26 @@ Users can configure their own LLM and TTS providers. Supported LLM providers: `o
 
 ```
 APP_ENCRYPTION_MASTER_KEY=<base64-encoded 256-bit AES key>
+
+# LLM provider (global fallback)
 OPENROUTER_API_KEY=<your-openrouter-key>
+
+# TTS providers (global fallbacks — at least one)
 OPENAI_API_KEY=<your-openai-key>
+ELEVENLABS_API_KEY=<your-elevenlabs-key>
+
+# SoundCloud publishing (optional)
+APP_SOUNDCLOUD_CLIENT_ID=<your-soundcloud-client-id>
+APP_SOUNDCLOUD_CLIENT_SECRET=<your-soundcloud-client-secret>
+
+# X/Twitter polling (optional — requires X Developer Basic tier)
+APP_X_CLIENT_ID=<your-x-client-id>
+APP_X_CLIENT_SECRET=<your-x-client-secret>
 ```
 
 Generate an encryption key: `openssl rand -base64 32`
 
-`APP_ENCRYPTION_MASTER_KEY` is required. `OPENROUTER_API_KEY` and `OPENAI_API_KEY` serve as global fallbacks for LLM and TTS respectively — they are used when a user has not configured their own provider keys via the API. Users can override these by setting per-user provider configs. `APP_SOUNDCLOUD_CLIENT_ID` and `APP_SOUNDCLOUD_CLIENT_SECRET` are optional — only needed if you want to publish episodes to SoundCloud. `APP_X_CLIENT_ID` and `APP_X_CLIENT_SECRET` are optional — only needed if you want to poll X (Twitter) accounts as content sources (requires an [X Developer](https://developer.x.com/) Basic tier account).
+`APP_ENCRYPTION_MASTER_KEY` is required. `OPENROUTER_API_KEY`, `OPENAI_API_KEY`, and `ELEVENLABS_API_KEY` serve as global fallbacks for their respective providers — they are used when a user has not configured their own provider keys via the API. Users can override these by setting per-user provider configs. `APP_SOUNDCLOUD_CLIENT_ID` and `APP_SOUNDCLOUD_CLIENT_SECRET` are optional — only needed if you want to publish episodes to SoundCloud. `APP_X_CLIENT_ID` and `APP_X_CLIENT_SECRET` are optional — only needed if you want to poll X (Twitter) accounts as content sources (requires an [X Developer](https://developer.x.com/) Basic tier account).
 
 ### Using Ollama instead of OpenRouter
 

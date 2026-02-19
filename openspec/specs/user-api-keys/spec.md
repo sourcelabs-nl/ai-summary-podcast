@@ -102,7 +102,7 @@ The system SHALL allow deleting a user's provider configuration for a specific c
 - **THEN** the system returns HTTP 400 with a validation error message
 
 ### Requirement: API key resolution with fallback
-When the pipeline needs a provider configuration, the system SHALL resolve it by category and provider name. The `resolveConfig` method SHALL accept a `userId`, `category`, and `provider` parameter. It SHALL look up the user's config for that specific `(userId, category, provider)` combination. If found, it SHALL decrypt the API key (if present) and resolve the base URL (stored value or provider default). If no user config exists for the requested provider, it SHALL fall back to the corresponding environment variable only if the provider matches the default fallback provider (`"openrouter"` for `LLM` → `OPENROUTER_API_KEY`, `"openai"` for `TTS` → `OPENAI_API_KEY`). There is no environment variable fallback for `"elevenlabs"` — users must explicitly configure their ElevenLabs API key. The resolution SHALL return a `ProviderConfig` containing `baseUrl: String` and `apiKey: String?`. If neither a user config nor applicable env var fallback exists, the resolution SHALL fail with a clear error indicating which provider config is missing. The existing no-provider overload (resolving by category only, picking the first config) SHALL be retained for backward compatibility with TTS resolution.
+When the pipeline needs a provider configuration, the system SHALL resolve it by category and provider name. The `resolveConfig` method SHALL accept a `userId`, `category`, and `provider` parameter. It SHALL look up the user's config for that specific `(userId, category, provider)` combination. If found, it SHALL decrypt the API key (if present) and resolve the base URL (stored value or provider default). If no user config exists for the requested provider, it SHALL fall back to the corresponding environment variable only if the provider matches a known fallback provider (`"openrouter"` for `LLM` → `OPENROUTER_API_KEY`, `"openai"` for `TTS` → `OPENAI_API_KEY`, `"elevenlabs"` for `TTS` → `ELEVENLABS_API_KEY`). The resolution SHALL return a `ProviderConfig` containing `baseUrl: String` and `apiKey: String?`. If neither a user config nor applicable env var fallback exists, the resolution SHALL fail with a clear error indicating which provider config is missing. The existing no-provider overload (resolving by category only, picking the first config) SHALL be retained for backward compatibility with TTS resolution.
 
 #### Scenario: User has config for the requested provider
 - **WHEN** the pipeline resolves config for provider "openrouter" and the user has a config for (LLM, "openrouter")
@@ -120,9 +120,9 @@ When the pipeline needs a provider configuration, the system SHALL resolve it by
 - **WHEN** the pipeline resolves config for provider "ollama" and the user has no config for ollama
 - **THEN** the system fails with an error indicating no provider config is available for "ollama"
 
-#### Scenario: ElevenLabs requires explicit config
-- **WHEN** the pipeline resolves config for provider "elevenlabs" and the user has no ElevenLabs config
-- **THEN** the system fails with an error indicating the user must configure an ElevenLabs API key
+#### Scenario: ElevenLabs matches global fallback
+- **WHEN** the pipeline resolves config for provider "elevenlabs", the user has no config for elevenlabs, but `ELEVENLABS_API_KEY` env var is set
+- **THEN** the system returns the default ElevenLabs base URL with the env var as API key
 
 #### Scenario: TTS resolution unchanged
 - **WHEN** the TTS pipeline resolves config using the category-only method (no provider parameter)
