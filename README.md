@@ -18,8 +18,8 @@ flowchart LR
 2. **Aggregation** — At briefing generation time, unprocessed posts are aggregated into articles. For short-form sources (tweets, nitter feeds), multiple posts are merged into a single digest article. For long-form sources, each post maps 1:1 to an article. A `post_articles` join table maintains full traceability.
 3. **LLM Processing** — Two sequential stages, each using a configurable model from the named model registry:
    - **Score + Summarize** — A single LLM call per article that scores relevance (0–10), filters out irrelevant content, and summarizes the relevant parts. Articles below the `relevanceThreshold` (default 5) are excluded.
-   - **Briefing Composition** — Composes a coherent briefing script from all relevant articles with natural transitions.
-4. **TTS Generation** — Converts the script to speech via OpenAI TTS or ElevenLabs, chunking at sentence boundaries and concatenating with FFmpeg. ElevenLabs also supports multi-speaker dialogue via its Text-to-Dialogue API.
+   - **Briefing Composition** — Composes a coherent briefing script from all relevant articles with natural transitions. When a previous episode exists, its recap is passed to the composer for continuity — the script references what was discussed last time.
+4. **TTS Generation** — Converts the script to speech via OpenAI TTS or ElevenLabs, chunking at sentence boundaries and concatenating with FFmpeg. ElevenLabs also supports multi-speaker dialogue via its Text-to-Dialogue API. After each episode is saved, a short recap is generated and stored for use as continuity context in the next episode.
 5. **Podcast Feed** — Serves an RSS 2.0 feed with `<enclosure>` tags so any podcast app can subscribe.
 
 Each user can create multiple podcasts, each with its own sources, topic, language, LLM models, TTS provider/voices, style, and generation schedule (cron).

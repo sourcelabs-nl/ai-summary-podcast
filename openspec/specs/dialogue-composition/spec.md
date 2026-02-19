@@ -1,4 +1,10 @@
-## ADDED Requirements
+# Capability: Dialogue Composition
+
+## Purpose
+
+Multi-speaker dialogue composition for podcast scripts, producing natural conversations with XML speaker tags for TTS processing.
+
+## Requirements
 
 ### Requirement: DialogueComposer generates speaker-tagged scripts
 The system SHALL provide a `DialogueComposer` component that generates multi-speaker dialogue scripts using XML-style speaker tags. The composer SHALL use the `compose` model (resolved via `ModelResolver`). The output format SHALL use tags matching the keys in the podcast's `ttsVoices` map (e.g., `<host>`, `<cohost>`). The composer SHALL NOT strip any tags from the output — the tags are required for downstream processing.
@@ -17,6 +23,8 @@ The system SHALL provide a `DialogueComposer` component that generates multi-spe
 
 ### Requirement: DialogueComposer prompt engineering
 The `DialogueComposer` prompt SHALL instruct the LLM to produce a natural conversation between the configured speaker roles. The prompt SHALL include: the podcast name, topic, current date, article summaries (same format as `BriefingComposer`), target word count, and language. The prompt SHALL specify that the output must use the exact XML tag names corresponding to the `ttsVoices` keys. The prompt SHALL instruct speakers to have distinct personalities — the host drives the conversation and the co-host provides reactions, analysis, and follow-up questions. The prompt SHALL allow the use of ElevenLabs emotion cues in square brackets (e.g., `[cheerfully]`, `[thoughtful pause]`). The prompt SHALL prohibit any text outside of speaker tags.
+
+When a previous episode recap is provided, the prompt SHALL include a "Previous episode context" section containing the recap text. The prompt SHALL instruct the speakers to naturally reference the previous episode in conversation. When today's topics relate to the previous episode, the speakers SHALL weave in specific back-references. When topics are unrelated, the host SHALL include a brief mention of the previous episode in the opening.
 
 #### Scenario: Prompt includes speaker role names
 - **WHEN** the podcast has `ttsVoices: {"host": "id1", "cohost": "id2"}`
@@ -37,6 +45,14 @@ The `DialogueComposer` prompt SHALL instruct the LLM to produce a natural conver
 #### Scenario: Custom instructions included
 - **WHEN** the podcast has `customInstructions: "Focus on practical implications"`
 - **THEN** the prompt includes these instructions
+
+#### Scenario: Dialogue includes continuity with overlapping topics
+- **WHEN** the previous episode recap mentions "AI chip shortage" and today's articles include new developments on chip supply
+- **THEN** the dialogue naturally references the previous episode (e.g., host says "remember last time we talked about the chip shortage?")
+
+#### Scenario: Dialogue includes brief continuity with unrelated topics
+- **WHEN** the previous episode recap mentions "cryptocurrency trends" and today's articles are about climate policy
+- **THEN** the host briefly mentions the previous episode in the opening before moving to today's topics
 
 ### Requirement: Composer selection based on podcast style
 The system SHALL select the appropriate composer based on the podcast's `style` field. The `"dialogue"` style SHALL use `DialogueComposer`. All other styles SHALL use `BriefingComposer`. The selection SHALL happen in the pipeline orchestration layer (e.g., `LlmPipeline` or `BriefingGenerationScheduler`).
