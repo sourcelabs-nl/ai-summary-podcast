@@ -24,6 +24,124 @@ flowchart LR
 
 Each user can create multiple podcasts, each with its own sources, topic, language, LLM models, TTS provider/voices, style, and generation schedule (cron).
 
+## Prerequisites
+
+- Java 24+
+- FFmpeg (for audio concatenation and duration detection)
+- An LLM provider — one of:
+  - [OpenRouter](https://openrouter.ai/) API key (cloud, multiple models)
+  - [Ollama](https://ollama.com/) running locally (free, no API key needed)
+- A TTS provider — one of:
+  - [OpenAI](https://platform.openai.com/) API key (default)
+  - [ElevenLabs](https://elevenlabs.io/) API key (for advanced voices and multi-speaker dialogue)
+
+## Setup
+
+1. Create a `.env` file in the project root:
+
+```
+APP_ENCRYPTION_MASTER_KEY=<base64-encoded 256-bit AES key>
+
+# LLM provider (global fallback)
+OPENROUTER_API_KEY=<your-openrouter-key>
+
+# TTS providers (global fallbacks — at least one)
+OPENAI_API_KEY=<your-openai-key>
+ELEVENLABS_API_KEY=<your-elevenlabs-key>
+
+# SoundCloud publishing (optional)
+APP_SOUNDCLOUD_CLIENT_ID=<your-soundcloud-client-id>
+APP_SOUNDCLOUD_CLIENT_SECRET=<your-soundcloud-client-secret>
+
+# X/Twitter polling (optional — requires X Developer Basic tier)
+APP_X_CLIENT_ID=<your-x-client-id>
+APP_X_CLIENT_SECRET=<your-x-client-secret>
+```
+
+Generate an encryption key: `openssl rand -base64 32`
+
+`APP_ENCRYPTION_MASTER_KEY` is required. `OPENROUTER_API_KEY`, `OPENAI_API_KEY`, and `ELEVENLABS_API_KEY` serve as global fallbacks for their respective providers — they are used when a user has not configured their own provider keys via the API. Users can override these by setting per-user provider configs. `APP_SOUNDCLOUD_CLIENT_ID` and `APP_SOUNDCLOUD_CLIENT_SECRET` are optional — only needed if you want to publish episodes to SoundCloud. `APP_X_CLIENT_ID` and `APP_X_CLIENT_SECRET` are optional — only needed if you want to poll X (Twitter) accounts as content sources (requires an [X Developer](https://developer.x.com/) Basic tier account).
+
+### Using Ollama instead of OpenRouter
+
+To use [Ollama](https://ollama.com/) as the LLM provider, start Ollama locally and pull a model:
+
+```bash
+ollama pull llama3
+```
+
+Then configure a user's LLM provider to use Ollama (no API key needed):
+
+```bash
+curl -X PUT http://localhost:8080/users/{userId}/api-keys/LLM \
+  -H 'Content-Type: application/json' \
+  -d '{"provider": "ollama"}'
+```
+
+This uses the default Ollama base URL (`http://localhost:11434`). You can omit `OPENROUTER_API_KEY` from `.env` if all users are configured with Ollama.
+
+### Using ElevenLabs instead of OpenAI for TTS
+
+[ElevenLabs](https://elevenlabs.io/) offers high-quality voices and multi-speaker dialogue via the Text-to-Dialogue API — ideal for the `dialogue` briefing style. ElevenLabs does not use a global env var; each user configures their own API key.
+
+1. **Get an API key** from https://elevenlabs.io/app/settings/api-keys
+
+2. **Configure the user's TTS provider:**
+
+```bash
+curl -X PUT http://localhost:8080/users/{userId}/api-keys/TTS \
+  -H 'Content-Type: application/json' \
+  -d '{"provider": "elevenlabs", "apiKey": "<your-elevenlabs-key>"}'
+```
+
+3. **Discover available voices:**
+
+```bash
+curl http://localhost:8080/users/{userId}/voices?provider=elevenlabs
+```
+
+4. **Create a podcast with ElevenLabs** (monologue or dialogue):
+
+```bash
+# Monologue (single voice)
+curl -X POST http://localhost:8080/users/{userId}/podcasts \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "name": "My Podcast",
+    "topic": "technology",
+    "ttsProvider": "elevenlabs",
+    "ttsVoices": {"default": "<voice_id>"}
+  }'
+
+# Dialogue (multi-speaker)
+curl -X POST http://localhost:8080/users/{userId}/podcasts \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "name": "My Dialogue Podcast",
+    "topic": "technology",
+    "style": "dialogue",
+    "ttsProvider": "elevenlabs",
+    "ttsVoices": {"host": "<voice_id>", "cohost": "<voice_id>"}
+  }'
+```
+
+Long dialogue scripts (over 5000 characters) are automatically split into batches and concatenated via FFmpeg.
+
+2. Start the application:
+
+```bash
+./start.sh        # runs in background, logs to app.log
+./stop.sh          # graceful stop with 10s timeout
+```
+
+Or run directly:
+
+```bash
+source .env && ./mvnw spring-boot:run
+```
+
+The app starts on `http://localhost:8080`. Data is stored in `./data/` (SQLite DB + episode audio files).
+
 ## Customizing Your Podcast
 
 Each podcast can be tailored to your preferences via the following settings:
@@ -32,7 +150,7 @@ Each podcast can be tailored to your preferences via the following settings:
 |---------|---------|-------------|
 | `name` | — | Display name shown in your podcast app |
 | `topic` | — | Interest area used by the LLM to filter relevant articles |
-| `language` | `"en"` | Language for the briefing script, date formatting, and RSS feed metadata (56 languages supported) |
+| `language` | `"en"` | Language for the briefing script, date formatting, and RSS feed metadata (actual audio language support depends on TTS provider) |
 | `style` | `"news-briefing"` | Briefing tone — see styles below |
 | `ttsProvider` | `"openai"` | TTS provider (`openai` or `elevenlabs`) |
 | `ttsVoices` | `{"default": "nova"}` | Voice configuration — see [TTS Configuration](#tts-configuration) below |
@@ -54,14 +172,6 @@ Each podcast can be tailored to your preferences via the following settings:
 | `deep-dive` | Analytical exploration — in-depth analysis and thoughtful commentary |
 | `executive-summary` | Concise and fact-focused — minimal commentary, straight to the point |
 | `dialogue` | Multi-speaker conversation — requires ElevenLabs TTS and at least two voice roles |
-
-### Language Support
-
-Briefings can be generated in any of 56 languages. Set the `language` field to a language code when creating or updating a podcast:
-
-`af`, `ar`, `hy`, `az`, `be`, `bs`, `bg`, `ca`, `zh`, `hr`, `cs`, `da`, `nl`, `en`, `et`, `fi`, `fr`, `gl`, `de`, `el`, `he`, `hi`, `hu`, `is`, `id`, `it`, `ja`, `kn`, `kk`, `ko`, `lv`, `lt`, `mk`, `ms`, `mr`, `mi`, `ne`, `no`, `fa`, `pl`, `pt`, `ro`, `ru`, `sr`, `sk`, `sl`, `es`, `sw`, `sv`, `tl`, `ta`, `th`, `tr`, `uk`, `ur`, `vi`, `cy`
-
-The language setting affects the LLM script generation, date formatting in the briefing, and the `<language>` element in the RSS feed.
 
 ### TTS Configuration
 
@@ -372,124 +482,6 @@ DELETE /users/{userId}/api-keys/{category}   — Remove provider config
 ```
 
 Users can configure their own LLM and TTS providers. Supported LLM providers: `openrouter`, `openai`, `ollama`. Supported TTS providers: `openai`, `elevenlabs`. API keys are stored encrypted (AES-256).
-
-## Prerequisites
-
-- Java 24+
-- FFmpeg (for audio concatenation and duration detection)
-- An LLM provider — one of:
-  - [OpenRouter](https://openrouter.ai/) API key (cloud, multiple models)
-  - [Ollama](https://ollama.com/) running locally (free, no API key needed)
-- A TTS provider — one of:
-  - [OpenAI](https://platform.openai.com/) API key (default)
-  - [ElevenLabs](https://elevenlabs.io/) API key (for advanced voices and multi-speaker dialogue)
-
-## Setup
-
-1. Create a `.env` file in the project root:
-
-```
-APP_ENCRYPTION_MASTER_KEY=<base64-encoded 256-bit AES key>
-
-# LLM provider (global fallback)
-OPENROUTER_API_KEY=<your-openrouter-key>
-
-# TTS providers (global fallbacks — at least one)
-OPENAI_API_KEY=<your-openai-key>
-ELEVENLABS_API_KEY=<your-elevenlabs-key>
-
-# SoundCloud publishing (optional)
-APP_SOUNDCLOUD_CLIENT_ID=<your-soundcloud-client-id>
-APP_SOUNDCLOUD_CLIENT_SECRET=<your-soundcloud-client-secret>
-
-# X/Twitter polling (optional — requires X Developer Basic tier)
-APP_X_CLIENT_ID=<your-x-client-id>
-APP_X_CLIENT_SECRET=<your-x-client-secret>
-```
-
-Generate an encryption key: `openssl rand -base64 32`
-
-`APP_ENCRYPTION_MASTER_KEY` is required. `OPENROUTER_API_KEY`, `OPENAI_API_KEY`, and `ELEVENLABS_API_KEY` serve as global fallbacks for their respective providers — they are used when a user has not configured their own provider keys via the API. Users can override these by setting per-user provider configs. `APP_SOUNDCLOUD_CLIENT_ID` and `APP_SOUNDCLOUD_CLIENT_SECRET` are optional — only needed if you want to publish episodes to SoundCloud. `APP_X_CLIENT_ID` and `APP_X_CLIENT_SECRET` are optional — only needed if you want to poll X (Twitter) accounts as content sources (requires an [X Developer](https://developer.x.com/) Basic tier account).
-
-### Using Ollama instead of OpenRouter
-
-To use [Ollama](https://ollama.com/) as the LLM provider, start Ollama locally and pull a model:
-
-```bash
-ollama pull llama3
-```
-
-Then configure a user's LLM provider to use Ollama (no API key needed):
-
-```bash
-curl -X PUT http://localhost:8080/users/{userId}/api-keys/LLM \
-  -H 'Content-Type: application/json' \
-  -d '{"provider": "ollama"}'
-```
-
-This uses the default Ollama base URL (`http://localhost:11434`). You can omit `OPENROUTER_API_KEY` from `.env` if all users are configured with Ollama.
-
-### Using ElevenLabs instead of OpenAI for TTS
-
-[ElevenLabs](https://elevenlabs.io/) offers high-quality voices and multi-speaker dialogue via the Text-to-Dialogue API — ideal for the `dialogue` briefing style. ElevenLabs does not use a global env var; each user configures their own API key.
-
-1. **Get an API key** from https://elevenlabs.io/app/settings/api-keys
-
-2. **Configure the user's TTS provider:**
-
-```bash
-curl -X PUT http://localhost:8080/users/{userId}/api-keys/TTS \
-  -H 'Content-Type: application/json' \
-  -d '{"provider": "elevenlabs", "apiKey": "<your-elevenlabs-key>"}'
-```
-
-3. **Discover available voices:**
-
-```bash
-curl http://localhost:8080/users/{userId}/voices?provider=elevenlabs
-```
-
-4. **Create a podcast with ElevenLabs** (monologue or dialogue):
-
-```bash
-# Monologue (single voice)
-curl -X POST http://localhost:8080/users/{userId}/podcasts \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "name": "My Podcast",
-    "topic": "technology",
-    "ttsProvider": "elevenlabs",
-    "ttsVoices": {"default": "<voice_id>"}
-  }'
-
-# Dialogue (multi-speaker)
-curl -X POST http://localhost:8080/users/{userId}/podcasts \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "name": "My Dialogue Podcast",
-    "topic": "technology",
-    "style": "dialogue",
-    "ttsProvider": "elevenlabs",
-    "ttsVoices": {"host": "<voice_id>", "cohost": "<voice_id>"}
-  }'
-```
-
-Long dialogue scripts (over 5000 characters) are automatically split into batches and concatenated via FFmpeg.
-
-2. Start the application:
-
-```bash
-./start.sh        # runs in background, logs to app.log
-./stop.sh          # graceful stop with 10s timeout
-```
-
-Or run directly:
-
-```bash
-source .env && ./mvnw spring-boot:run
-```
-
-The app starts on `http://localhost:8080`. Data is stored in `./data/` (SQLite DB + episode audio files).
 
 ## Running Tests
 

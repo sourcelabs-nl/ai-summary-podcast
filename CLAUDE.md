@@ -63,9 +63,12 @@ When updating `README.md`, maintain the following section order and structure. D
 3. **Prerequisites** — Bulleted list of required tools and services (Java version, FFmpeg, LLM provider options, TTS API key).
 4. **Setup** — Step-by-step instructions: `.env` file creation with required variables, key generation command, explanation of fallback vs per-user provider config.
    - **Using Ollama instead of OpenRouter** — Subsection with Ollama-specific setup (pull model, configure user provider via API).
+   - **Using ElevenLabs instead of OpenAI for TTS** — Subsection with ElevenLabs-specific setup.
    - Start/stop commands (`./start.sh`, `./stop.sh`) and direct run command (`./mvnw spring-boot:run`).
    - Note on default port and data directory.
-5. **Running Tests** — Test command (`./mvnw test`) and note on MockK usage.
+5. **Customizing Your Podcast** — Settings table and subsections for styles, TTS config, model config, episode review, cost tracking, cost gate, static feed export, publishing, X/Twitter, Nitter, and example.
+6. **API Overview** — Endpoint reference grouped by resource (Users, Podcasts, Episodes, Sources, Publishing, OAuth, Voices, Provider Configuration).
+7. **Running Tests** — Test command (`./mvnw test`) and note on MockK usage.
 
 ## OpenSpec Workflow
 
