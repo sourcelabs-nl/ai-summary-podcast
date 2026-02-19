@@ -28,6 +28,7 @@ class LlmPipeline(
     private val articleScoreSummarizer: ArticleScoreSummarizer,
     private val briefingComposer: BriefingComposer,
     private val dialogueComposer: DialogueComposer,
+    private val interviewComposer: InterviewComposer,
     private val modelResolver: ModelResolver,
     private val articleRepository: ArticleRepository,
     private val sourceRepository: SourceRepository,
@@ -108,10 +109,10 @@ class LlmPipeline(
             log.info("[LLM] No previous episode recap for podcast {} — composing without continuity context", podcast.id)
         }
 
-        val compositionResult = if (podcast.style == "dialogue") {
-            dialogueComposer.compose(toCompose, podcast, composeModelDef, previousRecap)
-        } else {
-            briefingComposer.compose(toCompose, podcast, composeModelDef, previousRecap)
+        val compositionResult = when (podcast.style) {
+            "dialogue" -> dialogueComposer.compose(toCompose, podcast, composeModelDef, previousRecap)
+            "interview" -> interviewComposer.compose(toCompose, podcast, composeModelDef, previousRecap)
+            else -> briefingComposer.compose(toCompose, podcast, composeModelDef, previousRecap)
         }
 
         val processedArticleIds = toCompose.mapNotNull { it.id }

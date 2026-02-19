@@ -13,7 +13,7 @@ import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
-class DialogueComposerTest {
+class InterviewComposerTest {
 
     private val appProperties = AppProperties(
         llm = LlmProperties(),
@@ -23,13 +23,14 @@ class DialogueComposerTest {
         encryption = EncryptionProperties(masterKey = "test-key")
     )
 
-    private val composer = DialogueComposer(appProperties, mockk(), mockk())
+    private val composer = InterviewComposer(appProperties, mockk(), mockk())
 
     private val podcast = Podcast(
         id = "p1", userId = "u1", name = "Tech Talk", topic = "tech",
-        style = "dialogue",
+        style = "interview",
         ttsProvider = "elevenlabs",
-        ttsVoices = mapOf("host" to "v1", "cohost" to "v2")
+        ttsVoices = mapOf("interviewer" to "v1", "expert" to "v2"),
+        speakerNames = mapOf("interviewer" to "Alice", "expert" to "Bob")
     )
 
     private val articles = listOf(
@@ -38,20 +39,22 @@ class DialogueComposerTest {
     )
 
     @Test
-    fun `prompt includes speaker tag instructions`() {
+    fun `prompt includes speaker names when provided`() {
         val prompt = composer.buildPrompt(articles, podcast)
 
-        assertTrue(prompt.contains("<host>"))
-        assertTrue(prompt.contains("<cohost>"))
-        assertTrue(prompt.contains("host, cohost"))
+        assertTrue(prompt.contains("Alice"))
+        assertTrue(prompt.contains("Bob"))
+        assertTrue(prompt.contains("use each other's names naturally"))
     }
 
     @Test
-    fun `prompt includes podcast metadata`() {
-        val prompt = composer.buildPrompt(articles, podcast)
+    fun `prompt handles missing speaker names`() {
+        val podcastWithoutNames = podcast.copy(speakerNames = null)
+        val prompt = composer.buildPrompt(articles, podcastWithoutNames)
 
-        assertTrue(prompt.contains("Tech Talk"))
-        assertTrue(prompt.contains("tech"))
+        assertFalse(prompt.contains("Alice"))
+        assertFalse(prompt.contains("Bob"))
+        assertTrue(prompt.contains("address each other without using names"))
     }
 
     @Test
@@ -63,22 +66,23 @@ class DialogueComposerTest {
     }
 
     @Test
-    fun `prompt includes target word count`() {
+    fun `prompt includes interviewer and expert tags`() {
         val prompt = composer.buildPrompt(articles, podcast)
 
-        assertTrue(prompt.contains("1000"))
+        assertTrue(prompt.contains("<interviewer>"))
+        assertTrue(prompt.contains("<expert>"))
     }
 
     @Test
-    fun `prompt includes custom instructions when set`() {
-        val podcastWithInstructions = podcast.copy(customInstructions = "Focus on practical implications")
-        val prompt = composer.buildPrompt(articles, podcastWithInstructions)
+    fun `prompt specifies asymmetric word distribution`() {
+        val prompt = composer.buildPrompt(articles, podcast)
 
-        assertTrue(prompt.contains("Focus on practical implications"))
+        assertTrue(prompt.contains("~20%"))
+        assertTrue(prompt.contains("~80%"))
     }
 
     @Test
-    fun `prompt includes language instruction for non-English`() {
+    fun `prompt respects language`() {
         val dutchPodcast = podcast.copy(language = "nl")
         val prompt = composer.buildPrompt(articles, dutchPodcast)
 
@@ -86,61 +90,49 @@ class DialogueComposerTest {
     }
 
     @Test
-    fun `prompt instructs all text must be inside tags`() {
+    fun `prompt includes continuity context when provided`() {
+        val recap = "AI chip shortages continue. New EU regulations proposed."
+        val prompt = composer.buildPrompt(articles, podcast, recap)
+
+        assertTrue(prompt.contains("Previous episode context:"))
+        assertTrue(prompt.contains("AI chip shortages continue."))
+        assertTrue(prompt.contains("We talked about this last time"))
+    }
+
+    @Test
+    fun `prompt excludes continuity context when null`() {
+        val prompt = composer.buildPrompt(articles, podcast, null)
+
+        assertFalse(prompt.contains("Previous episode context:"))
+    }
+
+    @Test
+    fun `prompt includes custom instructions`() {
+        val podcastWithInstructions = podcast.copy(customInstructions = "Focus on practical implications")
+        val prompt = composer.buildPrompt(articles, podcastWithInstructions)
+
+        assertTrue(prompt.contains("Focus on practical implications"))
+    }
+
+    @Test
+    fun `prompt includes target word count`() {
         val prompt = composer.buildPrompt(articles, podcast)
 
-        assertTrue(prompt.contains("ALL text MUST be inside speaker tags"))
+        assertTrue(prompt.contains("1000"))
+    }
+
+    @Test
+    fun `prompt includes podcast metadata`() {
+        val prompt = composer.buildPrompt(articles, podcast)
+
+        assertTrue(prompt.contains("Tech Talk"))
+        assertTrue(prompt.contains("tech"))
     }
 
     @Test
     fun `prompt mentions emotion cues`() {
         val prompt = composer.buildPrompt(articles, podcast)
 
-        assertTrue(prompt.contains("[cheerfully]"))
-    }
-
-    @Test
-    fun `prompt includes recap section when provided`() {
-        val recap = "AI chip shortages continue. New EU regulations proposed."
-        val prompt = composer.buildPrompt(articles, podcast, recap)
-
-        assertTrue(prompt.contains("Previous episode context:"))
-        assertTrue(prompt.contains("AI chip shortages continue."))
-        assertTrue(prompt.contains("remember last time we talked about"))
-    }
-
-    @Test
-    fun `prompt excludes recap section when null`() {
-        val prompt = composer.buildPrompt(articles, podcast, null)
-
-        assertFalse(prompt.contains("Previous episode context:"))
-        assertFalse(prompt.contains("remember last time"))
-    }
-
-    @Test
-    fun `recap instructs host to mention previous episode`() {
-        val recap = "Cloud computing costs dropping."
-        val prompt = composer.buildPrompt(articles, podcast, recap)
-
-        assertTrue(prompt.contains("the host should briefly mention the previous episode"))
-    }
-
-    @Test
-    fun `prompt includes speaker names when provided`() {
-        val podcastWithNames = podcast.copy(
-            speakerNames = mapOf("host" to "Sarah", "cohost" to "Mike")
-        )
-        val prompt = composer.buildPrompt(articles, podcastWithNames)
-
-        assertTrue(prompt.contains("Sarah"))
-        assertTrue(prompt.contains("Mike"))
-        assertTrue(prompt.contains("Speaker names:"))
-    }
-
-    @Test
-    fun `prompt does not include speaker names when absent`() {
-        val prompt = composer.buildPrompt(articles, podcast)
-
-        assertFalse(prompt.contains("Speaker names:"))
+        assertTrue(prompt.contains("[curious]"))
     }
 }

@@ -15,7 +15,7 @@ import java.util.Locale
 import kotlin.time.measureTimedValue
 
 @Component
-class DialogueComposer(
+class InterviewComposer(
     private val appProperties: AppProperties,
     private val modelResolver: ModelResolver,
     private val chatClientFactory: ChatClientFactory
@@ -29,7 +29,7 @@ class DialogueComposer(
     }
 
     fun compose(articles: List<Article>, podcast: Podcast, composeModelDef: ModelDefinition, previousEpisodeRecap: String? = null): CompositionResult {
-        log.info("[LLM] Composing dialogue from {} articles", articles.size)
+        log.info("[LLM] Composing interview from {} articles", articles.size)
         val chatClient = chatClientFactory.createForModel(podcast.userId, composeModelDef)
         val prompt = buildPrompt(articles, podcast, previousEpisodeRecap)
 
@@ -41,27 +41,27 @@ class DialogueComposer(
                 .chatResponse()
 
             val script = chatResponse?.result?.output?.text
-                ?: throw IllegalStateException("Empty response from LLM for dialogue composition")
+                ?: throw IllegalStateException("Empty response from LLM for interview composition")
 
             val usage = TokenUsage.fromChatResponse(chatResponse)
             CompositionResult(script, usage)
         }
 
-        log.info("[LLM] Dialogue composed — {} words in {}", result.script.split("\\s+".toRegex()).size, elapsed)
+        log.info("[LLM] Interview composed — {} words in {}", result.script.split("\\s+".toRegex()).size, elapsed)
         return result
     }
 
     internal fun buildPrompt(articles: List<Article>, podcast: Podcast, previousEpisodeRecap: String? = null): String {
         val targetWords = podcast.targetWords ?: appProperties.briefing.targetWords
-        val speakerRoles = podcast.ttsVoices?.keys?.toList() ?: listOf("host", "cohost")
-        val tagExamples = speakerRoles.joinToString("\n            ") { role -> "<$role>Example text</$role>" }
 
-        val nameInstruction = if (podcast.speakerNames != null && podcast.speakerNames.isNotEmpty()) {
-            val nameMapping = speakerRoles.mapNotNull { role ->
-                podcast.speakerNames[role]?.let { name -> "$role is \"$name\"" }
-            }.joinToString(", ")
-            "\n            - Speaker names: $nameMapping. Use these names naturally in conversation while keeping role keys as XML tags."
-        } else ""
+        val interviewerName = podcast.speakerNames?.get("interviewer")
+        val expertName = podcast.speakerNames?.get("expert")
+
+        val nameInstruction = if (interviewerName != null && expertName != null) {
+            "\n            - The interviewer's name is \"$interviewerName\" and the expert's name is \"$expertName\". Speakers should use each other's names naturally in conversation."
+        } else {
+            "\n            - Speakers should address each other without using names."
+        }
 
         val summaryBlock = articles.mapIndexed { index, article ->
             val source = extractDomain(article.url)
@@ -79,7 +79,7 @@ class DialogueComposer(
 
         val languageInstruction = if (podcast.language != "en") {
             val langName = SupportedLanguage.fromCode(podcast.language)?.displayName ?: "English"
-            "\n            - Write the entire dialogue in $langName"
+            "\n            - Write the entire interview in $langName"
         } else ""
 
         val recapBlock = previousEpisodeRecap?.let {
@@ -88,29 +88,28 @@ class DialogueComposer(
             Previous episode context:
             $it
 
-            - When today's topics relate to the previous episode, the speakers should naturally reference it in conversation (e.g., "remember last time we talked about...", "following up on what we discussed...")
-            - When today's topics are unrelated, the ${speakerRoles.first()} should briefly mention the previous episode in the opening before moving to today's topics"""
+            - When today's topics relate to the previous episode, the interviewer should naturally reference it (e.g., "We talked about this last time — any updates?", "Following up on what we discussed...")
+            - When today's topics are unrelated, the interviewer should briefly mention the previous episode in the opening before moving to today's topics"""
         } ?: ""
 
         return """
-            You are writing a dialogue script for a podcast with multiple speakers. Create a natural, engaging conversation between the speakers about the topics below.
+            You are writing an interview-style podcast script between an interviewer and an expert. The interviewer acts as an audience surrogate — asking questions, bridging topics, and providing brief reactions. The expert delivers the news content, context, and analysis.
 
             Podcast: ${podcast.name}
             Topic: ${podcast.topic}
             Date: $currentDate
-            Speakers: ${speakerRoles.joinToString(", ")}
 
             Requirements:
-            - Write as a natural conversation between ${speakerRoles.size} speakers
-            - The first speaker (${speakerRoles.first()}) drives the conversation, introduces topics, and transitions between stories
-            - Other speakers provide reactions, analysis, follow-up questions, and different perspectives
-            - Use XML-style tags for each speaker turn. The ONLY valid tags are: ${speakerRoles.joinToString(", ") { "<$it>" }}
+            - The interviewer (~20% of words) asks questions, bridges between topics, and reacts briefly
+            - The expert (~80% of words) delivers substantive news content, provides context, and offers analysis
+            - Use XML-style tags for each speaker turn. The ONLY valid tags are: <interviewer>, <expert>
             - Example format:
-            $tagExamples
+            <interviewer>Example question or reaction</interviewer>
+            <expert>Example detailed answer with analysis</expert>
             - ALL text MUST be inside speaker tags — no text outside of tags
-            - You MAY include emotion cues in square brackets inside tags, e.g. <${speakerRoles.first()}>[cheerfully] Welcome back!</${speakerRoles.first()}>
+            - You MAY include emotion cues in square brackets inside tags, e.g. <interviewer>[curious] Wait, what does that mean for...?</interviewer>
             - Target approximately $targetWords words
-            - In the introduction, mention the podcast name, its topic, and today's date
+            - In the introduction, the interviewer should mention the podcast name, its topic, and today's date
             - Naturally attribute information to its source and credit original authors when known
             - End with a sign-off
             - Do NOT include any stage directions, sound effects, or non-spoken text outside of tags

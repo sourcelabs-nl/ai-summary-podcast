@@ -33,6 +33,12 @@ class TtsProviderFactoryTest {
     }
 
     @Test
+    fun `resolves ElevenLabs dialogue provider for interview style`() {
+        val podcast = Podcast(id = "p1", userId = "u1", name = "Test", topic = "tech", ttsProvider = "elevenlabs", style = "interview")
+        assertSame(elevenLabsDialogueProvider, factory.resolve(podcast))
+    }
+
+    @Test
     fun `throws for unsupported provider`() {
         val podcast = Podcast(id = "p1", userId = "u1", name = "Test", topic = "tech", ttsProvider = "azure")
         assertThrows<IllegalArgumentException> { factory.resolve(podcast) }

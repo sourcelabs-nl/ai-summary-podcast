@@ -154,6 +154,7 @@ Each podcast can be tailored to your preferences via the following settings:
 | `style` | `"news-briefing"` | Briefing tone — see styles below |
 | `ttsProvider` | `"openai"` | TTS provider (`openai` or `elevenlabs`) |
 | `ttsVoices` | `{"default": "nova"}` | Voice configuration — see [TTS Configuration](#tts-configuration) below |
+| `speakerNames` | `null` | Display names for speakers — e.g. `{"interviewer": "Alice", "expert": "Bob"}`. Used in dialogue/interview scripts so speakers address each other by name |
 | `ttsSettings` | — | Provider-specific settings (e.g. `{"speed": 1.25}` for OpenAI, `{"stability": 0.5}` for ElevenLabs) |
 | `llmModels` | — | Override the LLM models per pipeline stage — see [Model Configuration](#model-configuration) below |
 | `targetWords` | `1500` | Approximate word count for the briefing script |
@@ -172,6 +173,7 @@ Each podcast can be tailored to your preferences via the following settings:
 | `deep-dive` | Analytical exploration — in-depth analysis and thoughtful commentary |
 | `executive-summary` | Concise and fact-focused — minimal commentary, straight to the point |
 | `dialogue` | Multi-speaker conversation — requires ElevenLabs TTS and at least two voice roles |
+| `interview` | Interviewer/expert conversation — asymmetric roles (~20% interviewer, ~80% expert). Requires ElevenLabs TTS with exactly `interviewer` and `expert` voice roles |
 
 ### TTS Configuration
 
@@ -179,11 +181,12 @@ Two TTS providers are supported: **OpenAI** (default) and **ElevenLabs**.
 
 **OpenAI** — Works out of the box with the global `OPENAI_API_KEY`. Voices: `alloy`, `echo`, `fable`, `nova`, `onyx`, `shimmer`. Settings: `{"speed": 1.25}`.
 
-**ElevenLabs** — Uses the global `ELEVENLABS_API_KEY` as fallback, or a per-user key configured via the provider API (see [Setup](#using-elevenlabs-instead-of-openai-for-tts)). Supports single-voice monologue and multi-speaker dialogue. Use `GET /users/{userId}/voices?provider=elevenlabs` to discover available voice IDs.
+**ElevenLabs** — Uses the global `ELEVENLABS_API_KEY` as fallback, or a per-user key configured via the provider API (see [Setup](#using-elevenlabs-instead-of-openai-for-tts)). Supports single-voice monologue, multi-speaker dialogue, and interview styles. Use `GET /users/{userId}/voices?provider=elevenlabs` to discover available voice IDs.
 
 Voice configuration uses the `ttsVoices` map:
 - Monologue: `{"default": "nova"}` (or any ElevenLabs voice ID)
 - Dialogue: `{"host": "<voice_id>", "cohost": "<voice_id>"}` — the key names become the speaker tags in the generated script
+- Interview: `{"interviewer": "<voice_id>", "expert": "<voice_id>"}` — fixed role keys required for the interview style
 
 ### Model Configuration
 

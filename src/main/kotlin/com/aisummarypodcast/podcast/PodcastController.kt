@@ -25,7 +25,8 @@ data class CreatePodcastRequest(
     @JsonProperty("relevanceThreshold") val relevanceThreshold: Int? = null,
     @JsonProperty("requireReview") val requireReview: Boolean? = null,
     @JsonProperty("maxLlmCostCents") val maxLlmCostCents: Int? = null,
-    @JsonProperty("maxArticleAgeDays") val maxArticleAgeDays: Int? = null
+    @JsonProperty("maxArticleAgeDays") val maxArticleAgeDays: Int? = null,
+    val speakerNames: Map<String, String>? = null
 )
 
 data class UpdatePodcastRequest(
@@ -43,7 +44,8 @@ data class UpdatePodcastRequest(
     @JsonProperty("relevanceThreshold") val relevanceThreshold: Int? = null,
     @JsonProperty("requireReview") val requireReview: Boolean? = null,
     @JsonProperty("maxLlmCostCents") val maxLlmCostCents: Int? = null,
-    @JsonProperty("maxArticleAgeDays") val maxArticleAgeDays: Int? = null
+    @JsonProperty("maxArticleAgeDays") val maxArticleAgeDays: Int? = null,
+    val speakerNames: Map<String, String>? = null
 )
 
 data class PodcastResponse(
@@ -64,6 +66,7 @@ data class PodcastResponse(
     val requireReview: Boolean,
     val maxLlmCostCents: Int?,
     val maxArticleAgeDays: Int?,
+    val speakerNames: Map<String, String>?,
     val lastGeneratedAt: String?
 )
 
@@ -92,6 +95,15 @@ class PodcastController(
         }
         if (style == "dialogue" && (ttsVoices == null || ttsVoices.size < 2)) {
             return "Dialogue style requires at least two voice roles in ttsVoices (e.g., host and cohost)"
+        }
+        if (style == "interview" && ttsProvider != "elevenlabs") {
+            return "Interview style requires ElevenLabs as TTS provider"
+        }
+        if (style == "interview" && (ttsVoices == null || ttsVoices.size < 2)) {
+            return "Interview style requires at least two voice roles in ttsVoices (interviewer and expert)"
+        }
+        if (style == "interview" && ttsVoices != null && ttsVoices.keys != setOf("interviewer", "expert")) {
+            return "Interview style requires exactly 'interviewer' and 'expert' voice roles"
         }
         return null
     }
@@ -129,7 +141,8 @@ class PodcastController(
                 relevanceThreshold = request.relevanceThreshold ?: 5,
                 requireReview = request.requireReview ?: false,
                 maxLlmCostCents = request.maxLlmCostCents,
-                maxArticleAgeDays = request.maxArticleAgeDays
+                maxArticleAgeDays = request.maxArticleAgeDays,
+                speakerNames = request.speakerNames
             )
         )
         return ResponseEntity.created(URI.create("/users/$userId/podcasts/${podcast.id}"))
@@ -185,7 +198,8 @@ class PodcastController(
                 relevanceThreshold = request.relevanceThreshold ?: existing.relevanceThreshold,
                 requireReview = request.requireReview ?: existing.requireReview,
                 maxLlmCostCents = request.maxLlmCostCents ?: existing.maxLlmCostCents,
-                maxArticleAgeDays = request.maxArticleAgeDays ?: existing.maxArticleAgeDays
+                maxArticleAgeDays = request.maxArticleAgeDays ?: existing.maxArticleAgeDays,
+                speakerNames = request.speakerNames ?: existing.speakerNames
             )
         ) ?: return ResponseEntity.notFound().build()
         return ResponseEntity.ok(updated.toResponse())
@@ -257,6 +271,6 @@ class PodcastController(
         style = style, targetWords = targetWords, cron = cron,
         customInstructions = customInstructions, relevanceThreshold = relevanceThreshold,
         requireReview = requireReview, maxLlmCostCents = maxLlmCostCents,
-        maxArticleAgeDays = maxArticleAgeDays, lastGeneratedAt = lastGeneratedAt
+        maxArticleAgeDays = maxArticleAgeDays, speakerNames = speakerNames, lastGeneratedAt = lastGeneratedAt
     )
 }

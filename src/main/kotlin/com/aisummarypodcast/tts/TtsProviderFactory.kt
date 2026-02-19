@@ -12,7 +12,7 @@ class TtsProviderFactory(
 
     fun resolve(podcast: Podcast): TtsProvider = when (podcast.ttsProvider) {
         "openai" -> openAiTtsProvider
-        "elevenlabs" -> if (podcast.style == "dialogue") elevenLabsDialogueTtsProvider else elevenLabsTtsProvider
+        "elevenlabs" -> if (podcast.style in setOf("dialogue", "interview")) elevenLabsDialogueTtsProvider else elevenLabsTtsProvider
         else -> throw IllegalArgumentException("Unsupported TTS provider: ${podcast.ttsProvider}. Supported: openai, elevenlabs")
     }
 }

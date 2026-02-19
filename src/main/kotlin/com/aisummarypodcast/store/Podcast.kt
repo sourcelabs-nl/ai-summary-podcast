@@ -23,6 +23,7 @@ data class Podcast(
     val requireReview: Boolean = false,
     val maxLlmCostCents: Int? = null,
     val maxArticleAgeDays: Int? = null,
+    val speakerNames: Map<String, String>? = null,
     val soundcloudPlaylistId: String? = null,
     val lastGeneratedAt: String? = null,
     @Version val version: Long? = null

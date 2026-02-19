@@ -111,6 +111,64 @@ class PodcastControllerTest {
     }
 
     @Test
+    fun `create interview podcast with valid config succeeds`() {
+        val podcastSlot = slot<Podcast>()
+        every { userService.findById(userId) } returns user
+        every { podcastService.create(userId, "My Podcast", "tech", capture(podcastSlot)) } answers {
+            podcastSlot.captured.copy(id = podcastId)
+        }
+
+        mockMvc.perform(
+            post("/users/$userId/podcasts")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"name":"My Podcast","topic":"tech","style":"interview","ttsProvider":"elevenlabs","ttsVoices":{"interviewer":"v1","expert":"v2"},"speakerNames":{"interviewer":"Alice","expert":"Bob"}}""")
+        )
+            .andExpect(status().isCreated)
+            .andExpect(jsonPath("$.style").value("interview"))
+            .andExpect(jsonPath("$.speakerNames.interviewer").value("Alice"))
+            .andExpect(jsonPath("$.speakerNames.expert").value("Bob"))
+    }
+
+    @Test
+    fun `create interview podcast with wrong provider returns 400`() {
+        every { userService.findById(userId) } returns user
+
+        mockMvc.perform(
+            post("/users/$userId/podcasts")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"name":"My Podcast","topic":"tech","style":"interview","ttsProvider":"openai","ttsVoices":{"interviewer":"v1","expert":"v2"}}""")
+        )
+            .andExpect(status().isBadRequest)
+            .andExpect(jsonPath("$.error").value("Interview style requires ElevenLabs as TTS provider"))
+    }
+
+    @Test
+    fun `create interview podcast with wrong role keys returns 400`() {
+        every { userService.findById(userId) } returns user
+
+        mockMvc.perform(
+            post("/users/$userId/podcasts")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"name":"My Podcast","topic":"tech","style":"interview","ttsProvider":"elevenlabs","ttsVoices":{"host":"v1","cohost":"v2"}}""")
+        )
+            .andExpect(status().isBadRequest)
+            .andExpect(jsonPath("$.error").value("Interview style requires exactly 'interviewer' and 'expert' voice roles"))
+    }
+
+    @Test
+    fun `create interview podcast with missing voices returns 400`() {
+        every { userService.findById(userId) } returns user
+
+        mockMvc.perform(
+            post("/users/$userId/podcasts")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"name":"My Podcast","topic":"tech","style":"interview","ttsProvider":"elevenlabs","ttsVoices":{"interviewer":"v1"}}""")
+        )
+            .andExpect(status().isBadRequest)
+            .andExpect(jsonPath("$.error").value("Interview style requires at least two voice roles in ttsVoices (interviewer and expert)"))
+    }
+
+    @Test
     fun `create podcast without optional fields uses defaults`() {
         val podcastSlot = slot<Podcast>()
         every { userService.findById(userId) } returns user

@@ -31,6 +31,7 @@ class LlmPipelineTest {
     private val articleScoreSummarizer = mockk<ArticleScoreSummarizer>()
     private val briefingComposer = mockk<BriefingComposer>()
     private val dialogueComposer = mockk<DialogueComposer>()
+    private val interviewComposer = mockk<InterviewComposer>()
     private val modelResolver = mockk<ModelResolver>()
     private val articleRepository = mockk<ArticleRepository> {
         every { save(any()) } answers { firstArg() }
@@ -55,7 +56,7 @@ class LlmPipelineTest {
     private val composeModelDef = ModelDefinition(provider = "openrouter", model = "anthropic/claude-sonnet-4")
 
     private val pipeline = LlmPipeline(
-        articleScoreSummarizer, briefingComposer, dialogueComposer, modelResolver, articleRepository,
+        articleScoreSummarizer, briefingComposer, dialogueComposer, interviewComposer, modelResolver, articleRepository,
         sourceRepository, postRepository, sourceAggregator, appProperties, episodeRepository
     )
 
@@ -259,7 +260,7 @@ class LlmPipelineTest {
             source = SourceProperties(maxArticleAgeDays = 7)
         )
         val pipelineWithLowThreshold = LlmPipeline(
-            articleScoreSummarizer, briefingComposer, dialogueComposer, modelResolver, articleRepository,
+            articleScoreSummarizer, briefingComposer, dialogueComposer, interviewComposer, modelResolver, articleRepository,
             sourceRepository, postRepository, sourceAggregator, lowThresholdProps, episodeRepository
         )
 
@@ -297,7 +298,7 @@ class LlmPipelineTest {
             source = SourceProperties(maxArticleAgeDays = 7)
         )
         val pipelineExact = LlmPipeline(
-            articleScoreSummarizer, briefingComposer, dialogueComposer, modelResolver, articleRepository,
+            articleScoreSummarizer, briefingComposer, dialogueComposer, interviewComposer, modelResolver, articleRepository,
             sourceRepository, postRepository, sourceAggregator, thresholdProps, episodeRepository
         )
 
@@ -357,7 +358,7 @@ class LlmPipelineTest {
             source = SourceProperties(maxArticleAgeDays = 7)
         )
         val pipelineWithLowGlobal = LlmPipeline(
-            articleScoreSummarizer, briefingComposer, dialogueComposer, modelResolver, articleRepository,
+            articleScoreSummarizer, briefingComposer, dialogueComposer, interviewComposer, modelResolver, articleRepository,
             sourceRepository, postRepository, sourceAggregator, lowGlobalProps, episodeRepository
         )
 
@@ -406,6 +407,31 @@ class LlmPipelineTest {
 
         assertNotNull(result)
         verify { dialogueComposer.compose(any(), any(), any(), any()) }
+        verify(exactly = 0) { briefingComposer.compose(any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `uses interviewComposer for interview style podcast`() {
+        val interviewPodcast = podcast.copy(style = "interview", ttsProvider = "elevenlabs", ttsVoices = mapOf("interviewer" to "v1", "expert" to "v2"))
+        val article = Article(
+            id = 1, sourceId = "s1", title = "AI News", body = "Body",
+            url = "https://example.com/ai", contentHash = "hash1", relevanceScore = 8, summary = "Summary."
+        )
+        val compositionResult = CompositionResult("<interviewer>Question?</interviewer><expert>Answer.</expert>", TokenUsage(500, 200))
+
+        every { sourceRepository.findByPodcastId("p1") } returns listOf(source)
+        every { modelResolver.resolve(interviewPodcast, "filter") } returns filterModelDef
+        every { modelResolver.resolve(interviewPodcast, "compose") } returns composeModelDef
+        every { postRepository.findUnlinkedBySourceIds(listOf("s1"), any()) } returns emptyList()
+        every { articleRepository.findUnscoredBySourceIds(listOf("s1")) } returns emptyList()
+        every { articleRepository.findRelevantUnprocessedBySourceIds(listOf("s1"), 5) } returns listOf(article)
+        every { interviewComposer.compose(listOf(article), interviewPodcast, composeModelDef, null) } returns compositionResult
+
+        val result = pipeline.run(interviewPodcast)
+
+        assertNotNull(result)
+        verify { interviewComposer.compose(any(), any(), any(), any()) }
+        verify(exactly = 0) { dialogueComposer.compose(any(), any(), any(), any()) }
         verify(exactly = 0) { briefingComposer.compose(any(), any(), any(), any()) }
     }
 
