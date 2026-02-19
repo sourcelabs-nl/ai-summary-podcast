@@ -18,5 +18,6 @@ data class Episode(
     val llmOutputTokens: Int? = null,
     val llmCostCents: Int? = null,
     val ttsCharacters: Int? = null,
-    val ttsCostCents: Int? = null
+    val ttsCostCents: Int? = null,
+    val recap: String? = null
 )

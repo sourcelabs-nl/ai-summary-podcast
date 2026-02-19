@@ -23,15 +23,15 @@ class DialogueComposer(
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    fun compose(articles: List<Article>, podcast: Podcast): CompositionResult {
+    fun compose(articles: List<Article>, podcast: Podcast, previousEpisodeRecap: String? = null): CompositionResult {
         val composeModelDef = modelResolver.resolve(podcast, "compose")
-        return compose(articles, podcast, composeModelDef)
+        return compose(articles, podcast, composeModelDef, previousEpisodeRecap)
     }
 
-    fun compose(articles: List<Article>, podcast: Podcast, composeModelDef: ModelDefinition): CompositionResult {
+    fun compose(articles: List<Article>, podcast: Podcast, composeModelDef: ModelDefinition, previousEpisodeRecap: String? = null): CompositionResult {
         log.info("[LLM] Composing dialogue from {} articles", articles.size)
         val chatClient = chatClientFactory.createForModel(podcast.userId, composeModelDef)
-        val prompt = buildPrompt(articles, podcast)
+        val prompt = buildPrompt(articles, podcast, previousEpisodeRecap)
 
         val (result, elapsed) = measureTimedValue {
             val chatResponse = chatClient.prompt()
@@ -51,7 +51,7 @@ class DialogueComposer(
         return result
     }
 
-    internal fun buildPrompt(articles: List<Article>, podcast: Podcast): String {
+    internal fun buildPrompt(articles: List<Article>, podcast: Podcast, previousEpisodeRecap: String? = null): String {
         val targetWords = podcast.targetWords ?: appProperties.briefing.targetWords
         val speakerRoles = podcast.ttsVoices?.keys?.toList() ?: listOf("host", "cohost")
         val tagExamples = speakerRoles.joinToString("\n            ") { role -> "<$role>Example text</$role>" }
@@ -74,6 +74,16 @@ class DialogueComposer(
             val langName = SupportedLanguage.fromCode(podcast.language)?.displayName ?: "English"
             "\n            - Write the entire dialogue in $langName"
         } else ""
+
+        val recapBlock = previousEpisodeRecap?.let {
+            """
+
+            Previous episode context:
+            $it
+
+            - When today's topics relate to the previous episode, the speakers should naturally reference it in conversation (e.g., "remember last time we talked about...", "following up on what we discussed...")
+            - When today's topics are unrelated, the ${speakerRoles.first()} should briefly mention the previous episode in the opening before moving to today's topics"""
+        } ?: ""
 
         return """
             You are writing a dialogue script for a podcast with multiple speakers. Create a natural, engaging conversation between the speakers about the topics below.
@@ -100,7 +110,7 @@ class DialogueComposer(
             - Do NOT include any meta-commentary, notes, or disclaimers about the script itself$languageInstruction$customInstructionsBlock
 
             Article summaries:
-            $summaryBlock
+            $summaryBlock$recapBlock
         """.trimIndent()
     }
 

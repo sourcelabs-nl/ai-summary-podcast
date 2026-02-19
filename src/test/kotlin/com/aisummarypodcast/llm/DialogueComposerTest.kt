@@ -9,6 +9,7 @@ import com.aisummarypodcast.config.LlmProperties
 import com.aisummarypodcast.store.Article
 import com.aisummarypodcast.store.Podcast
 import io.mockk.mockk
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
@@ -96,5 +97,31 @@ class DialogueComposerTest {
         val prompt = composer.buildPrompt(articles, podcast)
 
         assertTrue(prompt.contains("[cheerfully]"))
+    }
+
+    @Test
+    fun `prompt includes recap section when provided`() {
+        val recap = "AI chip shortages continue. New EU regulations proposed."
+        val prompt = composer.buildPrompt(articles, podcast, recap)
+
+        assertTrue(prompt.contains("Previous episode context:"))
+        assertTrue(prompt.contains("AI chip shortages continue."))
+        assertTrue(prompt.contains("remember last time we talked about"))
+    }
+
+    @Test
+    fun `prompt excludes recap section when null`() {
+        val prompt = composer.buildPrompt(articles, podcast, null)
+
+        assertFalse(prompt.contains("Previous episode context:"))
+        assertFalse(prompt.contains("remember last time"))
+    }
+
+    @Test
+    fun `recap instructs host to mention previous episode`() {
+        val recap = "Cloud computing costs dropping."
+        val prompt = composer.buildPrompt(articles, podcast, recap)
+
+        assertTrue(prompt.contains("the host should briefly mention the previous episode"))
     }
 }

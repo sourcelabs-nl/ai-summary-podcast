@@ -3,6 +3,7 @@ package com.aisummarypodcast.llm
 import com.aisummarypodcast.config.AppProperties
 import com.aisummarypodcast.source.SourceAggregator
 import com.aisummarypodcast.store.ArticleRepository
+import com.aisummarypodcast.store.EpisodeRepository
 import com.aisummarypodcast.store.Podcast
 import com.aisummarypodcast.store.PostRepository
 import com.aisummarypodcast.store.SourceRepository
@@ -32,7 +33,8 @@ class LlmPipeline(
     private val sourceRepository: SourceRepository,
     private val postRepository: PostRepository,
     private val sourceAggregator: SourceAggregator,
-    private val appProperties: AppProperties
+    private val appProperties: AppProperties,
+    private val episodeRepository: EpisodeRepository
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -98,10 +100,18 @@ class LlmPipeline(
             return null
         }
 
-        val compositionResult = if (podcast.style == "dialogue") {
-            dialogueComposer.compose(toCompose, podcast, composeModelDef)
+        // Fetch previous episode recap for continuity context
+        val previousRecap = episodeRepository.findMostRecentByPodcastId(podcast.id)?.recap
+        if (previousRecap != null) {
+            log.info("[LLM] Previous episode recap found for podcast {} — passing to composer", podcast.id)
         } else {
-            briefingComposer.compose(toCompose, podcast, composeModelDef)
+            log.info("[LLM] No previous episode recap for podcast {} — composing without continuity context", podcast.id)
+        }
+
+        val compositionResult = if (podcast.style == "dialogue") {
+            dialogueComposer.compose(toCompose, podcast, composeModelDef, previousRecap)
+        } else {
+            briefingComposer.compose(toCompose, podcast, composeModelDef, previousRecap)
         }
 
         val processedArticleIds = toCompose.mapNotNull { it.id }

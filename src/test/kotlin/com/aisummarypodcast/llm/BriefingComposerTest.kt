@@ -265,6 +265,24 @@ class BriefingComposerTest {
     }
 
     @Test
+    fun `buildPrompt includes recap section when provided`() {
+        val podcast = Podcast(id = "p1", userId = "u1", name = "Test", topic = "tech")
+        val recap = "AI chip shortages continue. New EU regulations proposed."
+        val prompt = composer.buildPrompt(sampleArticles, podcast, recap)
+        assertTrue(prompt.contains("Previous episode context:"))
+        assertTrue(prompt.contains("AI chip shortages continue."))
+        assertTrue(prompt.contains("as we discussed last time"))
+    }
+
+    @Test
+    fun `buildPrompt excludes recap section when null`() {
+        val podcast = Podcast(id = "p1", userId = "u1", name = "Test", topic = "tech")
+        val prompt = composer.buildPrompt(sampleArticles, podcast, null)
+        assertFalse(prompt.contains("Previous episode context:"))
+        assertFalse(prompt.contains("as we discussed last time"))
+    }
+
+    @Test
     fun `buildPrompt includes author attribution instruction`() {
         val podcast = Podcast(id = "p1", userId = "u1", name = "Test", topic = "tech")
         val prompt = composer.buildPrompt(sampleArticles, podcast)

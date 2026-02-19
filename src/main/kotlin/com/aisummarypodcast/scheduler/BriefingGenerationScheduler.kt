@@ -1,11 +1,14 @@
 package com.aisummarypodcast.scheduler
 
+import com.aisummarypodcast.llm.EpisodeRecapGenerator
 import com.aisummarypodcast.llm.LlmPipeline
+import com.aisummarypodcast.llm.ModelResolver
 import com.aisummarypodcast.llm.PipelineResult
 import com.aisummarypodcast.store.Episode
 import com.aisummarypodcast.store.EpisodeArticle
 import com.aisummarypodcast.store.EpisodeArticleRepository
 import com.aisummarypodcast.store.EpisodeRepository
+import com.aisummarypodcast.store.Podcast
 import com.aisummarypodcast.store.PodcastRepository
 import com.aisummarypodcast.tts.TtsPipeline
 import org.slf4j.LoggerFactory
@@ -23,7 +26,9 @@ class BriefingGenerationScheduler(
     private val llmPipeline: LlmPipeline,
     private val ttsPipeline: TtsPipeline,
     private val episodeRepository: EpisodeRepository,
-    private val episodeArticleRepository: EpisodeArticleRepository
+    private val episodeArticleRepository: EpisodeArticleRepository,
+    private val episodeRecapGenerator: EpisodeRecapGenerator,
+    private val modelResolver: ModelResolver
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -91,6 +96,7 @@ class BriefingGenerationScheduler(
                 )
             )
             saveEpisodeArticleLinks(savedEpisode, result)
+            generateAndStoreRecap(savedEpisode, podcast)
             podcastRepository.save(podcast.copy(lastGeneratedAt = Instant.now().toString()))
             log.info("[Pipeline] Script ready for review for podcast {} — total {}", podcastId, mark.elapsedNow())
         } else {
@@ -104,6 +110,7 @@ class BriefingGenerationScheduler(
             )
             val savedEpisode = episodeRepository.save(episodeWithModels)
             saveEpisodeArticleLinks(savedEpisode, result)
+            generateAndStoreRecap(savedEpisode, podcast)
             podcastRepository.save(podcast.copy(lastGeneratedAt = Instant.now().toString()))
             log.info("[Pipeline] Briefing generation complete for podcast {}: episode {} ({} seconds) — total {}", podcastId, savedEpisode.id, savedEpisode.durationSeconds, mark.elapsedNow())
         }
@@ -112,6 +119,23 @@ class BriefingGenerationScheduler(
     private fun saveEpisodeArticleLinks(episode: Episode, result: PipelineResult) {
         for (articleId in result.processedArticleIds) {
             episodeArticleRepository.save(EpisodeArticle(episodeId = episode.id!!, articleId = articleId))
+        }
+    }
+
+    private fun generateAndStoreRecap(episode: Episode, podcast: Podcast) {
+        try {
+            val filterModelDef = modelResolver.resolve(podcast, "filter")
+            val recapResult = episodeRecapGenerator.generate(episode.scriptText, podcast, filterModelDef)
+            episodeRepository.save(
+                episode.copy(
+                    recap = recapResult.recap,
+                    llmInputTokens = (episode.llmInputTokens ?: 0) + recapResult.usage.inputTokens,
+                    llmOutputTokens = (episode.llmOutputTokens ?: 0) + recapResult.usage.outputTokens
+                )
+            )
+            log.info("[Pipeline] Recap generated and stored for episode {}", episode.id)
+        } catch (e: Exception) {
+            log.warn("[Pipeline] Failed to generate recap for episode {} — continuing without recap: {}", episode.id, e.message)
         }
     }
 

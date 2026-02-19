@@ -35,15 +35,15 @@ class BriefingComposer(
         "executive-summary" to "You are creating a concise executive summary. Be fact-focused with minimal commentary. Get straight to the point."
     )
 
-    fun compose(articles: List<Article>, podcast: Podcast): CompositionResult {
+    fun compose(articles: List<Article>, podcast: Podcast, previousEpisodeRecap: String? = null): CompositionResult {
         val composeModelDef = modelResolver.resolve(podcast, "compose")
-        return compose(articles, podcast, composeModelDef)
+        return compose(articles, podcast, composeModelDef, previousEpisodeRecap)
     }
 
-    fun compose(articles: List<Article>, podcast: Podcast, composeModelDef: ModelDefinition): CompositionResult {
+    fun compose(articles: List<Article>, podcast: Podcast, composeModelDef: ModelDefinition, previousEpisodeRecap: String? = null): CompositionResult {
         log.info("[LLM] Composing briefing from {} articles (style: {})", articles.size, podcast.style)
         val chatClient = chatClientFactory.createForModel(podcast.userId, composeModelDef)
-        val prompt = buildPrompt(articles, podcast)
+        val prompt = buildPrompt(articles, podcast, previousEpisodeRecap)
 
         val (result, elapsed) = measureTimedValue {
             val chatResponse = chatClient.prompt()
@@ -64,7 +64,7 @@ class BriefingComposer(
         return result
     }
 
-    internal fun buildPrompt(articles: List<Article>, podcast: Podcast): String {
+    internal fun buildPrompt(articles: List<Article>, podcast: Podcast, previousEpisodeRecap: String? = null): String {
         val targetWords = podcast.targetWords ?: appProperties.briefing.targetWords
         val stylePrompt = stylePrompts[podcast.style] ?: stylePrompts["news-briefing"]!!
 
@@ -87,6 +87,16 @@ class BriefingComposer(
             "\n            - Write the entire script in $langName"
         } else ""
 
+        val recapBlock = previousEpisodeRecap?.let {
+            """
+
+            Previous episode context:
+            $it
+
+            - When today's topics relate to the previous episode, weave in specific references (e.g., "as we discussed last time...", "following up on what we covered previously...")
+            - When today's topics are unrelated, include a brief one-liner referencing the previous episode in the introduction (e.g., "last episode we covered X and Y, today we're looking at...")"""
+        } ?: ""
+
         return """
             $stylePrompt
 
@@ -107,7 +117,7 @@ class BriefingComposer(
             - Do NOT include any meta-commentary, notes, or disclaimers about the script itself$languageInstruction$customInstructionsBlock
 
             Article summaries:
-            $summaryBlock
+            $summaryBlock$recapBlock
         """.trimIndent()
     }
 
