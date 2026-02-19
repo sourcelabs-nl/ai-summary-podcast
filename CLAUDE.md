@@ -70,6 +70,10 @@ When updating `README.md`, maintain the following section order and structure. D
 6. **API Overview** — Endpoint reference grouped by resource (Users, Podcasts, Episodes, Sources, Publishing, OAuth, Voices, Provider Configuration).
 7. **Running Tests** — Test command (`./mvnw test`) and note on MockK usage.
 
+## Architecture Guidelines
+
+Controllers must not contain business logic. They should validate input, delegate to service or domain classes, and map responses. Never duplicate logic that already exists in a service — always call the existing service method instead. This prevents bugs caused by code paths diverging over time.
+
 ## OpenSpec Workflow
 
 When archiving an OpenSpec change (`/opsx:archive`), always update `README.md` to reflect any new or changed capabilities introduced by the change. Follow the README Structure rules above when making updates. After completing the archive, always ask the user to commit the changes with `/conventional-commits:cc`.
