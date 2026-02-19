@@ -38,7 +38,7 @@ class SourcePoller(
                         twitterFetcher.fetch(source.url, source.id, source.lastSeenId, userId)
                     }
                 }
-                // No else branch needed - all SourceType values are handled
+                SourceType.YOUTUBE -> rssFeedFetcher.fetch(source.url, source.id, source.lastSeenId, source.categoryFilter)
             }
 
             var latestTimestamp = source.lastSeenId
