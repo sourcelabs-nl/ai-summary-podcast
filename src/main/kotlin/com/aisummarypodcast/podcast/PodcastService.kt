@@ -37,7 +37,8 @@ class PodcastService(
             relevanceThreshold = podcast?.relevanceThreshold ?: 5,
             requireReview = podcast?.requireReview ?: false,
             maxLlmCostCents = podcast?.maxLlmCostCents,
-            maxArticleAgeDays = podcast?.maxArticleAgeDays
+            maxArticleAgeDays = podcast?.maxArticleAgeDays,
+            speakerNames = podcast?.speakerNames
         )
         return podcastRepository.save(newPodcast)
     }
@@ -63,7 +64,8 @@ class PodcastService(
             relevanceThreshold = updates.relevanceThreshold,
             requireReview = updates.requireReview,
             maxLlmCostCents = updates.maxLlmCostCents,
-            maxArticleAgeDays = updates.maxArticleAgeDays
+            maxArticleAgeDays = updates.maxArticleAgeDays,
+            speakerNames = updates.speakerNames
         )
         return podcastRepository.save(updated)
     }

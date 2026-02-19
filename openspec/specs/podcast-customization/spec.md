@@ -279,10 +279,12 @@ Each podcast SHALL have a `speaker_names` field (TEXT, nullable, stored as JSON 
 #### Scenario: Speaker names accepted in create endpoint
 - **WHEN** a `POST /users/{userId}/podcasts` request includes `speakerNames: {"host": "Alice", "cohost": "Bob"}`
 - **THEN** the podcast is created with the specified speaker names
+- **AND** `PodcastService.create()` propagates `speakerNames` to the persisted entity
 
 #### Scenario: Speaker names accepted in update endpoint
 - **WHEN** a `PUT /users/{userId}/podcasts/{podcastId}` request includes `speakerNames: {"interviewer": "Alice", "expert": "Bob"}`
 - **THEN** the podcast's speaker names are updated
+- **AND** `PodcastService.update()` propagates `speakerNames` to the persisted entity
 
 #### Scenario: Speaker names included in GET response
 - **WHEN** a `GET /users/{userId}/podcasts/{podcastId}` request is received for a podcast with `speakerNames`
