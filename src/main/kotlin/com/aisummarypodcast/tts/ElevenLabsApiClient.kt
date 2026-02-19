@@ -24,7 +24,7 @@ class ElevenLabsApiClient(
         val client = createClient(userId)
         val body = buildMap<String, Any> {
             put("text", text)
-            put("model_id", "eleven_multilingual_v2")
+            put("model_id", "eleven_flash_v2_5")
             if (!voiceSettings.isNullOrEmpty()) {
                 put("voice_settings", voiceSettings.mapValues { (_, v) -> v.toDoubleOrNull() ?: v })
             }
@@ -46,7 +46,7 @@ class ElevenLabsApiClient(
         val client = createClient(userId)
         val body = buildMap<String, Any> {
             put("inputs", inputs)
-            put("model_id", "eleven_v3")
+            put("model_id", "eleven_flash_v2_5")
             if (!settings.isNullOrEmpty()) {
                 put("settings", settings.mapValues { (_, v) -> v.toDoubleOrNull() ?: v })
             }

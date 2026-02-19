@@ -31,15 +31,27 @@ The system SHALL implement `TtsProvider` as `ElevenLabsTtsProvider` that generat
 - **THEN** the provider throws an error indicating the `"default"` voice must be configured
 
 ### Requirement: ElevenLabs Text-to-Dialogue provider
-The system SHALL implement `TtsProvider` as `ElevenLabsDialogueTtsProvider` that generates multi-speaker audio via the ElevenLabs `POST /v1/text-to-dialogue` endpoint. The provider SHALL parse the script's XML-style speaker tags (e.g., `<host>`, `<cohost>`) into an array of `{text, voice_id}` inputs. Tag names SHALL be mapped to voice IDs via the podcast's `ttsVoices` map. The model SHALL be `eleven_v3`. The result SHALL contain a single audio chunk with `requiresConcatenation = false`.
+The system SHALL implement `TtsProvider` as `ElevenLabsDialogueTtsProvider` that generates multi-speaker audio via the ElevenLabs `POST /v1/text-to-dialogue` endpoint. The provider SHALL parse the script's XML-style speaker tags (e.g., `<host>`, `<cohost>`) into an array of `{text, voice_id}` inputs. Tag names SHALL be mapped to voice IDs via the podcast's `ttsVoices` map. The model SHALL be `eleven_v3`. When the total text length of all inputs exceeds 5000 characters, the provider SHALL split the inputs into batches where each batch's total text length stays under 5000 characters. Turns SHALL NOT be split across batches. Each batch SHALL be sent as a separate API call. When multiple batches are produced, the result SHALL have `requiresConcatenation = true` and contain one audio chunk per batch. When only one batch is needed, the result SHALL have `requiresConcatenation = false` with a single audio chunk.
 
 #### Scenario: Dialogue script parsed into inputs array
 - **WHEN** a script contains `<host>Hello!</host><cohost>Hi there!</cohost>` and `ttsVoices` is `{"host": "id1", "cohost": "id2"}`
 - **THEN** the API request body contains `inputs: [{text: "Hello!", voice_id: "id1"}, {text: "Hi there!", voice_id: "id2"}]`
 
-#### Scenario: Single audio file returned
-- **WHEN** the Text-to-Dialogue API responds successfully
-- **THEN** the result contains exactly one audio chunk with `requiresConcatenation = false`
+#### Scenario: Short dialogue fits in single batch
+- **WHEN** a dialogue script has total text length under 5000 characters
+- **THEN** the provider makes a single API call and returns `requiresConcatenation = false`
+
+#### Scenario: Long dialogue split into multiple batches
+- **WHEN** a dialogue script has total text length of 9000 characters
+- **THEN** the provider splits turns into batches under 5000 characters each, makes one API call per batch, and returns `requiresConcatenation = true` with one audio chunk per batch
+
+#### Scenario: Batch boundary falls between turns
+- **WHEN** turns are grouped into batches
+- **THEN** each turn is entirely within one batch — no turn is split across batches
+
+#### Scenario: Single turn under limit starts new batch
+- **WHEN** adding a turn to the current batch would exceed 5000 characters
+- **THEN** a new batch is started with that turn
 
 #### Scenario: Unknown speaker tag
 - **WHEN** the script contains a `<narrator>` tag but `ttsVoices` has no `"narrator"` key
