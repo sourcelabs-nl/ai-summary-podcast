@@ -21,7 +21,7 @@ if [ -f .env ]; then
 fi
 
 echo "Starting ai-summary-podcast..."
-java -jar "$JAR_FILE" > app.log 2>&1 &
+java --enable-native-access=ALL-UNNAMED -jar "$JAR_FILE" > app.log 2>&1 &
 APP_PID=$!
 echo "$APP_PID" > "$PID_FILE"
 echo "Application started (PID $APP_PID). Logs: app.log"

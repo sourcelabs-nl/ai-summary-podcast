@@ -26,7 +26,7 @@ Each user can create multiple podcasts, each with its own sources, topic, langua
 
 ## Prerequisites
 
-- Java 24+
+- Java 24+ (Java 25+ requires `--enable-native-access=ALL-UNNAMED` for the SQLite JDBC driver — `start.sh` and `mvnw spring-boot:run` handle this automatically)
 - FFmpeg (for audio concatenation and duration detection)
 - An LLM provider — one of:
   - [OpenRouter](https://openrouter.ai/) API key (cloud, multiple models)
