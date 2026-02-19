@@ -283,6 +283,14 @@ class BriefingComposerTest {
     }
 
     @Test
+    fun `buildPrompt includes grounding instruction`() {
+        val podcast = Podcast(id = "p1", userId = "u1", name = "Test", topic = "tech")
+        val prompt = composer.buildPrompt(sampleArticles, podcast)
+        assertTrue(prompt.contains("ONLY discuss topics that are present in the article summaries"))
+        assertTrue(prompt.contains("Do NOT introduce facts, stories, or claims from outside the provided articles"))
+    }
+
+    @Test
     fun `buildPrompt includes author attribution instruction`() {
         val podcast = Podcast(id = "p1", userId = "u1", name = "Test", topic = "tech")
         val prompt = composer.buildPrompt(sampleArticles, podcast)

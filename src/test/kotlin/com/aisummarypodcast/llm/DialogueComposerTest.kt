@@ -126,6 +126,13 @@ class DialogueComposerTest {
     }
 
     @Test
+    fun `prompt includes grounding instruction`() {
+        val prompt = composer.buildPrompt(articles, podcast)
+        assertTrue(prompt.contains("ONLY discuss topics that are present in the article summaries"))
+        assertTrue(prompt.contains("Do NOT introduce facts, stories, or claims from outside the provided articles"))
+    }
+
+    @Test
     fun `prompt includes speaker names when provided`() {
         val podcastWithNames = podcast.copy(
             speakerNames = mapOf("host" to "Sarah", "cohost" to "Mike")

@@ -114,7 +114,8 @@ class BriefingComposer(
             - Naturally attribute information to its source and credit original authors when known (e.g., "as John Smith reports for TechCrunch") — do not over-cite
             - End with a sign-off
             - Do NOT include any stage directions, sound effects, section headers (like [Opening], [Closing], [Transition]), or non-spoken text
-            - Do NOT include any meta-commentary, notes, or disclaimers about the script itself$languageInstruction$customInstructionsBlock
+            - Do NOT include any meta-commentary, notes, or disclaimers about the script itself
+            - ONLY discuss topics that are present in the article summaries below. Do NOT introduce facts, stories, or claims from outside the provided articles. If only a few articles are provided, produce a shorter script rather than padding with external knowledge$languageInstruction$customInstructionsBlock
 
             Article summaries:
             $summaryBlock$recapBlock

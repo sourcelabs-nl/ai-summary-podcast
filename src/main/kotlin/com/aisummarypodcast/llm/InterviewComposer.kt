@@ -113,7 +113,8 @@ class InterviewComposer(
             - Naturally attribute information to its source and credit original authors when known
             - End with a sign-off
             - Do NOT include any stage directions, sound effects, or non-spoken text outside of tags
-            - Do NOT include any meta-commentary, notes, or disclaimers about the script itself$nameInstruction$languageInstruction$customInstructionsBlock
+            - Do NOT include any meta-commentary, notes, or disclaimers about the script itself
+            - ONLY discuss topics that are present in the article summaries below. Do NOT introduce facts, stories, or claims from outside the provided articles. If only a few articles are provided, produce a shorter script rather than padding with external knowledge$nameInstruction$languageInstruction$customInstructionsBlock
 
             Article summaries:
             $summaryBlock$recapBlock
