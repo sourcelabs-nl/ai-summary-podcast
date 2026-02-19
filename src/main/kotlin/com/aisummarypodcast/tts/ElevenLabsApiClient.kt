@@ -46,7 +46,7 @@ class ElevenLabsApiClient(
         val client = createClient(userId)
         val body = buildMap<String, Any> {
             put("inputs", inputs)
-            put("model_id", "eleven_flash_v2_5")
+            put("model_id", "eleven_v3")
             if (!settings.isNullOrEmpty()) {
                 put("settings", settings.mapValues { (_, v) -> v.toDoubleOrNull() ?: v })
             }
