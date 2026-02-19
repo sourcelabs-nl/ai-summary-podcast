@@ -9,6 +9,9 @@ import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import java.security.MessageDigest
 import java.time.Instant
+import java.time.LocalDateTime
+import java.time.ZoneOffset
+import java.time.format.DateTimeParseException
 import java.time.temporal.ChronoUnit
 
 @Component
@@ -49,15 +52,15 @@ class SourcePoller(
             val now = Instant.now().toString()
 
             val isFirstPoll = source.lastPolled == null
-            val sourceCreatedAt = Instant.parse(source.createdAt)
+            val sourceCreatedAt = parseInstant(source.createdAt)
 
             for (post in rawPosts) {
-                if (post.publishedAt != null && Instant.parse(post.publishedAt).isBefore(maxAgeCutoff)) {
+                if (post.publishedAt != null && parseInstant(post.publishedAt).isBefore(maxAgeCutoff)) {
                     log.debug("[Polling] Skipping old post '{}' (published {})", post.title, post.publishedAt)
                     continue
                 }
 
-                if (isFirstPoll && post.publishedAt != null && Instant.parse(post.publishedAt).isBefore(sourceCreatedAt)) {
+                if (isFirstPoll && post.publishedAt != null && parseInstant(post.publishedAt).isBefore(sourceCreatedAt)) {
                     log.debug("[Polling] Skipping pre-creation post '{}' (published {}, source created {})", post.title, post.publishedAt, source.createdAt)
                     continue
                 }
@@ -117,6 +120,13 @@ class SourcePoller(
             sourceRepository.save(updatedSource)
         }
     }
+
+    private fun parseInstant(text: String): Instant =
+        try {
+            Instant.parse(text)
+        } catch (e: DateTimeParseException) {
+            LocalDateTime.parse(text.replace(' ', 'T')).toInstant(ZoneOffset.UTC)
+        }
 
     private fun sha256(text: String): String {
         val digest = MessageDigest.getInstance("SHA-256")
