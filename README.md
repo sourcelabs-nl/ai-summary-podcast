@@ -416,6 +416,53 @@ curl -X PUT http://localhost:8080/users/{userId}/api-keys/LLM \
 
 This uses the default Ollama base URL (`http://localhost:11434`). You can omit `OPENROUTER_API_KEY` from `.env` if all users are configured with Ollama.
 
+### Using ElevenLabs instead of OpenAI for TTS
+
+[ElevenLabs](https://elevenlabs.io/) offers high-quality voices and multi-speaker dialogue via the Text-to-Dialogue API — ideal for the `dialogue` briefing style. ElevenLabs does not use a global env var; each user configures their own API key.
+
+1. **Get an API key** from https://elevenlabs.io/app/settings/api-keys
+
+2. **Configure the user's TTS provider:**
+
+```bash
+curl -X PUT http://localhost:8080/users/{userId}/api-keys/TTS \
+  -H 'Content-Type: application/json' \
+  -d '{"provider": "elevenlabs", "apiKey": "<your-elevenlabs-key>"}'
+```
+
+3. **Discover available voices:**
+
+```bash
+curl http://localhost:8080/users/{userId}/voices?provider=elevenlabs
+```
+
+4. **Create a podcast with ElevenLabs** (monologue or dialogue):
+
+```bash
+# Monologue (single voice)
+curl -X POST http://localhost:8080/users/{userId}/podcasts \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "name": "My Podcast",
+    "topic": "technology",
+    "ttsProvider": "elevenlabs",
+    "ttsVoices": {"default": "<voice_id>"}
+  }'
+
+# Dialogue (multi-speaker)
+curl -X POST http://localhost:8080/users/{userId}/podcasts \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "name": "My Dialogue Podcast",
+    "topic": "technology",
+    "style": "dialogue",
+    "ttsProvider": "elevenlabs",
+    "ttsVoices": {"host": "<voice_id>", "cohost": "<voice_id>"}
+  }'
+```
+
+Long dialogue scripts (over 5000 characters) are automatically split into batches and concatenated via FFmpeg.
+
 2. Start the application:
 
 ```bash
