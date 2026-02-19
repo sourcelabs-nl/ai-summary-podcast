@@ -82,7 +82,7 @@ This uses the default Ollama base URL (`http://localhost:11434`). You can omit `
 
 ### Using ElevenLabs instead of OpenAI for TTS
 
-[ElevenLabs](https://elevenlabs.io/) offers high-quality voices and multi-speaker dialogue via the Text-to-Dialogue API — ideal for the `dialogue` briefing style. ElevenLabs does not use a global env var; each user configures their own API key.
+[ElevenLabs](https://elevenlabs.io/) offers high-quality voices and multi-speaker dialogue via the Text-to-Dialogue API — ideal for the `dialogue` briefing style. The global `ELEVENLABS_API_KEY` works as a fallback, or users can configure their own API key.
 
 1. **Get an API key** from https://elevenlabs.io/app/settings/api-keys
 
@@ -127,7 +127,7 @@ curl -X POST http://localhost:8080/users/{userId}/podcasts \
 
 Long dialogue scripts (over 5000 characters) are automatically split into batches and concatenated via FFmpeg.
 
-2. Start the application:
+### Starting the Application
 
 ```bash
 ./start.sh        # runs in background, logs to app.log
@@ -179,19 +179,11 @@ Two TTS providers are supported: **OpenAI** (default) and **ElevenLabs**.
 
 **OpenAI** — Works out of the box with the global `OPENAI_API_KEY`. Voices: `alloy`, `echo`, `fable`, `nova`, `onyx`, `shimmer`. Settings: `{"speed": 1.25}`.
 
-**ElevenLabs** — Requires a per-user API key configured via the provider API (see below). Supports single-voice monologue and multi-speaker dialogue. Use `GET /users/{userId}/voices?provider=elevenlabs` to discover available voice IDs.
+**ElevenLabs** — Uses the global `ELEVENLABS_API_KEY` as fallback, or a per-user key configured via the provider API (see [Setup](#using-elevenlabs-instead-of-openai-for-tts)). Supports single-voice monologue and multi-speaker dialogue. Use `GET /users/{userId}/voices?provider=elevenlabs` to discover available voice IDs.
 
 Voice configuration uses the `ttsVoices` map:
 - Monologue: `{"default": "nova"}` (or any ElevenLabs voice ID)
 - Dialogue: `{"host": "<voice_id>", "cohost": "<voice_id>"}` — the key names become the speaker tags in the generated script
-
-To set up ElevenLabs:
-
-```bash
-curl -X PUT http://localhost:8080/users/{userId}/api-keys/TTS \
-  -H 'Content-Type: application/json' \
-  -d '{"provider": "elevenlabs", "apiKey": "<your-elevenlabs-key>"}'
-```
 
 ### Model Configuration
 
