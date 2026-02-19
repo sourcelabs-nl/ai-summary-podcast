@@ -42,7 +42,8 @@ class ElevenLabsDialogueTtsProvider(
         return TtsResult(
             audioChunks = audioChunks,
             totalCharacters = totalCharacters,
-            requiresConcatenation = batches.size > 1
+            requiresConcatenation = batches.size > 1,
+            model = "eleven_flash_v2_5"
         )
     }
 

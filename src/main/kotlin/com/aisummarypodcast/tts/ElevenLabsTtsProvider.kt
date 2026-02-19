@@ -25,6 +25,6 @@ class ElevenLabsTtsProvider(
             apiClient.textToSpeech(request.userId, voiceId, chunk, voiceSettings)
         }
 
-        return TtsResult(audioChunks, totalCharacters, requiresConcatenation = chunks.size > 1)
+        return TtsResult(audioChunks, totalCharacters, requiresConcatenation = chunks.size > 1, model = "eleven_flash_v2_5")
     }
 }

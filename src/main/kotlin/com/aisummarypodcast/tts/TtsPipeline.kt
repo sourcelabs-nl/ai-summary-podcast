@@ -42,7 +42,8 @@ class TtsPipeline(
                 audioFilePath = outputPath.toString(),
                 durationSeconds = duration,
                 ttsCharacters = ttsResult.totalCharacters,
-                ttsCostCents = ttsCostCents
+                ttsCostCents = ttsCostCents,
+                ttsModel = ttsResult.model
             )
         )
 
@@ -65,7 +66,8 @@ class TtsPipeline(
                 audioFilePath = outputPath.toString(),
                 durationSeconds = duration,
                 ttsCharacters = ttsResult.totalCharacters,
-                ttsCostCents = ttsCostCents
+                ttsCostCents = ttsCostCents,
+                ttsModel = ttsResult.model
             )
         )
 

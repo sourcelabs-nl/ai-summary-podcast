@@ -20,7 +20,8 @@ data class EpisodeResponse(
     val llmOutputTokens: Int?,
     val llmCostCents: Int?,
     val ttsCharacters: Int?,
-    val ttsCostCents: Int?
+    val ttsCostCents: Int?,
+    val ttsModel: String?
 )
 
 data class UpdateScriptRequest(
@@ -159,6 +160,7 @@ class EpisodeController(
         llmOutputTokens = llmOutputTokens,
         llmCostCents = llmCostCents,
         ttsCharacters = ttsCharacters,
-        ttsCostCents = ttsCostCents
+        ttsCostCents = ttsCostCents,
+        ttsModel = ttsModel
     )
 }

@@ -39,7 +39,7 @@ class OpenAiTtsProvider(
             response.result.output
         }
 
-        return TtsResult(audioChunks, totalCharacters, requiresConcatenation = chunks.size > 1)
+        return TtsResult(audioChunks, totalCharacters, requiresConcatenation = chunks.size > 1, model = "tts-1")
     }
 
     private fun createSpeechModel(userId: String): OpenAiAudioSpeechModel {

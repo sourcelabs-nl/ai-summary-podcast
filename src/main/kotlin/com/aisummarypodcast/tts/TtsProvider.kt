@@ -11,7 +11,8 @@ data class TtsRequest(
 data class TtsResult(
     val audioChunks: List<ByteArray>,
     val totalCharacters: Int,
-    val requiresConcatenation: Boolean
+    val requiresConcatenation: Boolean,
+    val model: String
 )
 
 interface TtsProvider {
