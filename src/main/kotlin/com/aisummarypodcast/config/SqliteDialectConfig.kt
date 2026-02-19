@@ -1,5 +1,8 @@
 package com.aisummarypodcast.config
 
+import com.aisummarypodcast.store.PodcastStyle
+import com.aisummarypodcast.store.SourceType
+import com.aisummarypodcast.store.TtsProviderType
 import tools.jackson.module.kotlin.jacksonObjectMapper
 import tools.jackson.module.kotlin.readValue
 import org.springframework.context.annotation.Bean
@@ -31,7 +34,13 @@ class SqliteDialectConfig {
                 IntegerToBooleanConverter(),
                 BooleanToIntegerConverter(),
                 StringToMapConverter(),
-                MapToStringConverter()
+                MapToStringConverter(),
+                StringToPodcastStyleConverter(),
+                PodcastStyleToStringConverter(),
+                StringToTtsProviderTypeConverter(),
+                TtsProviderTypeToStringConverter(),
+                StringToSourceTypeConverter(),
+                SourceTypeToStringConverter()
             )
         )
     }
@@ -56,5 +65,38 @@ class SqliteDialectConfig {
     class MapToStringConverter : Converter<Map<String, String>, String> {
         private val objectMapper = jacksonObjectMapper()
         override fun convert(source: Map<String, String>): String = objectMapper.writeValueAsString(source)
+    }
+
+    @ReadingConverter
+    class StringToPodcastStyleConverter : Converter<String, PodcastStyle> {
+        override fun convert(source: String): PodcastStyle =
+            PodcastStyle.fromValue(source) ?: throw IllegalArgumentException("Unknown podcast style: $source")
+    }
+
+    @WritingConverter
+    class PodcastStyleToStringConverter : Converter<PodcastStyle, String> {
+        override fun convert(source: PodcastStyle): String = source.value
+    }
+
+    @ReadingConverter
+    class StringToTtsProviderTypeConverter : Converter<String, TtsProviderType> {
+        override fun convert(source: String): TtsProviderType =
+            TtsProviderType.fromValue(source) ?: throw IllegalArgumentException("Unknown TTS provider: $source")
+    }
+
+    @WritingConverter
+    class TtsProviderTypeToStringConverter : Converter<TtsProviderType, String> {
+        override fun convert(source: TtsProviderType): String = source.value
+    }
+
+    @ReadingConverter
+    class StringToSourceTypeConverter : Converter<String, SourceType> {
+        override fun convert(source: String): SourceType =
+            SourceType.fromValue(source) ?: throw IllegalArgumentException("Unknown source type: $source")
+    }
+
+    @WritingConverter
+    class SourceTypeToStringConverter : Converter<SourceType, String> {
+        override fun convert(source: SourceType): String = source.value
     }
 }

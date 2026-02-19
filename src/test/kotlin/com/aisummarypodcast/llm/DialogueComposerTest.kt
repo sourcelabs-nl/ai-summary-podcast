@@ -8,6 +8,8 @@ import com.aisummarypodcast.config.FeedProperties
 import com.aisummarypodcast.config.LlmProperties
 import com.aisummarypodcast.store.Article
 import com.aisummarypodcast.store.Podcast
+import com.aisummarypodcast.store.PodcastStyle
+import com.aisummarypodcast.store.TtsProviderType
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -27,8 +29,8 @@ class DialogueComposerTest {
 
     private val podcast = Podcast(
         id = "p1", userId = "u1", name = "Tech Talk", topic = "tech",
-        style = "dialogue",
-        ttsProvider = "elevenlabs",
+        style = PodcastStyle.DIALOGUE,
+        ttsProvider = TtsProviderType.ELEVENLABS,
         ttsVoices = mapOf("host" to "v1", "cohost" to "v2")
     )
 

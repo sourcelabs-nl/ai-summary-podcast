@@ -4,6 +4,7 @@ import com.aisummarypodcast.config.AppProperties
 import com.aisummarypodcast.store.PostRepository
 import com.aisummarypodcast.store.Source
 import com.aisummarypodcast.store.SourceRepository
+import com.aisummarypodcast.store.SourceType
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import java.security.MessageDigest
@@ -27,9 +28,9 @@ class SourcePoller(
 
         try {
             val rawPosts = when (source.type) {
-                "rss" -> rssFeedFetcher.fetch(source.url, source.id, source.lastSeenId, source.categoryFilter)
-                "website" -> listOfNotNull(websiteFetcher.fetch(source.url, source.id))
-                "twitter" -> {
+                SourceType.RSS -> rssFeedFetcher.fetch(source.url, source.id, source.lastSeenId, source.categoryFilter)
+                SourceType.WEBSITE -> listOfNotNull(websiteFetcher.fetch(source.url, source.id))
+                SourceType.TWITTER -> {
                     if (userId == null) {
                         log.warn("[Polling] Twitter source {} requires user context for OAuth — skipping", source.url)
                         emptyList()
@@ -37,10 +38,7 @@ class SourcePoller(
                         twitterFetcher.fetch(source.url, source.id, source.lastSeenId, userId)
                     }
                 }
-                else -> {
-                    log.warn("[Polling] Unknown source type: {}", source.type)
-                    emptyList()
-                }
+                // No else branch needed - all SourceType values are handled
             }
 
             var latestTimestamp = source.lastSeenId
@@ -82,7 +80,7 @@ class SourcePoller(
                 }
             }
 
-            val newLastSeenId = if (source.type == "twitter" && userId != null) {
+            val newLastSeenId = if (source.type == SourceType.TWITTER && userId != null) {
                 twitterFetcher.buildLastSeenId(source.lastSeenId, rawPosts, source.url, userId)
             } else {
                 latestTimestamp

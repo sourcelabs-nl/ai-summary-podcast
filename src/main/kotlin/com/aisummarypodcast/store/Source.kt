@@ -8,7 +8,7 @@ import org.springframework.data.relational.core.mapping.Table
 data class Source(
     @Id val id: String,
     val podcastId: String,
-    val type: String,
+    val type: SourceType,
     val url: String,
     val pollIntervalMinutes: Int = 30,
     val enabled: Boolean = true,

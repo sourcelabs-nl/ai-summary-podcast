@@ -3,7 +3,9 @@ package com.aisummarypodcast.publishing
 import com.aisummarypodcast.store.Episode
 import com.aisummarypodcast.store.EpisodePublication
 import com.aisummarypodcast.store.EpisodePublicationRepository
+import com.aisummarypodcast.store.EpisodeStatus
 import com.aisummarypodcast.store.Podcast
+import com.aisummarypodcast.store.PublicationStatus
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import java.time.Instant
@@ -20,7 +22,7 @@ class PublishingService(
         val publisher = publisherRegistry.getPublisher(target)
             ?: throw IllegalArgumentException("Unsupported publish target: $target")
 
-        if (episode.status != "GENERATED") {
+        if (episode.status != EpisodeStatus.GENERATED) {
             throw IllegalStateException("Episode must be in GENERATED status to publish (current: ${episode.status})")
         }
 
@@ -29,7 +31,7 @@ class PublishingService(
         }
 
         val existing = publicationRepository.findByEpisodeIdAndTarget(episode.id!!, target)
-        if (existing?.status == "PUBLISHED") {
+        if (existing?.status == PublicationStatus.PUBLISHED) {
             throw IllegalStateException("Episode is already published to $target")
         }
 
@@ -39,7 +41,7 @@ class PublishingService(
                 id = existing?.id,
                 episodeId = episode.id,
                 target = target,
-                status = "PENDING",
+                status = PublicationStatus.PENDING,
                 createdAt = existing?.createdAt ?: now
             )
         )
@@ -50,7 +52,7 @@ class PublishingService(
 
             val published = publicationRepository.save(
                 publication.copy(
-                    status = "PUBLISHED",
+                    status = PublicationStatus.PUBLISHED,
                     externalId = result.externalId,
                     externalUrl = result.externalUrl,
                     publishedAt = Instant.now().toString()
@@ -62,7 +64,7 @@ class PublishingService(
             log.error("Failed to publish episode {} to {}: {}", episode.id, target, e.message, e)
             publicationRepository.save(
                 publication.copy(
-                    status = "FAILED",
+                    status = PublicationStatus.FAILED,
                     errorMessage = e.message
                 )
             )

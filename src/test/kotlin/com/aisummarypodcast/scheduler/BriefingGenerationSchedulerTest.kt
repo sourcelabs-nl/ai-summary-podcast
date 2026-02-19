@@ -4,7 +4,7 @@ import com.aisummarypodcast.llm.LlmPipeline
 import com.aisummarypodcast.llm.PipelineResult
 import com.aisummarypodcast.podcast.EpisodeService
 import com.aisummarypodcast.store.Episode
-import com.aisummarypodcast.store.EpisodeRepository
+import com.aisummarypodcast.store.EpisodeStatus
 import com.aisummarypodcast.store.Podcast
 import com.aisummarypodcast.store.PodcastRepository
 import io.mockk.*
@@ -15,11 +15,10 @@ class BriefingGenerationSchedulerTest {
 
     private val podcastRepository = mockk<PodcastRepository>()
     private val llmPipeline = mockk<LlmPipeline>()
-    private val episodeRepository = mockk<EpisodeRepository>()
     private val episodeService = mockk<EpisodeService>()
 
     private val scheduler = BriefingGenerationScheduler(
-        podcastRepository, llmPipeline, episodeRepository, episodeService
+        podcastRepository, llmPipeline, episodeService
     )
 
     private fun duePodcast(requireReview: Boolean = false) = Podcast(
@@ -34,9 +33,7 @@ class BriefingGenerationSchedulerTest {
         val podcast = duePodcast(requireReview = true)
         every { podcastRepository.findAll() } returns listOf(podcast)
         every { podcastRepository.findById("p1") } returns java.util.Optional.of(podcast)
-        every { episodeRepository.findByPodcastIdAndStatusIn("p1", listOf("PENDING_REVIEW", "APPROVED")) } returns listOf(
-            Episode(id = 1, podcastId = "p1", generatedAt = Instant.now().toString(), scriptText = "script", status = "PENDING_REVIEW")
-        )
+        every { episodeService.hasPendingOrApprovedEpisode("p1") } returns true
 
         scheduler.checkAndGenerate()
 
@@ -48,9 +45,7 @@ class BriefingGenerationSchedulerTest {
         val podcast = duePodcast(requireReview = true)
         every { podcastRepository.findAll() } returns listOf(podcast)
         every { podcastRepository.findById("p1") } returns java.util.Optional.of(podcast)
-        every { episodeRepository.findByPodcastIdAndStatusIn("p1", listOf("PENDING_REVIEW", "APPROVED")) } returns listOf(
-            Episode(id = 1, podcastId = "p1", generatedAt = Instant.now().toString(), scriptText = "script", status = "APPROVED")
-        )
+        every { episodeService.hasPendingOrApprovedEpisode("p1") } returns true
 
         scheduler.checkAndGenerate()
 
@@ -83,11 +78,11 @@ class BriefingGenerationSchedulerTest {
             script = "Script", filterModel = "filter", composeModel = "compose",
             processedArticleIds = listOf(10L, 20L)
         )
-        val episode = Episode(id = 7, podcastId = "p1", generatedAt = Instant.now().toString(), scriptText = "Script", status = "PENDING_REVIEW")
+        val episode = Episode(id = 7, podcastId = "p1", generatedAt = Instant.now().toString(), scriptText = "Script", status = EpisodeStatus.PENDING_REVIEW)
 
         every { podcastRepository.findAll() } returns listOf(podcast)
         every { podcastRepository.findById("p1") } returns java.util.Optional.of(podcast)
-        every { episodeRepository.findByPodcastIdAndStatusIn("p1", listOf("PENDING_REVIEW", "APPROVED")) } returns emptyList()
+        every { episodeService.hasPendingOrApprovedEpisode("p1") } returns false
         every { llmPipeline.run(podcast) } returns pipelineResult
         every { episodeService.createEpisodeFromPipelineResult(podcast, pipelineResult) } returns episode
 

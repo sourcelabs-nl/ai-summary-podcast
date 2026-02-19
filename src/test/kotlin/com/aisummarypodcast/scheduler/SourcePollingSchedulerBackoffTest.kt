@@ -14,6 +14,7 @@ import com.aisummarypodcast.store.PostRepository
 import com.aisummarypodcast.store.Podcast
 import com.aisummarypodcast.store.Source
 import com.aisummarypodcast.store.SourceRepository
+import com.aisummarypodcast.store.SourceType
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -54,31 +55,31 @@ class SourcePollingSchedulerBackoffTest {
 
     @Test
     fun `effectivePollIntervalMinutes returns normal interval when no failures`() {
-        val source = Source(id = "s1", podcastId = "p1", type = "rss", url = "u", pollIntervalMinutes = 60, consecutiveFailures = 0)
+        val source = Source(id = "s1", podcastId = "p1", type = SourceType.RSS, url = "u", pollIntervalMinutes = 60, consecutiveFailures = 0)
         assertEquals(60L, scheduler().effectivePollIntervalMinutes(source))
     }
 
     @Test
     fun `effectivePollIntervalMinutes doubles on first failure`() {
-        val source = Source(id = "s1", podcastId = "p1", type = "rss", url = "u", pollIntervalMinutes = 60, consecutiveFailures = 1)
+        val source = Source(id = "s1", podcastId = "p1", type = SourceType.RSS, url = "u", pollIntervalMinutes = 60, consecutiveFailures = 1)
         assertEquals(120L, scheduler().effectivePollIntervalMinutes(source))
     }
 
     @Test
     fun `effectivePollIntervalMinutes is 8x on third failure`() {
-        val source = Source(id = "s1", podcastId = "p1", type = "rss", url = "u", pollIntervalMinutes = 60, consecutiveFailures = 3)
+        val source = Source(id = "s1", podcastId = "p1", type = SourceType.RSS, url = "u", pollIntervalMinutes = 60, consecutiveFailures = 3)
         assertEquals(480L, scheduler().effectivePollIntervalMinutes(source))
     }
 
     @Test
     fun `effectivePollIntervalMinutes is capped at maxBackoffHours`() {
-        val source = Source(id = "s1", podcastId = "p1", type = "rss", url = "u", pollIntervalMinutes = 60, consecutiveFailures = 10)
+        val source = Source(id = "s1", podcastId = "p1", type = SourceType.RSS, url = "u", pollIntervalMinutes = 60, consecutiveFailures = 10)
         assertEquals(1440L, scheduler(maxBackoffHours = 24).effectivePollIntervalMinutes(source))
     }
 
     @Test
     fun `effectivePollIntervalMinutes respects custom maxBackoffHours`() {
-        val source = Source(id = "s1", podcastId = "p1", type = "rss", url = "u", pollIntervalMinutes = 60, consecutiveFailures = 10)
+        val source = Source(id = "s1", podcastId = "p1", type = SourceType.RSS, url = "u", pollIntervalMinutes = 60, consecutiveFailures = 10)
         assertEquals(360L, scheduler(maxBackoffHours = 6).effectivePollIntervalMinutes(source))
     }
 
@@ -87,7 +88,7 @@ class SourcePollingSchedulerBackoffTest {
     @Test
     fun `source with failures is skipped when backoff interval has not elapsed`() = runTest {
         val source = Source(
-            id = "s1", podcastId = "p1", type = "rss", url = "u",
+            id = "s1", podcastId = "p1", type = SourceType.RSS, url = "u",
             pollIntervalMinutes = 60, consecutiveFailures = 2,
             lastPolled = Instant.now().minus(100, ChronoUnit.MINUTES).toString(),
             enabled = true
@@ -102,7 +103,7 @@ class SourcePollingSchedulerBackoffTest {
     @Test
     fun `source with failures is polled when backoff interval has elapsed`() = runTest {
         val source = Source(
-            id = "s1", podcastId = "p1", type = "rss", url = "u",
+            id = "s1", podcastId = "p1", type = SourceType.RSS, url = "u",
             pollIntervalMinutes = 60, consecutiveFailures = 1,
             lastPolled = Instant.now().minus(130, ChronoUnit.MINUTES).toString(),
             enabled = true
@@ -118,7 +119,7 @@ class SourcePollingSchedulerBackoffTest {
     @Test
     fun `per-source maxBackoffHours override is respected`() {
         val source = Source(
-            id = "s1", podcastId = "p1", type = "rss", url = "u",
+            id = "s1", podcastId = "p1", type = SourceType.RSS, url = "u",
             pollIntervalMinutes = 60, consecutiveFailures = 10,
             maxBackoffHours = 48
         )

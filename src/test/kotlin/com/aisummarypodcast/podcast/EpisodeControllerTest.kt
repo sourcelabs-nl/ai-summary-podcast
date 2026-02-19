@@ -1,19 +1,15 @@
 package com.aisummarypodcast.podcast
 
 import com.aisummarypodcast.config.AppProperties
-import com.aisummarypodcast.store.Article
-import com.aisummarypodcast.store.ArticleRepository
 import com.aisummarypodcast.store.Episode
-import com.aisummarypodcast.store.EpisodeArticle
-import com.aisummarypodcast.store.EpisodeArticleRepository
 import com.aisummarypodcast.store.EpisodeRepository
+import com.aisummarypodcast.store.EpisodeStatus
 import com.aisummarypodcast.store.Podcast
 import com.aisummarypodcast.store.User
 import com.aisummarypodcast.user.UserService
 import com.ninjasquad.springmockk.MockkBean
 import io.mockk.every
 import io.mockk.justRun
-import io.mockk.slot
 import io.mockk.verify
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -42,12 +38,6 @@ class EpisodeControllerTest {
     @MockkBean
     private lateinit var episodeService: EpisodeService
 
-    @MockkBean
-    private lateinit var episodeArticleRepository: EpisodeArticleRepository
-
-    @MockkBean
-    private lateinit var articleRepository: ArticleRepository
-
     @MockkBean(relaxed = true)
     private lateinit var appProperties: AppProperties
 
@@ -58,12 +48,12 @@ class EpisodeControllerTest {
 
     private val pendingEpisode = Episode(
         id = 1L, podcastId = podcastId, generatedAt = "2025-01-01T00:00:00Z",
-        scriptText = "Test script", status = "PENDING_REVIEW"
+        scriptText = "Test script", status = EpisodeStatus.PENDING_REVIEW
     )
 
     private val generatedEpisode = Episode(
         id = 2L, podcastId = podcastId, generatedAt = "2025-01-01T00:00:00Z",
-        scriptText = "Test script", status = "GENERATED",
+        scriptText = "Test script", status = EpisodeStatus.GENERATED,
         audioFilePath = "/audio/test.mp3", durationSeconds = 120
     )
 
@@ -169,7 +159,7 @@ class EpisodeControllerTest {
 
     @Test
     fun `approve failed episode returns 202`() {
-        val failedEpisode = pendingEpisode.copy(status = "FAILED")
+        val failedEpisode = pendingEpisode.copy(status = EpisodeStatus.FAILED)
         every { userService.findById(userId) } returns user
         every { podcastService.findById(podcastId) } returns podcast
         every { episodeRepository.findById(1L) } returns Optional.of(failedEpisode)
@@ -191,51 +181,16 @@ class EpisodeControllerTest {
     }
 
     @Test
-    fun `discard pending episode`() {
+    fun `discard pending episode delegates to service`() {
         every { userService.findById(userId) } returns user
         every { podcastService.findById(podcastId) } returns podcast
         every { episodeRepository.findById(1L) } returns Optional.of(pendingEpisode)
-        every { episodeRepository.save(any()) } answers { firstArg() }
-        every { episodeArticleRepository.findByEpisodeId(1L) } returns emptyList()
-
-        mockMvc.perform(post("/users/$userId/podcasts/$podcastId/episodes/1/discard"))
-            .andExpect(status().isOk)
-    }
-
-    @Test
-    fun `discard pending episode resets linked articles for reprocessing`() {
-        val article1 = Article(
-            id = 10L, sourceId = "src-1", title = "Article 1", body = "body",
-            url = "https://example.com/1", contentHash = "hash1", isProcessed = true
-        )
-        val article2 = Article(
-            id = 20L, sourceId = "src-1", title = "Article 2", body = "body",
-            url = "https://example.com/2", contentHash = "hash2", isProcessed = true
-        )
-        val links = listOf(
-            EpisodeArticle(id = 1L, episodeId = 1L, articleId = 10L),
-            EpisodeArticle(id = 2L, episodeId = 1L, articleId = 20L)
-        )
-
-        every { userService.findById(userId) } returns user
-        every { podcastService.findById(podcastId) } returns podcast
-        every { episodeRepository.findById(1L) } returns Optional.of(pendingEpisode)
-        every { episodeRepository.save(any()) } answers { firstArg() }
-        every { episodeArticleRepository.findByEpisodeId(1L) } returns links
-        every { articleRepository.findById(10L) } returns Optional.of(article1)
-        every { articleRepository.findById(20L) } returns Optional.of(article2)
-        val savedArticles = mutableListOf<Article>()
-        every { articleRepository.save(any()) } answers {
-            val article = firstArg<Article>()
-            savedArticles.add(article)
-            article
-        }
+        justRun { episodeService.discardAndResetArticles(pendingEpisode) }
 
         mockMvc.perform(post("/users/$userId/podcasts/$podcastId/episodes/1/discard"))
             .andExpect(status().isOk)
 
-        assert(savedArticles.size == 2) { "Expected 2 articles to be saved, got ${savedArticles.size}" }
-        assert(savedArticles.all { !it.isProcessed }) { "Expected all articles to have isProcessed = false" }
+        verify { episodeService.discardAndResetArticles(pendingEpisode) }
     }
 
     @Test

@@ -6,6 +6,7 @@ import com.aisummarypodcast.store.Post
 import com.aisummarypodcast.store.PostArticle
 import com.aisummarypodcast.store.PostArticleRepository
 import com.aisummarypodcast.store.Source
+import com.aisummarypodcast.store.SourceType
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
@@ -29,7 +30,7 @@ class SourceAggregatorTest {
     private val aggregator = SourceAggregator(articleRepository, postArticleRepository)
 
     private fun source(
-        type: String = "rss",
+        type: SourceType = SourceType.RSS,
         url: String = "https://nitter.net/simonw/rss",
         aggregate: Boolean? = null
     ) = Source(id = "s1", podcastId = "p1", type = type, url = url, aggregate = aggregate)
@@ -158,7 +159,7 @@ class SourceAggregatorTest {
             post(id = 2, body = "Article 2")
         )
 
-        aggregator.aggregateAndPersist(posts, source(type = "rss", url = "https://example.com/feed.xml"))
+        aggregator.aggregateAndPersist(posts, source(type = SourceType.RSS, url = "https://example.com/feed.xml"))
 
         verify(exactly = 2) { postArticleRepository.save(any()) }
         verify(exactly = 2) { articleRepository.save(any()) }
@@ -171,7 +172,7 @@ class SourceAggregatorTest {
             post(id = 2, body = "Post 2")
         )
 
-        val result = aggregator.aggregateAndPersist(posts, source(type = "rss", url = "https://example.com/feed.xml"))
+        val result = aggregator.aggregateAndPersist(posts, source(type = SourceType.RSS, url = "https://example.com/feed.xml"))
 
         assertEquals(2, result.size)
     }
@@ -180,26 +181,26 @@ class SourceAggregatorTest {
 
     @Test
     fun `shouldAggregate returns true for twitter type with null override`() {
-        assertTrue(aggregator.shouldAggregate(source(type = "twitter", url = "simonw", aggregate = null)))
+        assertTrue(aggregator.shouldAggregate(source(type = SourceType.TWITTER, url = "simonw", aggregate = null)))
     }
 
     @Test
     fun `shouldAggregate returns true for nitter URL with null override`() {
-        assertTrue(aggregator.shouldAggregate(source(type = "rss", url = "https://nitter.net/user/rss", aggregate = null)))
+        assertTrue(aggregator.shouldAggregate(source(type = SourceType.RSS, url = "https://nitter.net/user/rss", aggregate = null)))
     }
 
     @Test
     fun `shouldAggregate returns false for regular RSS with null override`() {
-        assertFalse(aggregator.shouldAggregate(source(type = "rss", url = "https://example.com/feed.xml", aggregate = null)))
+        assertFalse(aggregator.shouldAggregate(source(type = SourceType.RSS, url = "https://example.com/feed.xml", aggregate = null)))
     }
 
     @Test
     fun `shouldAggregate returns true when explicit override is true`() {
-        assertTrue(aggregator.shouldAggregate(source(type = "rss", url = "https://example.com/feed.xml", aggregate = true)))
+        assertTrue(aggregator.shouldAggregate(source(type = SourceType.RSS, url = "https://example.com/feed.xml", aggregate = true)))
     }
 
     @Test
     fun `shouldAggregate returns false when explicit override is false`() {
-        assertFalse(aggregator.shouldAggregate(source(type = "twitter", url = "simonw", aggregate = false)))
+        assertFalse(aggregator.shouldAggregate(source(type = SourceType.TWITTER, url = "simonw", aggregate = false)))
     }
 }

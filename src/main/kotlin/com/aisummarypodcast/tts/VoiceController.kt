@@ -1,5 +1,6 @@
 package com.aisummarypodcast.tts
 
+import com.aisummarypodcast.store.TtsProviderType
 import com.aisummarypodcast.user.UserService
 import org.slf4j.LoggerFactory
 import org.springframework.http.ResponseEntity
@@ -23,7 +24,7 @@ class VoiceController(
     ): ResponseEntity<Any> {
         userService.findById(userId) ?: return ResponseEntity.notFound().build()
 
-        if (provider != "elevenlabs") {
+        if (provider != TtsProviderType.ELEVENLABS.value) {
             return ResponseEntity.badRequest().body(mapOf("error" to "Voice discovery is only supported for the 'elevenlabs' provider"))
         }
 

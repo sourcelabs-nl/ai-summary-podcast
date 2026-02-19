@@ -1,6 +1,7 @@
 package com.aisummarypodcast.source
 
 import com.aisummarypodcast.podcast.PodcastService
+import com.aisummarypodcast.store.SourceType
 import com.aisummarypodcast.user.UserService
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
@@ -68,7 +69,9 @@ class SourceController(
         val podcast = podcastService.findById(podcastId) ?: return ResponseEntity.notFound().build()
         if (podcast.userId != userId) return ResponseEntity.notFound().build()
 
-        val source = sourceService.create(podcastId, request.type, request.url, request.pollIntervalMinutes, request.enabled, request.aggregate, request.maxFailures, request.maxBackoffHours, request.pollDelaySeconds, request.categoryFilter)
+        val sourceType = SourceType.fromValue(request.type)
+            ?: return ResponseEntity.badRequest().build()
+        val source = sourceService.create(podcastId, sourceType, request.url, request.pollIntervalMinutes, request.enabled, request.aggregate, request.maxFailures, request.maxBackoffHours, request.pollDelaySeconds, request.categoryFilter)
         return ResponseEntity.created(URI.create("/users/$userId/podcasts/$podcastId/sources/${source.id}"))
             .body(source.toResponse())
     }
@@ -96,7 +99,9 @@ class SourceController(
         val source = sourceService.findById(sourceId) ?: return ResponseEntity.notFound().build()
         if (source.podcastId != podcastId) return ResponseEntity.notFound().build()
 
-        val updated = sourceService.update(sourceId, request.type, request.url, request.pollIntervalMinutes, request.enabled, request.aggregate, request.maxFailures, request.maxBackoffHours, request.pollDelaySeconds, request.categoryFilter)
+        val sourceType = SourceType.fromValue(request.type)
+            ?: return ResponseEntity.badRequest().build()
+        val updated = sourceService.update(sourceId, sourceType, request.url, request.pollIntervalMinutes, request.enabled, request.aggregate, request.maxFailures, request.maxBackoffHours, request.pollDelaySeconds, request.categoryFilter)
             ?: return ResponseEntity.notFound().build()
         return ResponseEntity.ok(updated.toResponse())
     }
@@ -119,7 +124,7 @@ class SourceController(
     }
 
     private fun com.aisummarypodcast.store.Source.toResponse() = SourceResponse(
-        id = id, podcastId = podcastId, type = type, url = url,
+        id = id, podcastId = podcastId, type = type.value, url = url,
         pollIntervalMinutes = pollIntervalMinutes, enabled = enabled, aggregate = aggregate,
         maxFailures = maxFailures, maxBackoffHours = maxBackoffHours, pollDelaySeconds = pollDelaySeconds,
         categoryFilter = categoryFilter, createdAt = createdAt, lastPolled = lastPolled, lastSeenId = lastSeenId,

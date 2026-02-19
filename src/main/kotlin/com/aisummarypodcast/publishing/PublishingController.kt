@@ -85,7 +85,7 @@ class PublishingController(
         id = id!!,
         episodeId = episodeId,
         target = target,
-        status = status,
+        status = status.name,
         externalId = externalId,
         externalUrl = externalUrl,
         errorMessage = errorMessage,

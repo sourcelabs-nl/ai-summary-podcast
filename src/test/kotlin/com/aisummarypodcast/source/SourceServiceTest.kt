@@ -4,6 +4,7 @@ import com.aisummarypodcast.store.ArticleRepository
 import com.aisummarypodcast.store.PostRepository
 import com.aisummarypodcast.store.Source
 import com.aisummarypodcast.store.SourceRepository
+import com.aisummarypodcast.store.SourceType
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
@@ -27,13 +28,13 @@ class SourceServiceTest {
     @Test
     fun `re-enabling a disabled source clears failure tracking`() {
         val disabledSource = Source(
-            id = "s1", podcastId = "p1", type = "rss", url = "https://example.com/feed",
+            id = "s1", podcastId = "p1", type = SourceType.RSS, url = "https://example.com/feed",
             enabled = false, consecutiveFailures = 5, lastFailureType = "permanent",
             disabledReason = "Auto-disabled after 5 consecutive HTTP 404 Not Found errors"
         )
         every { sourceRepository.findById("s1") } returns Optional.of(disabledSource)
 
-        service.update("s1", "rss", "https://example.com/feed", 60, enabled = true)
+        service.update("s1", SourceType.RSS, "https://example.com/feed", 60, enabled = true)
 
         assertTrue(sourceSlot.captured.enabled)
         assertEquals(0, sourceSlot.captured.consecutiveFailures)
@@ -44,12 +45,12 @@ class SourceServiceTest {
     @Test
     fun `updating an already-enabled source does not reset failure tracking`() {
         val source = Source(
-            id = "s1", podcastId = "p1", type = "rss", url = "https://example.com/feed",
+            id = "s1", podcastId = "p1", type = SourceType.RSS, url = "https://example.com/feed",
             enabled = true, consecutiveFailures = 2, lastFailureType = "transient"
         )
         every { sourceRepository.findById("s1") } returns Optional.of(source)
 
-        service.update("s1", "rss", "https://example.com/new-feed", 60, enabled = true)
+        service.update("s1", SourceType.RSS, "https://example.com/new-feed", 60, enabled = true)
 
         assertEquals(2, sourceSlot.captured.consecutiveFailures)
         assertEquals("transient", sourceSlot.captured.lastFailureType)

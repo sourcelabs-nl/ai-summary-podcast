@@ -5,6 +5,7 @@ import com.aisummarypodcast.config.ModelDefinition
 import com.aisummarypodcast.podcast.SupportedLanguage
 import com.aisummarypodcast.store.Article
 import com.aisummarypodcast.store.Podcast
+import com.aisummarypodcast.store.PodcastStyle
 import org.slf4j.LoggerFactory
 import org.springframework.ai.openai.OpenAiChatOptions
 import org.springframework.stereotype.Component
@@ -29,14 +30,14 @@ class BriefingComposer(
     private val log = LoggerFactory.getLogger(javaClass)
 
     private val stylePrompts = mapOf(
-        "news-briefing" to "You are a professional news anchor creating an audio briefing. Use a structured, authoritative tone with smooth transitions between topics.",
-        "casual" to "You are a friendly podcast host having a casual chat. Use a conversational, relaxed tone as if talking to a friend.",
-        "deep-dive" to "You are an analytical podcast host doing a deep-dive exploration. Provide in-depth analysis and thoughtful commentary on each topic.",
-        "executive-summary" to "You are creating a concise executive summary. Be fact-focused with minimal commentary. Get straight to the point."
+        PodcastStyle.NEWS_BRIEFING to "You are a professional news anchor creating an audio briefing. Use a structured, authoritative tone with smooth transitions between topics.",
+        PodcastStyle.CASUAL to "You are a friendly podcast host having a casual chat. Use a conversational, relaxed tone as if talking to a friend.",
+        PodcastStyle.DEEP_DIVE to "You are an analytical podcast host doing a deep-dive exploration. Provide in-depth analysis and thoughtful commentary on each topic.",
+        PodcastStyle.EXECUTIVE_SUMMARY to "You are creating a concise executive summary. Be fact-focused with minimal commentary. Get straight to the point."
     )
 
     fun compose(articles: List<Article>, podcast: Podcast, previousEpisodeRecap: String? = null): CompositionResult {
-        val composeModelDef = modelResolver.resolve(podcast, "compose")
+        val composeModelDef = modelResolver.resolve(podcast, PipelineStage.COMPOSE)
         return compose(articles, podcast, composeModelDef, previousEpisodeRecap)
     }
 
@@ -66,7 +67,7 @@ class BriefingComposer(
 
     internal fun buildPrompt(articles: List<Article>, podcast: Podcast, previousEpisodeRecap: String? = null): String {
         val targetWords = podcast.targetWords ?: appProperties.briefing.targetWords
-        val stylePrompt = stylePrompts[podcast.style] ?: stylePrompts["news-briefing"]!!
+        val stylePrompt = stylePrompts[podcast.style] ?: stylePrompts[PodcastStyle.NEWS_BRIEFING]!!
 
         val summaryBlock = articles.mapIndexed { index, article ->
             val source = extractDomain(article.url)

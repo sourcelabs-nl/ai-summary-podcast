@@ -2,6 +2,7 @@ package com.aisummarypodcast.podcast
 
 import com.aisummarypodcast.config.AppProperties
 import com.aisummarypodcast.store.EpisodeRepository
+import com.aisummarypodcast.store.EpisodeStatus
 import com.aisummarypodcast.store.Podcast
 import com.aisummarypodcast.store.User
 import com.rometools.rome.feed.synd.SyndContentImpl
@@ -38,7 +39,7 @@ class FeedGenerator(
             language = podcast.language
         }
 
-        val episodes = episodeRepository.findByPodcastIdAndStatus(podcast.id, "GENERATED").sortedByDescending { it.generatedAt }
+        val episodes = episodeRepository.findByPodcastIdAndStatus(podcast.id, EpisodeStatus.GENERATED.name).sortedByDescending { it.generatedAt }
 
         feed.entries = episodes.mapNotNull { episode ->
             val audioPath = episode.audioFilePath ?: return@mapNotNull null

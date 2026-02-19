@@ -1,6 +1,7 @@
 package com.aisummarypodcast.llm
 
 import com.aisummarypodcast.config.AppProperties
+import com.aisummarypodcast.llm.PipelineStage
 import com.aisummarypodcast.config.BriefingProperties
 import com.aisummarypodcast.config.EncryptionProperties
 import com.aisummarypodcast.config.EpisodesProperties
@@ -14,10 +15,13 @@ import com.aisummarypodcast.store.ArticleRepository
 import com.aisummarypodcast.store.Episode
 import com.aisummarypodcast.store.EpisodeRepository
 import com.aisummarypodcast.store.Podcast
+import com.aisummarypodcast.store.PodcastStyle
 import com.aisummarypodcast.store.Post
 import com.aisummarypodcast.store.PostRepository
 import com.aisummarypodcast.store.Source
 import com.aisummarypodcast.store.SourceRepository
+import com.aisummarypodcast.store.SourceType
+import com.aisummarypodcast.store.TtsProviderType
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -61,7 +65,7 @@ class LlmPipelineTest {
     )
 
     private val podcast = Podcast(id = "p1", userId = "u1", name = "Tech Daily", topic = "tech", relevanceThreshold = 5)
-    private val source = Source(id = "s1", podcastId = "p1", type = "rss", url = "https://example.com/feed")
+    private val source = Source(id = "s1", podcastId = "p1", type = SourceType.RSS, url = "https://example.com/feed")
 
     @Test
     fun `returns null when podcast has no sources`() {
@@ -75,8 +79,8 @@ class LlmPipelineTest {
     @Test
     fun `returns null when no relevant unprocessed articles exist`() {
         every { sourceRepository.findByPodcastId("p1") } returns listOf(source)
-        every { modelResolver.resolve(podcast, "filter") } returns filterModelDef
-        every { modelResolver.resolve(podcast, "compose") } returns composeModelDef
+        every { modelResolver.resolve(podcast, PipelineStage.FILTER) } returns filterModelDef
+        every { modelResolver.resolve(podcast, PipelineStage.COMPOSE) } returns composeModelDef
         every { postRepository.findUnlinkedBySourceIds(listOf("s1"), any()) } returns emptyList()
         every { articleRepository.findUnscoredBySourceIds(listOf("s1")) } returns emptyList()
         every { articleRepository.findRelevantUnprocessedBySourceIds(listOf("s1"), 5) } returns emptyList()
@@ -100,8 +104,8 @@ class LlmPipelineTest {
         val compositionResult = CompositionResult("Today in tech...", TokenUsage(1000, 500))
 
         every { sourceRepository.findByPodcastId("p1") } returns listOf(source)
-        every { modelResolver.resolve(podcast, "filter") } returns filterModelDef
-        every { modelResolver.resolve(podcast, "compose") } returns composeModelDef
+        every { modelResolver.resolve(podcast, PipelineStage.FILTER) } returns filterModelDef
+        every { modelResolver.resolve(podcast, PipelineStage.COMPOSE) } returns composeModelDef
         every { postRepository.findUnlinkedBySourceIds(listOf("s1"), any()) } returns listOf(unlinkedPost)
         every { sourceAggregator.aggregateAndPersist(listOf(unlinkedPost), source) } returns listOf(createdArticle)
         every { articleRepository.findUnscoredBySourceIds(listOf("s1")) } returns listOf(createdArticle)
@@ -130,8 +134,8 @@ class LlmPipelineTest {
         )
 
         every { sourceRepository.findByPodcastId("p1") } returns listOf(source)
-        every { modelResolver.resolve(podcast, "filter") } returns filterModelDef
-        every { modelResolver.resolve(podcast, "compose") } returns composeModelDef
+        every { modelResolver.resolve(podcast, PipelineStage.FILTER) } returns filterModelDef
+        every { modelResolver.resolve(podcast, PipelineStage.COMPOSE) } returns composeModelDef
         every { postRepository.findUnlinkedBySourceIds(listOf("s1"), any()) } returns emptyList()
         every { articleRepository.findUnscoredBySourceIds(listOf("s1")) } returns emptyList()
         every { articleRepository.findRelevantUnprocessedBySourceIds(listOf("s1"), 5) } returns listOf(article)
@@ -157,8 +161,8 @@ class LlmPipelineTest {
         )
 
         every { sourceRepository.findByPodcastId("p1") } returns listOf(source)
-        every { modelResolver.resolve(podcast, "filter") } returns filterModelDef
-        every { modelResolver.resolve(podcast, "compose") } returns composeModelDef
+        every { modelResolver.resolve(podcast, PipelineStage.FILTER) } returns filterModelDef
+        every { modelResolver.resolve(podcast, PipelineStage.COMPOSE) } returns composeModelDef
         every { postRepository.findUnlinkedBySourceIds(listOf("s1"), any()) } returns emptyList()
         every { articleRepository.findUnscoredBySourceIds(listOf("s1")) } returns emptyList()
         every { articleRepository.findRelevantUnprocessedBySourceIds(listOf("s1"), 5) } returns listOf(scoredArticle)
@@ -178,8 +182,8 @@ class LlmPipelineTest {
         val podcastWith30Days = podcast.copy(maxArticleAgeDays = 30)
 
         every { sourceRepository.findByPodcastId("p1") } returns listOf(source)
-        every { modelResolver.resolve(podcastWith30Days, "filter") } returns filterModelDef
-        every { modelResolver.resolve(podcastWith30Days, "compose") } returns composeModelDef
+        every { modelResolver.resolve(podcastWith30Days, PipelineStage.FILTER) } returns filterModelDef
+        every { modelResolver.resolve(podcastWith30Days, PipelineStage.COMPOSE) } returns composeModelDef
         // The cutoff string is dynamic, so use any() matcher
         every { postRepository.findUnlinkedBySourceIds(listOf("s1"), any()) } returns emptyList()
         every { articleRepository.findUnscoredBySourceIds(listOf("s1")) } returns emptyList()
@@ -224,8 +228,8 @@ class LlmPipelineTest {
         composeModel: ModelDefinition = pricedComposeModel
     ) {
         every { sourceRepository.findByPodcastId(podcast.id) } returns listOf(source)
-        every { modelResolver.resolve(podcast, "filter") } returns filterModel
-        every { modelResolver.resolve(podcast, "compose") } returns composeModel
+        every { modelResolver.resolve(podcast, PipelineStage.FILTER) } returns filterModel
+        every { modelResolver.resolve(podcast, PipelineStage.COMPOSE) } returns composeModel
         every { postRepository.findUnlinkedBySourceIds(listOf("s1"), any()) } returns emptyList()
         every { articleRepository.findUnscoredBySourceIds(listOf("s1")) } returns unscoredArticles
     }
@@ -268,8 +272,8 @@ class LlmPipelineTest {
         val articles = (1..100).map { articleWithBody(10000) }
 
         every { sourceRepository.findByPodcastId("p1") } returns listOf(source)
-        every { modelResolver.resolve(podcast, "filter") } returns pricedFilterModel
-        every { modelResolver.resolve(podcast, "compose") } returns pricedComposeModel
+        every { modelResolver.resolve(podcast, PipelineStage.FILTER) } returns pricedFilterModel
+        every { modelResolver.resolve(podcast, PipelineStage.COMPOSE) } returns pricedComposeModel
         every { postRepository.findUnlinkedBySourceIds(listOf("s1"), any()) } returns emptyList()
         every { articleRepository.findUnscoredBySourceIds(listOf("s1")) } returns articles
 
@@ -306,8 +310,8 @@ class LlmPipelineTest {
         val scoredArticle = articles[0].copy(relevanceScore = 8, summary = "Summary")
 
         every { sourceRepository.findByPodcastId("p1") } returns listOf(source)
-        every { modelResolver.resolve(podcast, "filter") } returns pricedFilterModel
-        every { modelResolver.resolve(podcast, "compose") } returns pricedComposeModel
+        every { modelResolver.resolve(podcast, PipelineStage.FILTER) } returns pricedFilterModel
+        every { modelResolver.resolve(podcast, PipelineStage.COMPOSE) } returns pricedComposeModel
         every { postRepository.findUnlinkedBySourceIds(listOf("s1"), any()) } returns emptyList()
         every { articleRepository.findUnscoredBySourceIds(listOf("s1")) } returns articles
         every { articleScoreSummarizer.scoreSummarize(articles, podcast, pricedFilterModel) } returns listOf(scoredArticle)
@@ -368,8 +372,8 @@ class LlmPipelineTest {
         val scoredArticles = articles.mapIndexed { i, a -> a.copy(relevanceScore = 8, summary = "Summary $i") }
 
         every { sourceRepository.findByPodcastId("p1") } returns listOf(source)
-        every { modelResolver.resolve(podcastWithOverride, "filter") } returns pricedFilterModel
-        every { modelResolver.resolve(podcastWithOverride, "compose") } returns pricedComposeModel
+        every { modelResolver.resolve(podcastWithOverride, PipelineStage.FILTER) } returns pricedFilterModel
+        every { modelResolver.resolve(podcastWithOverride, PipelineStage.COMPOSE) } returns pricedComposeModel
         every { postRepository.findUnlinkedBySourceIds(listOf("s1"), any()) } returns emptyList()
         every { articleRepository.findUnscoredBySourceIds(listOf("s1")) } returns articles
         every { articleScoreSummarizer.scoreSummarize(articles, podcastWithOverride, pricedFilterModel) } returns scoredArticles
@@ -388,7 +392,7 @@ class LlmPipelineTest {
 
     @Test
     fun `uses dialogueComposer for dialogue style podcast`() {
-        val dialoguePodcast = podcast.copy(style = "dialogue", ttsProvider = "elevenlabs", ttsVoices = mapOf("host" to "v1", "cohost" to "v2"))
+        val dialoguePodcast = podcast.copy(style = PodcastStyle.DIALOGUE, ttsProvider = TtsProviderType.ELEVENLABS, ttsVoices = mapOf("host" to "v1", "cohost" to "v2"))
         val article = Article(
             id = 1, sourceId = "s1", title = "AI News", body = "Body",
             url = "https://example.com/ai", contentHash = "hash1", relevanceScore = 8, summary = "Summary."
@@ -396,8 +400,8 @@ class LlmPipelineTest {
         val compositionResult = CompositionResult("<host>Hello!</host><cohost>Hi!</cohost>", TokenUsage(500, 200))
 
         every { sourceRepository.findByPodcastId("p1") } returns listOf(source)
-        every { modelResolver.resolve(dialoguePodcast, "filter") } returns filterModelDef
-        every { modelResolver.resolve(dialoguePodcast, "compose") } returns composeModelDef
+        every { modelResolver.resolve(dialoguePodcast, PipelineStage.FILTER) } returns filterModelDef
+        every { modelResolver.resolve(dialoguePodcast, PipelineStage.COMPOSE) } returns composeModelDef
         every { postRepository.findUnlinkedBySourceIds(listOf("s1"), any()) } returns emptyList()
         every { articleRepository.findUnscoredBySourceIds(listOf("s1")) } returns emptyList()
         every { articleRepository.findRelevantUnprocessedBySourceIds(listOf("s1"), 5) } returns listOf(article)
@@ -412,7 +416,7 @@ class LlmPipelineTest {
 
     @Test
     fun `uses interviewComposer for interview style podcast`() {
-        val interviewPodcast = podcast.copy(style = "interview", ttsProvider = "elevenlabs", ttsVoices = mapOf("interviewer" to "v1", "expert" to "v2"))
+        val interviewPodcast = podcast.copy(style = PodcastStyle.INTERVIEW, ttsProvider = TtsProviderType.ELEVENLABS, ttsVoices = mapOf("interviewer" to "v1", "expert" to "v2"))
         val article = Article(
             id = 1, sourceId = "s1", title = "AI News", body = "Body",
             url = "https://example.com/ai", contentHash = "hash1", relevanceScore = 8, summary = "Summary."
@@ -420,8 +424,8 @@ class LlmPipelineTest {
         val compositionResult = CompositionResult("<interviewer>Question?</interviewer><expert>Answer.</expert>", TokenUsage(500, 200))
 
         every { sourceRepository.findByPodcastId("p1") } returns listOf(source)
-        every { modelResolver.resolve(interviewPodcast, "filter") } returns filterModelDef
-        every { modelResolver.resolve(interviewPodcast, "compose") } returns composeModelDef
+        every { modelResolver.resolve(interviewPodcast, PipelineStage.FILTER) } returns filterModelDef
+        every { modelResolver.resolve(interviewPodcast, PipelineStage.COMPOSE) } returns composeModelDef
         every { postRepository.findUnlinkedBySourceIds(listOf("s1"), any()) } returns emptyList()
         every { articleRepository.findUnscoredBySourceIds(listOf("s1")) } returns emptyList()
         every { articleRepository.findRelevantUnprocessedBySourceIds(listOf("s1"), 5) } returns listOf(article)
@@ -437,7 +441,7 @@ class LlmPipelineTest {
 
     @Test
     fun `uses briefingComposer for non-dialogue style podcast`() {
-        val newsBriefingPodcast = podcast.copy(style = "news-briefing")
+        val newsBriefingPodcast = podcast.copy(style = PodcastStyle.NEWS_BRIEFING)
         val article = Article(
             id = 1, sourceId = "s1", title = "AI News", body = "Body",
             url = "https://example.com/ai", contentHash = "hash1", relevanceScore = 8, summary = "Summary."
@@ -445,8 +449,8 @@ class LlmPipelineTest {
         val compositionResult = CompositionResult("Today in tech...", TokenUsage(500, 200))
 
         every { sourceRepository.findByPodcastId("p1") } returns listOf(source)
-        every { modelResolver.resolve(newsBriefingPodcast, "filter") } returns filterModelDef
-        every { modelResolver.resolve(newsBriefingPodcast, "compose") } returns composeModelDef
+        every { modelResolver.resolve(newsBriefingPodcast, PipelineStage.FILTER) } returns filterModelDef
+        every { modelResolver.resolve(newsBriefingPodcast, PipelineStage.COMPOSE) } returns composeModelDef
         every { postRepository.findUnlinkedBySourceIds(listOf("s1"), any()) } returns emptyList()
         every { articleRepository.findUnscoredBySourceIds(listOf("s1")) } returns emptyList()
         every { articleRepository.findRelevantUnprocessedBySourceIds(listOf("s1"), 5) } returns listOf(article)
@@ -473,8 +477,8 @@ class LlmPipelineTest {
         )
 
         every { sourceRepository.findByPodcastId("p1") } returns listOf(source)
-        every { modelResolver.resolve(podcast, "filter") } returns filterModelDef
-        every { modelResolver.resolve(podcast, "compose") } returns composeModelDef
+        every { modelResolver.resolve(podcast, PipelineStage.FILTER) } returns filterModelDef
+        every { modelResolver.resolve(podcast, PipelineStage.COMPOSE) } returns composeModelDef
         every { postRepository.findUnlinkedBySourceIds(listOf("s1"), any()) } returns emptyList()
         every { articleRepository.findUnscoredBySourceIds(listOf("s1")) } returns emptyList()
         every { articleRepository.findRelevantUnprocessedBySourceIds(listOf("s1"), 5) } returns listOf(article)
@@ -495,8 +499,8 @@ class LlmPipelineTest {
         )
 
         every { sourceRepository.findByPodcastId("p1") } returns listOf(source)
-        every { modelResolver.resolve(podcast, "filter") } returns filterModelDef
-        every { modelResolver.resolve(podcast, "compose") } returns composeModelDef
+        every { modelResolver.resolve(podcast, PipelineStage.FILTER) } returns filterModelDef
+        every { modelResolver.resolve(podcast, PipelineStage.COMPOSE) } returns composeModelDef
         every { postRepository.findUnlinkedBySourceIds(listOf("s1"), any()) } returns emptyList()
         every { articleRepository.findUnscoredBySourceIds(listOf("s1")) } returns emptyList()
         every { articleRepository.findRelevantUnprocessedBySourceIds(listOf("s1"), 5) } returns listOf(article)
@@ -521,8 +525,8 @@ class LlmPipelineTest {
         )
 
         every { sourceRepository.findByPodcastId("p1") } returns listOf(source)
-        every { modelResolver.resolve(podcast, "filter") } returns filterModelDef
-        every { modelResolver.resolve(podcast, "compose") } returns composeModelDef
+        every { modelResolver.resolve(podcast, PipelineStage.FILTER) } returns filterModelDef
+        every { modelResolver.resolve(podcast, PipelineStage.COMPOSE) } returns composeModelDef
         every { postRepository.findUnlinkedBySourceIds(listOf("s1"), any()) } returns emptyList()
         every { articleRepository.findUnscoredBySourceIds(listOf("s1")) } returns emptyList()
         every { articleRepository.findRelevantUnprocessedBySourceIds(listOf("s1"), 5) } returns listOf(article)

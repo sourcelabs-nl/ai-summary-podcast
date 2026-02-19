@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import java.time.Instant
 import java.time.temporal.ChronoUnit
+import com.aisummarypodcast.store.SourceType
 
 @SpringBootTest
 class PostRepositoryTest {
@@ -29,8 +30,8 @@ class PostRepositoryTest {
 
         userRepository.save(User(id = "u1", name = "Test User"))
         podcastRepository.save(Podcast(id = "p1", userId = "u1", name = "Test", topic = "tech"))
-        sourceRepository.save(Source(id = "s1", podcastId = "p1", type = "rss", url = "https://example.com/feed"))
-        sourceRepository.save(Source(id = "s2", podcastId = "p1", type = "twitter", url = "testuser"))
+        sourceRepository.save(Source(id = "s1", podcastId = "p1", type = SourceType.RSS, url = "https://example.com/feed"))
+        sourceRepository.save(Source(id = "s2", podcastId = "p1", type = SourceType.TWITTER, url = "testuser"))
     }
 
     private fun post(

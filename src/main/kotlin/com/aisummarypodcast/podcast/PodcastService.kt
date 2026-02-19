@@ -1,6 +1,8 @@
 package com.aisummarypodcast.podcast
 
 import com.aisummarypodcast.config.AppProperties
+import com.aisummarypodcast.store.PodcastStyle
+import com.aisummarypodcast.store.TtsProviderType
 import com.aisummarypodcast.store.*
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
@@ -27,10 +29,10 @@ class PodcastService(
             topic = topic,
             language = podcast?.language ?: "en",
             llmModels = podcast?.llmModels,
-            ttsProvider = podcast?.ttsProvider ?: "openai",
+            ttsProvider = podcast?.ttsProvider ?: TtsProviderType.OPENAI,
             ttsVoices = podcast?.ttsVoices,
             ttsSettings = podcast?.ttsSettings,
-            style = podcast?.style ?: "news-briefing",
+            style = podcast?.style ?: PodcastStyle.NEWS_BRIEFING,
             targetWords = podcast?.targetWords,
             cron = podcast?.cron ?: "0 0 6 * * *",
             customInstructions = podcast?.customInstructions,

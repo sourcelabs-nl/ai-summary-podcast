@@ -1,13 +1,15 @@
 package com.aisummarypodcast.publishing
 
 import com.aisummarypodcast.store.Episode
+import com.aisummarypodcast.store.EpisodePublication
+import com.aisummarypodcast.store.EpisodeStatus
 import com.aisummarypodcast.store.Podcast
 import com.aisummarypodcast.store.PodcastRepository
+import com.aisummarypodcast.store.PublicationStatus
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
-import com.aisummarypodcast.store.EpisodePublication
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
@@ -29,7 +31,7 @@ class SoundCloudPublisherTest {
         podcastId = "pod1",
         generatedAt = "2026-02-13T10:00:00Z",
         scriptText = "This is the episode script about AI and tech news.",
-        status = "GENERATED",
+        status = EpisodeStatus.GENERATED,
         audioFilePath = "/tmp/test.mp3"
     )
 
@@ -174,8 +176,8 @@ class SoundCloudPublisherTest {
     fun `updateTrackPermalinks updates each track with correct permalink`() {
         val episode1 = episode.copy(id = 1L, generatedAt = "2026-02-13T10:00:00Z")
         val episode2 = episode.copy(id = 2L, generatedAt = "2026-02-14T10:00:00Z")
-        val pub1 = EpisodePublication(id = 10, episodeId = 1L, target = "soundcloud", status = "PUBLISHED", externalId = "100", createdAt = "2026-02-13T10:00:00Z")
-        val pub2 = EpisodePublication(id = 11, episodeId = 2L, target = "soundcloud", status = "PUBLISHED", externalId = "200", createdAt = "2026-02-14T10:00:00Z")
+        val pub1 = EpisodePublication(id = 10, episodeId = 1L, target = "soundcloud", status = PublicationStatus.PUBLISHED, externalId = "100", createdAt = "2026-02-13T10:00:00Z")
+        val pub2 = EpisodePublication(id = 11, episodeId = 2L, target = "soundcloud", status = PublicationStatus.PUBLISHED, externalId = "200", createdAt = "2026-02-14T10:00:00Z")
 
         every { tokenManager.getValidAccessToken("user1") } returns "access-token"
         every { soundCloudClient.updateTrack("access-token", 100, "tech-news-2026-02-13") } returns trackResponse

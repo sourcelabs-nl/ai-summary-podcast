@@ -6,6 +6,7 @@ import com.aisummarypodcast.source.SourcePoller
 import com.aisummarypodcast.store.ArticleRepository
 import com.aisummarypodcast.store.PostRepository
 import com.aisummarypodcast.store.SourceRepository
+import com.aisummarypodcast.store.SourceType
 import org.slf4j.LoggerFactory
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
@@ -73,7 +74,7 @@ class SourcePollingScheduler(
         for ((index, source) in sources.withIndex()) {
             try {
                 val podcast = podcastService.findById(source.podcastId)
-                val userId = if (source.type == "twitter") podcast?.userId else null
+                val userId = if (source.type == SourceType.TWITTER) podcast?.userId else null
                 val maxArticleAgeDays = podcast?.maxArticleAgeDays ?: appProperties.source.maxArticleAgeDays
                 val siblingSourceIds = sourcesByPodcast[source.podcastId]?.map { it.id } ?: listOf(source.id)
                 sourcePoller.poll(source, userId, maxArticleAgeDays, siblingSourceIds)

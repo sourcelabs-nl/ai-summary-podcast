@@ -2,7 +2,6 @@ package com.aisummarypodcast.podcast
 
 import com.aisummarypodcast.config.AppProperties
 import com.aisummarypodcast.llm.LlmPipeline
-import com.aisummarypodcast.store.EpisodeRepository
 import com.aisummarypodcast.store.Podcast
 import com.aisummarypodcast.store.User
 import com.aisummarypodcast.user.UserService
@@ -37,9 +36,6 @@ class PodcastControllerTest {
 
     @MockkBean(relaxed = true)
     private lateinit var appProperties: AppProperties
-
-    @MockkBean
-    private lateinit var episodeRepository: EpisodeRepository
 
     private val userId = "user-1"
     private val user = User(id = userId, name = "Test User")

@@ -38,8 +38,8 @@ class ModelResolverTest {
 
     @Test
     fun `uses global default when podcast has no overrides`() {
-        val filterModel = resolver.resolve(podcast, "filter")
-        val composeModel = resolver.resolve(podcast, "compose")
+        val filterModel = resolver.resolve(podcast, PipelineStage.FILTER)
+        val composeModel = resolver.resolve(podcast, PipelineStage.COMPOSE)
 
         assertEquals("openrouter", filterModel.provider)
         assertEquals("anthropic/claude-haiku-4.5", filterModel.model)
@@ -51,7 +51,7 @@ class ModelResolverTest {
     fun `podcast override takes precedence over global default`() {
         val podcastWithOverride = podcast.copy(llmModels = mapOf("compose" to "local"))
 
-        val composeModel = resolver.resolve(podcastWithOverride, "compose")
+        val composeModel = resolver.resolve(podcastWithOverride, PipelineStage.COMPOSE)
 
         assertEquals("ollama", composeModel.provider)
         assertEquals("llama3", composeModel.model)
@@ -61,8 +61,8 @@ class ModelResolverTest {
     fun `partial override only affects specified stage`() {
         val podcastWithOverride = podcast.copy(llmModels = mapOf("compose" to "local"))
 
-        val filterModel = resolver.resolve(podcastWithOverride, "filter")
-        val composeModel = resolver.resolve(podcastWithOverride, "compose")
+        val filterModel = resolver.resolve(podcastWithOverride, PipelineStage.FILTER)
+        val composeModel = resolver.resolve(podcastWithOverride, PipelineStage.COMPOSE)
 
         assertEquals("anthropic/claude-haiku-4.5", filterModel.model)
         assertEquals("llama3", composeModel.model)
@@ -73,7 +73,7 @@ class ModelResolverTest {
         val podcastWithBadOverride = podcast.copy(llmModels = mapOf("filter" to "nonexistent"))
 
         val exception = assertThrows<IllegalArgumentException> {
-            resolver.resolve(podcastWithBadOverride, "filter")
+            resolver.resolve(podcastWithBadOverride, PipelineStage.FILTER)
         }
 
         assertEquals(
@@ -82,12 +82,4 @@ class ModelResolverTest {
         )
     }
 
-    @Test
-    fun `throws for unknown stage name`() {
-        val exception = assertThrows<IllegalArgumentException> {
-            resolver.resolve(podcast, "unknown-stage")
-        }
-
-        assertEquals("Unknown pipeline stage 'unknown-stage'", exception.message)
-    }
 }

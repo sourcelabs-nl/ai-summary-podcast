@@ -3,13 +3,17 @@ package com.aisummarypodcast.podcast
 import com.aisummarypodcast.llm.EpisodeRecapGenerator
 import com.aisummarypodcast.llm.ModelResolver
 import com.aisummarypodcast.llm.PipelineResult
+import com.aisummarypodcast.llm.PipelineStage
 import com.aisummarypodcast.llm.RecapResult
 import com.aisummarypodcast.llm.TokenUsage
 import com.aisummarypodcast.config.ModelDefinition
+import com.aisummarypodcast.store.Article
+import com.aisummarypodcast.store.ArticleRepository
 import com.aisummarypodcast.store.Episode
 import com.aisummarypodcast.store.EpisodeArticle
 import com.aisummarypodcast.store.EpisodeArticleRepository
 import com.aisummarypodcast.store.EpisodeRepository
+import com.aisummarypodcast.store.EpisodeStatus
 import com.aisummarypodcast.store.Podcast
 import com.aisummarypodcast.store.PodcastRepository
 import com.aisummarypodcast.tts.TtsPipeline
@@ -28,6 +32,7 @@ class EpisodeServiceTest {
     private val episodeArticleRepository = mockk<EpisodeArticleRepository> {
         every { save(any()) } answers { firstArg() }
     }
+    private val articleRepository = mockk<ArticleRepository>()
     private val episodeRecapGenerator = mockk<EpisodeRecapGenerator>()
     private val modelResolver = mockk<ModelResolver>()
 
@@ -35,13 +40,13 @@ class EpisodeServiceTest {
 
     private val episodeService = EpisodeService(
         episodeRepository, podcastRepository, ttsPipeline,
-        episodeArticleRepository, episodeRecapGenerator, modelResolver
+        episodeArticleRepository, articleRepository, episodeRecapGenerator, modelResolver
     )
 
     private val podcast = Podcast(id = "p1", userId = "u1", name = "Test", topic = "tech")
 
     private fun setupRecapMocks(podcast: Podcast) {
-        every { modelResolver.resolve(podcast, "filter") } returns filterModelDef
+        every { modelResolver.resolve(podcast, PipelineStage.FILTER) } returns filterModelDef
         every { episodeRecapGenerator.generate(any(), podcast, filterModelDef) } returns RecapResult(
             recap = "Recap text.", usage = TokenUsage(800, 60)
         )
@@ -62,7 +67,7 @@ class EpisodeServiceTest {
 
         val episode = episodeService.createEpisodeFromPipelineResult(reviewPodcast, result)
 
-        assertEquals("PENDING_REVIEW", episode.status)
+        assertEquals(EpisodeStatus.PENDING_REVIEW, episode.status)
         verify { episodeArticleRepository.save(match { it.episodeId == 5L && it.articleId == 10L }) }
         verify { episodeArticleRepository.save(match { it.episodeId == 5L && it.articleId == 20L }) }
     }
@@ -129,7 +134,7 @@ class EpisodeServiceTest {
         val result = PipelineResult(script = "Script", filterModel = "filter", composeModel = "compose")
         every { episodeRepository.save(any()) } answers { firstArg<Episode>().copy(id = 5) }
         every { podcastRepository.save(any()) } answers { firstArg() }
-        every { modelResolver.resolve(reviewPodcast, "filter") } returns filterModelDef
+        every { modelResolver.resolve(reviewPodcast, PipelineStage.FILTER) } returns filterModelDef
         every { episodeRecapGenerator.generate(any(), reviewPodcast, filterModelDef) } throws RuntimeException("LLM error")
 
         episodeService.createEpisodeFromPipelineResult(reviewPodcast, result)
@@ -154,12 +159,12 @@ class EpisodeServiceTest {
 
     private val approvedEpisode = Episode(
         id = 1L, podcastId = "p1", generatedAt = "2025-01-01T00:00:00Z",
-        scriptText = "Test script", status = "APPROVED"
+        scriptText = "Test script", status = EpisodeStatus.APPROVED
     )
 
     @Test
     fun `generates audio and updates status to GENERATED on success`() {
-        val generatedEpisode = approvedEpisode.copy(status = "GENERATED", audioFilePath = "/audio.mp3", durationSeconds = 120)
+        val generatedEpisode = approvedEpisode.copy(status = EpisodeStatus.GENERATED, audioFilePath = "/audio.mp3", durationSeconds = 120)
         every { episodeRepository.findById(1L) } returns Optional.of(approvedEpisode)
         every { podcastRepository.findById("p1") } returns Optional.of(podcast)
         every { ttsPipeline.generateForExistingEpisode(approvedEpisode, podcast) } returns generatedEpisode
@@ -178,7 +183,7 @@ class EpisodeServiceTest {
 
         episodeService.generateAudioAsync(1L, "p1")
 
-        verify { episodeRepository.save(match { it.status == "FAILED" }) }
+        verify { episodeRepository.save(match { it.status == EpisodeStatus.FAILED }) }
     }
 
     @Test
@@ -189,6 +194,62 @@ class EpisodeServiceTest {
 
         episodeService.generateAudioAsync(1L, "p1")
 
-        verify { episodeRepository.save(match { it.status == "FAILED" }) }
+        verify { episodeRepository.save(match { it.status == EpisodeStatus.FAILED }) }
+    }
+
+    // --- discardAndResetArticles tests ---
+
+    @Test
+    fun `discardAndResetArticles saves episode as DISCARDED and resets linked articles`() {
+        val episode = Episode(id = 1L, podcastId = "p1", generatedAt = "now", scriptText = "Script", status = EpisodeStatus.PENDING_REVIEW)
+        val article1 = Article(id = 10L, sourceId = "src-1", title = "A1", body = "body", url = "https://example.com/1", contentHash = "h1", isProcessed = true)
+        val article2 = Article(id = 20L, sourceId = "src-1", title = "A2", body = "body", url = "https://example.com/2", contentHash = "h2", isProcessed = true)
+        val links = listOf(
+            EpisodeArticle(id = 1L, episodeId = 1L, articleId = 10L),
+            EpisodeArticle(id = 2L, episodeId = 1L, articleId = 20L)
+        )
+
+        every { episodeRepository.save(any()) } answers { firstArg() }
+        every { episodeArticleRepository.findByEpisodeId(1L) } returns links
+        every { articleRepository.findById(10L) } returns Optional.of(article1)
+        every { articleRepository.findById(20L) } returns Optional.of(article2)
+        every { articleRepository.save(any()) } answers { firstArg() }
+
+        episodeService.discardAndResetArticles(episode)
+
+        verify { episodeRepository.save(match { it.status == EpisodeStatus.DISCARDED }) }
+        verify { articleRepository.save(match { it.id == 10L && !it.isProcessed }) }
+        verify { articleRepository.save(match { it.id == 20L && !it.isProcessed }) }
+    }
+
+    @Test
+    fun `discardAndResetArticles handles no linked articles`() {
+        val episode = Episode(id = 1L, podcastId = "p1", generatedAt = "now", scriptText = "Script", status = EpisodeStatus.PENDING_REVIEW)
+
+        every { episodeRepository.save(any()) } answers { firstArg() }
+        every { episodeArticleRepository.findByEpisodeId(1L) } returns emptyList()
+
+        episodeService.discardAndResetArticles(episode)
+
+        verify { episodeRepository.save(match { it.status == EpisodeStatus.DISCARDED }) }
+        verify(exactly = 0) { articleRepository.save(any()) }
+    }
+
+    // --- hasPendingOrApprovedEpisode tests ---
+
+    @Test
+    fun `hasPendingOrApprovedEpisode returns true when pending episodes exist`() {
+        every { episodeRepository.findByPodcastIdAndStatusIn("p1", listOf("PENDING_REVIEW", "APPROVED")) } returns listOf(
+            Episode(id = 1L, podcastId = "p1", generatedAt = "now", scriptText = "Script", status = EpisodeStatus.PENDING_REVIEW)
+        )
+
+        assertEquals(true, episodeService.hasPendingOrApprovedEpisode("p1"))
+    }
+
+    @Test
+    fun `hasPendingOrApprovedEpisode returns false when no pending episodes`() {
+        every { episodeRepository.findByPodcastIdAndStatusIn("p1", listOf("PENDING_REVIEW", "APPROVED")) } returns emptyList()
+
+        assertEquals(false, episodeService.hasPendingOrApprovedEpisode("p1"))
     }
 }

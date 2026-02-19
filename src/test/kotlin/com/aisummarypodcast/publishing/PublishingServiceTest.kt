@@ -3,7 +3,9 @@ package com.aisummarypodcast.publishing
 import com.aisummarypodcast.store.Episode
 import com.aisummarypodcast.store.EpisodePublication
 import com.aisummarypodcast.store.EpisodePublicationRepository
+import com.aisummarypodcast.store.EpisodeStatus
 import com.aisummarypodcast.store.Podcast
+import com.aisummarypodcast.store.PublicationStatus
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -25,7 +27,7 @@ class PublishingServiceTest {
         podcastId = "pod1",
         generatedAt = "2026-02-13T10:00:00Z",
         scriptText = "Test script",
-        status = "GENERATED",
+        status = EpisodeStatus.GENERATED,
         audioFilePath = "/tmp/test.mp3"
     )
 
@@ -37,7 +39,7 @@ class PublishingServiceTest {
 
         val result = service.publish(episode, podcast, "user1", "soundcloud")
 
-        assertEquals("PUBLISHED", result.status)
+        assertEquals(PublicationStatus.PUBLISHED, result.status)
         assertEquals("sc-123", result.externalId)
     }
 
@@ -50,7 +52,7 @@ class PublishingServiceTest {
 
     @Test
     fun `publish throws when episode not generated`() {
-        val pendingEpisode = episode.copy(status = "PENDING_REVIEW")
+        val pendingEpisode = episode.copy(status = EpisodeStatus.PENDING_REVIEW)
 
         assertThrows<IllegalStateException> {
             service.publish(pendingEpisode, podcast, "user1", "soundcloud")
@@ -72,7 +74,7 @@ class PublishingServiceTest {
             id = 5L,
             episodeId = 1L,
             target = "soundcloud",
-            status = "PUBLISHED",
+            status = PublicationStatus.PUBLISHED,
             createdAt = "2026-02-13T10:00:00Z"
         )
         every { publicationRepository.findByEpisodeIdAndTarget(1L, "soundcloud") } returns existing

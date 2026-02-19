@@ -10,8 +10,8 @@ class ModelResolver(
     private val appProperties: AppProperties
 ) {
 
-    fun resolve(podcast: Podcast, stage: String): ModelDefinition {
-        val modelName = podcast.llmModels?.get(stage)
+    fun resolve(podcast: Podcast, stage: PipelineStage): ModelDefinition {
+        val modelName = podcast.llmModels?.get(stage.value)
             ?: getDefaultForStage(stage)
 
         return appProperties.llm.models[modelName]
@@ -20,9 +20,8 @@ class ModelResolver(
             )
     }
 
-    private fun getDefaultForStage(stage: String): String = when (stage) {
-        "filter" -> appProperties.llm.defaults.filter
-        "compose" -> appProperties.llm.defaults.compose
-        else -> throw IllegalArgumentException("Unknown pipeline stage '$stage'")
+    private fun getDefaultForStage(stage: PipelineStage): String = when (stage) {
+        PipelineStage.FILTER -> appProperties.llm.defaults.filter
+        PipelineStage.COMPOSE -> appProperties.llm.defaults.compose
     }
 }

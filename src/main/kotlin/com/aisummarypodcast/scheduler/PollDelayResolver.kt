@@ -16,7 +16,7 @@ class PollDelayResolver(private val appProperties: AppProperties) {
             appProperties.source.hostOverrides[host]?.let { return it.pollDelaySeconds }
         }
 
-        appProperties.source.pollDelaySeconds[source.type]?.let { return it }
+        appProperties.source.pollDelaySeconds[source.type.value]?.let { return it }
 
         return 0
     }

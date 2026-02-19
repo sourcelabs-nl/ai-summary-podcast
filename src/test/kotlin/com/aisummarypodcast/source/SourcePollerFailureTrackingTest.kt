@@ -11,6 +11,7 @@ import com.aisummarypodcast.store.Post
 import com.aisummarypodcast.store.PostRepository
 import com.aisummarypodcast.store.Source
 import com.aisummarypodcast.store.SourceRepository
+import com.aisummarypodcast.store.SourceType
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
@@ -47,7 +48,7 @@ class SourcePollerFailureTrackingTest {
         source = SourceProperties(maxFailures = maxFailures)
     )
 
-    private val source = Source(id = "s1", podcastId = "p1", type = "rss", url = "https://example.com/feed")
+    private val source = Source(id = "s1", podcastId = "p1", type = SourceType.RSS, url = "https://example.com/feed")
 
     @Test
     fun `increments consecutiveFailures on transient error`() {

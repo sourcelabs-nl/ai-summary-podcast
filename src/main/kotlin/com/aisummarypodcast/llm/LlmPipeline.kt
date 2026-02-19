@@ -5,6 +5,7 @@ import com.aisummarypodcast.source.SourceAggregator
 import com.aisummarypodcast.store.ArticleRepository
 import com.aisummarypodcast.store.EpisodeRepository
 import com.aisummarypodcast.store.Podcast
+import com.aisummarypodcast.store.PodcastStyle
 import com.aisummarypodcast.store.PostRepository
 import com.aisummarypodcast.store.SourceRepository
 import org.slf4j.LoggerFactory
@@ -48,8 +49,8 @@ class LlmPipeline(
             return null
         }
 
-        val filterModelDef = modelResolver.resolve(podcast, "filter")
-        val composeModelDef = modelResolver.resolve(podcast, "compose")
+        val filterModelDef = modelResolver.resolve(podcast, PipelineStage.FILTER)
+        val composeModelDef = modelResolver.resolve(podcast, PipelineStage.COMPOSE)
         val threshold = podcast.relevanceThreshold
 
         // Step 1: Aggregate unlinked posts into articles
@@ -110,8 +111,8 @@ class LlmPipeline(
         }
 
         val compositionResult = when (podcast.style) {
-            "dialogue" -> dialogueComposer.compose(toCompose, podcast, composeModelDef, previousRecap)
-            "interview" -> interviewComposer.compose(toCompose, podcast, composeModelDef, previousRecap)
+            PodcastStyle.DIALOGUE -> dialogueComposer.compose(toCompose, podcast, composeModelDef, previousRecap)
+            PodcastStyle.INTERVIEW -> interviewComposer.compose(toCompose, podcast, composeModelDef, previousRecap)
             else -> briefingComposer.compose(toCompose, podcast, composeModelDef, previousRecap)
         }
 

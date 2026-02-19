@@ -1,6 +1,8 @@
 package com.aisummarypodcast.tts
 
 import com.aisummarypodcast.store.Podcast
+import com.aisummarypodcast.store.PodcastStyle
+import com.aisummarypodcast.store.TtsProviderType
 import org.springframework.stereotype.Component
 
 @Component
@@ -11,8 +13,7 @@ class TtsProviderFactory(
 ) {
 
     fun resolve(podcast: Podcast): TtsProvider = when (podcast.ttsProvider) {
-        "openai" -> openAiTtsProvider
-        "elevenlabs" -> if (podcast.style in setOf("dialogue", "interview")) elevenLabsDialogueTtsProvider else elevenLabsTtsProvider
-        else -> throw IllegalArgumentException("Unsupported TTS provider: ${podcast.ttsProvider}. Supported: openai, elevenlabs")
+        TtsProviderType.OPENAI -> openAiTtsProvider
+        TtsProviderType.ELEVENLABS -> if (podcast.style in setOf(PodcastStyle.DIALOGUE, PodcastStyle.INTERVIEW)) elevenLabsDialogueTtsProvider else elevenLabsTtsProvider
     }
 }

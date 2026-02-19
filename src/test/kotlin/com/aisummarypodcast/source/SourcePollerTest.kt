@@ -11,6 +11,7 @@ import com.aisummarypodcast.store.Post
 import com.aisummarypodcast.store.PostRepository
 import com.aisummarypodcast.store.Source
 import com.aisummarypodcast.store.SourceRepository
+import com.aisummarypodcast.store.SourceType
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -43,7 +44,7 @@ class SourcePollerTest {
         source = SourceProperties(maxArticleAgeDays = maxArticleAgeDays)
     )
 
-    private val source = Source(id = "s1", podcastId = "p1", type = "rss", url = "https://example.com/feed")
+    private val source = Source(id = "s1", podcastId = "p1", type = SourceType.RSS, url = "https://example.com/feed")
 
     private fun post(publishedAt: String? = null) = Post(
         sourceId = "s1",
@@ -159,7 +160,7 @@ class SourcePollerTest {
 
     @Test
     fun `dispatches twitter source to twitterFetcher with userId`() {
-        val twitterSource = Source(id = "s2", podcastId = "p1", type = "twitter", url = "testuser")
+        val twitterSource = Source(id = "s2", podcastId = "p1", type = SourceType.TWITTER, url = "testuser")
         val tweetPost = Post(
             sourceId = "s2",
             title = "Tweet text",
@@ -182,7 +183,7 @@ class SourcePollerTest {
 
     @Test
     fun `skips twitter source when no userId provided`() {
-        val twitterSource = Source(id = "s2", podcastId = "p1", type = "twitter", url = "testuser")
+        val twitterSource = Source(id = "s2", podcastId = "p1", type = SourceType.TWITTER, url = "testuser")
 
         val poller = SourcePoller(rssFeedFetcher, websiteFetcher, twitterFetcher, postRepository, sourceRepository, appProperties())
         poller.poll(twitterSource, userId = null)

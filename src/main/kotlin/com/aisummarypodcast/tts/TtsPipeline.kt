@@ -5,6 +5,7 @@ import com.aisummarypodcast.llm.CostEstimator
 import com.aisummarypodcast.podcast.StaticFeedExporter
 import com.aisummarypodcast.store.Episode
 import com.aisummarypodcast.store.EpisodeRepository
+import com.aisummarypodcast.store.EpisodeStatus
 import com.aisummarypodcast.store.Podcast
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
@@ -30,7 +31,7 @@ class TtsPipeline(
         log.info("[TTS] Starting audio generation for podcast {} (provider: {})", podcast.id, podcast.ttsProvider)
 
         val ttsResult = callProvider(script, podcast)
-        val ttsCostCents = CostEstimator.estimateTtsCostCents(ttsResult.totalCharacters, appProperties.tts.costPerMillionChars, podcast.ttsProvider)
+        val ttsCostCents = CostEstimator.estimateTtsCostCents(ttsResult.totalCharacters, appProperties.tts.costPerMillionChars, podcast.ttsProvider.value)
 
         val (outputPath, duration) = generateAudioFile(ttsResult, podcast)
 
@@ -56,13 +57,13 @@ class TtsPipeline(
         log.info("[TTS] Starting audio generation for episode {} (podcast {}, provider: {})", episode.id, podcast.id, podcast.ttsProvider)
 
         val ttsResult = callProvider(episode.scriptText, podcast)
-        val ttsCostCents = CostEstimator.estimateTtsCostCents(ttsResult.totalCharacters, appProperties.tts.costPerMillionChars, podcast.ttsProvider)
+        val ttsCostCents = CostEstimator.estimateTtsCostCents(ttsResult.totalCharacters, appProperties.tts.costPerMillionChars, podcast.ttsProvider.value)
 
         val (outputPath, duration) = generateAudioFile(ttsResult, podcast)
 
         val updated = episodeRepository.save(
             episode.copy(
-                status = "GENERATED",
+                status = EpisodeStatus.GENERATED,
                 audioFilePath = outputPath.toString(),
                 durationSeconds = duration,
                 ttsCharacters = ttsResult.totalCharacters,

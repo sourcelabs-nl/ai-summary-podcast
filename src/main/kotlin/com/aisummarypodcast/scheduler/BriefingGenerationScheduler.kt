@@ -2,7 +2,6 @@ package com.aisummarypodcast.scheduler
 
 import com.aisummarypodcast.llm.LlmPipeline
 import com.aisummarypodcast.podcast.EpisodeService
-import com.aisummarypodcast.store.EpisodeRepository
 import com.aisummarypodcast.store.PodcastRepository
 import org.slf4j.LoggerFactory
 import org.springframework.scheduling.annotation.Scheduled
@@ -17,7 +16,6 @@ import kotlin.time.TimeSource
 class BriefingGenerationScheduler(
     private val podcastRepository: PodcastRepository,
     private val llmPipeline: LlmPipeline,
-    private val episodeRepository: EpisodeRepository,
     private val episodeService: EpisodeService
 ) {
 
@@ -59,7 +57,7 @@ class BriefingGenerationScheduler(
 
         val podcast = podcastRepository.findById(podcastId).orElse(null) ?: return
 
-        if (podcast.requireReview && hasPendingOrApprovedEpisode(podcastId)) {
+        if (podcast.requireReview && episodeService.hasPendingOrApprovedEpisode(podcastId)) {
             log.info("[Pipeline] Podcast {} has a pending/approved episode — skipping generation ({})", podcastId, mark.elapsedNow())
             return
         }
@@ -73,11 +71,5 @@ class BriefingGenerationScheduler(
 
         val episode = episodeService.createEpisodeFromPipelineResult(podcast, result)
         log.info("[Pipeline] Briefing generation complete for podcast {}: episode {} — total {}", podcastId, episode.id, mark.elapsedNow())
-    }
-
-    private fun hasPendingOrApprovedEpisode(podcastId: String): Boolean {
-        return episodeRepository.findByPodcastIdAndStatusIn(
-            podcastId, listOf("PENDING_REVIEW", "APPROVED")
-        ).isNotEmpty()
     }
 }

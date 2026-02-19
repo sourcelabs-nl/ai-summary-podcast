@@ -5,6 +5,7 @@ import com.aisummarypodcast.config.EpisodesProperties
 import com.aisummarypodcast.config.FeedProperties
 import com.aisummarypodcast.store.Episode
 import com.aisummarypodcast.store.EpisodeRepository
+import com.aisummarypodcast.store.EpisodeStatus
 import com.aisummarypodcast.store.Podcast
 import com.aisummarypodcast.store.User
 import com.aisummarypodcast.store.UserRepository
@@ -64,7 +65,7 @@ class StaticFeedExporterTest {
         val user = User(id = "u1", name = "Test User")
         val episode = Episode(
             id = 1L, podcastId = "p1", generatedAt = "2025-01-01T00:00:00Z",
-            scriptText = "Episode script", status = "GENERATED",
+            scriptText = "Episode script", status = EpisodeStatus.GENERATED,
             audioFilePath = "/data/episodes/p1/briefing-20250101-000000.mp3", durationSeconds = 120
         )
         every { userRepository.findById("u1") } returns Optional.of(user)

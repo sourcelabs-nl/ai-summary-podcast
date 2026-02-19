@@ -5,7 +5,9 @@ import com.aisummarypodcast.podcast.PodcastService
 import com.aisummarypodcast.store.Episode
 import com.aisummarypodcast.store.EpisodePublication
 import com.aisummarypodcast.store.EpisodeRepository
+import com.aisummarypodcast.store.EpisodeStatus
 import com.aisummarypodcast.store.Podcast
+import com.aisummarypodcast.store.PublicationStatus
 import com.aisummarypodcast.store.User
 import com.aisummarypodcast.user.UserService
 import com.ninjasquad.springmockk.MockkBean
@@ -49,7 +51,7 @@ class PublishingControllerTest {
         podcastId = podcastId,
         generatedAt = "2026-02-13T10:00:00Z",
         scriptText = "Test script",
-        status = "GENERATED",
+        status = EpisodeStatus.GENERATED,
         audioFilePath = "/tmp/test.mp3"
     )
 
@@ -63,7 +65,7 @@ class PublishingControllerTest {
                 id = 10L,
                 episodeId = episodeId,
                 target = "soundcloud",
-                status = "PUBLISHED",
+                status = PublicationStatus.PUBLISHED,
                 externalId = "sc-123",
                 externalUrl = "https://soundcloud.com/track/123",
                 publishedAt = "2026-02-13T10:00:00Z",
@@ -134,7 +136,7 @@ class PublishingControllerTest {
                 id = 10L,
                 episodeId = episodeId,
                 target = "soundcloud",
-                status = "PUBLISHED",
+                status = PublicationStatus.PUBLISHED,
                 externalId = "sc-123",
                 externalUrl = "https://soundcloud.com/track/123",
                 publishedAt = "2026-02-13T10:00:00Z",

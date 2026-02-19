@@ -25,6 +25,7 @@ class ElevenLabsTtsProvider(
             apiClient.textToSpeech(request.userId, voiceId, chunk, voiceSettings)
         }
 
+        // eleven_v3 is dialogue-only; single-speaker TTS uses eleven_flash_v2_5
         return TtsResult(audioChunks, totalCharacters, requiresConcatenation = chunks.size > 1, model = "eleven_flash_v2_5")
     }
 }

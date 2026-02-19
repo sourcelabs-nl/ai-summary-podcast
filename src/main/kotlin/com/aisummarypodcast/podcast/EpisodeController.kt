@@ -1,8 +1,8 @@
 package com.aisummarypodcast.podcast
 
-import com.aisummarypodcast.store.ArticleRepository
-import com.aisummarypodcast.store.EpisodeArticleRepository
+import com.aisummarypodcast.store.Episode
 import com.aisummarypodcast.store.EpisodeRepository
+import com.aisummarypodcast.store.EpisodeStatus
 import com.aisummarypodcast.user.UserService
 import org.slf4j.LoggerFactory
 import org.springframework.http.ResponseEntity
@@ -36,9 +36,7 @@ class EpisodeController(
     private val episodeRepository: EpisodeRepository,
     private val podcastService: PodcastService,
     private val userService: UserService,
-    private val episodeService: EpisodeService,
-    private val episodeArticleRepository: EpisodeArticleRepository,
-    private val articleRepository: ArticleRepository
+    private val episodeService: EpisodeService
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -94,7 +92,7 @@ class EpisodeController(
             ?: return ResponseEntity.notFound().build()
         if (episode.podcastId != podcastId) return ResponseEntity.notFound().build()
 
-        if (episode.status != "PENDING_REVIEW") {
+        if (episode.status != EpisodeStatus.PENDING_REVIEW) {
             return ResponseEntity.status(409).body(mapOf("error" to "Episode is not in PENDING_REVIEW status"))
         }
 
@@ -116,11 +114,11 @@ class EpisodeController(
             ?: return ResponseEntity.notFound().build()
         if (episode.podcastId != podcastId) return ResponseEntity.notFound().build()
 
-        if (episode.status != "PENDING_REVIEW" && episode.status != "FAILED") {
+        if (episode.status != EpisodeStatus.PENDING_REVIEW && episode.status != EpisodeStatus.FAILED) {
             return ResponseEntity.status(409).body(mapOf("error" to "Episode is not in PENDING_REVIEW or FAILED status"))
         }
 
-        episodeRepository.save(episode.copy(status = "APPROVED"))
+        episodeRepository.save(episode.copy(status = EpisodeStatus.APPROVED))
         log.info("Episode {} approved, triggering async TTS generation", episodeId)
         episodeService.generateAudioAsync(episodeId, podcastId)
 
@@ -141,32 +139,20 @@ class EpisodeController(
             ?: return ResponseEntity.notFound().build()
         if (episode.podcastId != podcastId) return ResponseEntity.notFound().build()
 
-        if (episode.status != "PENDING_REVIEW") {
+        if (episode.status != EpisodeStatus.PENDING_REVIEW) {
             return ResponseEntity.status(409).body(mapOf("error" to "Episode is not in PENDING_REVIEW status"))
         }
 
-        episodeRepository.save(episode.copy(status = "DISCARDED"))
-
-        val linkedArticles = episodeArticleRepository.findByEpisodeId(episodeId)
-        if (linkedArticles.isEmpty()) {
-            log.warn("Episode {} has no episode-article links; cannot reset articles for reprocessing", episodeId)
-        } else {
-            for (link in linkedArticles) {
-                articleRepository.findById(link.articleId).ifPresent { article ->
-                    articleRepository.save(article.copy(isProcessed = false))
-                }
-            }
-            log.info("Episode {} discarded, reset {} linked articles for reprocessing", episodeId, linkedArticles.size)
-        }
+        episodeService.discardAndResetArticles(episode)
         return ResponseEntity.ok(mapOf("message" to "Episode discarded"))
     }
 
-    private fun com.aisummarypodcast.store.Episode.toResponse() = EpisodeResponse(
+    private fun Episode.toResponse() = EpisodeResponse(
         id = id!!,
         podcastId = podcastId,
         generatedAt = generatedAt,
         scriptText = scriptText,
-        status = status,
+        status = status.name,
         audioFilePath = audioFilePath,
         durationSeconds = durationSeconds,
         filterModel = filterModel,

@@ -24,6 +24,7 @@ class ElevenLabsApiClient(
         val client = createClient(userId)
         val body = buildMap<String, Any> {
             put("text", text)
+            // eleven_v3 is dialogue-only; single-speaker TTS uses eleven_flash_v2_5
             put("model_id", "eleven_flash_v2_5")
             if (!voiceSettings.isNullOrEmpty()) {
                 put("voice_settings", voiceSettings.mapValues { (_, v) -> v.toDoubleOrNull() ?: v })

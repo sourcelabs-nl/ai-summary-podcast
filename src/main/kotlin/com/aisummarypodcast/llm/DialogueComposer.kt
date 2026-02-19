@@ -24,7 +24,7 @@ class DialogueComposer(
     private val log = LoggerFactory.getLogger(javaClass)
 
     fun compose(articles: List<Article>, podcast: Podcast, previousEpisodeRecap: String? = null): CompositionResult {
-        val composeModelDef = modelResolver.resolve(podcast, "compose")
+        val composeModelDef = modelResolver.resolve(podcast, PipelineStage.COMPOSE)
         return compose(articles, podcast, composeModelDef, previousEpisodeRecap)
     }
 

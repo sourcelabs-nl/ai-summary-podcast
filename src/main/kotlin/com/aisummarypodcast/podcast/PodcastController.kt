@@ -1,11 +1,14 @@
 package com.aisummarypodcast.podcast
 
 import com.aisummarypodcast.llm.LlmPipeline
+import com.aisummarypodcast.store.Podcast
+import com.aisummarypodcast.store.PodcastStyle
+import com.aisummarypodcast.store.TtsProviderType
 import com.aisummarypodcast.user.UserService
+import com.fasterxml.jackson.annotation.JsonProperty
 import org.slf4j.LoggerFactory
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
-import com.fasterxml.jackson.annotation.JsonProperty
 import java.net.URI
 
 data class CreatePodcastRequest(
@@ -74,33 +77,25 @@ class PodcastController(
     private val podcastService: PodcastService,
     private val userService: UserService,
     private val llmPipeline: LlmPipeline,
-    private val episodeService: EpisodeService,
-    private val episodeRepository: com.aisummarypodcast.store.EpisodeRepository
+    private val episodeService: EpisodeService
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    companion object {
-        val SUPPORTED_TTS_PROVIDERS = setOf("openai", "elevenlabs")
-    }
-
-    private fun validateTtsConfig(ttsProvider: String, style: String, ttsVoices: Map<String, String>?): String? {
-        if (ttsProvider !in SUPPORTED_TTS_PROVIDERS) {
-            return "Unsupported TTS provider: $ttsProvider. Supported: ${SUPPORTED_TTS_PROVIDERS.joinToString()}"
-        }
-        if (style == "dialogue" && ttsProvider != "elevenlabs") {
+    private fun validateTtsConfig(ttsProvider: TtsProviderType, style: PodcastStyle, ttsVoices: Map<String, String>?): String? {
+        if (style == PodcastStyle.DIALOGUE && ttsProvider != TtsProviderType.ELEVENLABS) {
             return "Dialogue style requires ElevenLabs as TTS provider"
         }
-        if (style == "dialogue" && (ttsVoices == null || ttsVoices.size < 2)) {
+        if (style == PodcastStyle.DIALOGUE && (ttsVoices == null || ttsVoices.size < 2)) {
             return "Dialogue style requires at least two voice roles in ttsVoices (e.g., host and cohost)"
         }
-        if (style == "interview" && ttsProvider != "elevenlabs") {
+        if (style == PodcastStyle.INTERVIEW && ttsProvider != TtsProviderType.ELEVENLABS) {
             return "Interview style requires ElevenLabs as TTS provider"
         }
-        if (style == "interview" && (ttsVoices == null || ttsVoices.size < 2)) {
+        if (style == PodcastStyle.INTERVIEW && (ttsVoices == null || ttsVoices.size < 2)) {
             return "Interview style requires at least two voice roles in ttsVoices (interviewer and expert)"
         }
-        if (style == "interview" && ttsVoices != null && ttsVoices.keys != setOf("interviewer", "expert")) {
+        if (style == PodcastStyle.INTERVIEW && ttsVoices != null && ttsVoices.keys != setOf("interviewer", "expert")) {
             return "Interview style requires exactly 'interviewer' and 'expert' voice roles"
         }
         return null
@@ -113,8 +108,14 @@ class PodcastController(
         if (!SupportedLanguage.isSupported(language)) {
             return ResponseEntity.badRequest().body(mapOf("error" to "Unsupported language: $language"))
         }
-        val ttsProvider = request.ttsProvider ?: "openai"
-        val style = request.style ?: "news-briefing"
+        val ttsProvider = request.ttsProvider?.let {
+            TtsProviderType.fromValue(it)
+                ?: return ResponseEntity.badRequest().body(mapOf("error" to "Unsupported TTS provider: $it. Supported: ${TtsProviderType.entries.joinToString { e -> e.value }}"))
+        } ?: TtsProviderType.OPENAI
+        val style = request.style?.let {
+            PodcastStyle.fromValue(it)
+                ?: return ResponseEntity.badRequest().body(mapOf("error" to "Unsupported style: $it. Supported: ${PodcastStyle.entries.joinToString { e -> e.value }}"))
+        } ?: PodcastStyle.NEWS_BRIEFING
         validateTtsConfig(ttsProvider, style, request.ttsVoices)?.let {
             return ResponseEntity.badRequest().body(mapOf("error" to it))
         }
@@ -122,17 +123,17 @@ class PodcastController(
             userId = userId,
             name = request.name,
             topic = request.topic,
-            podcast = com.aisummarypodcast.store.Podcast(
+            podcast = Podcast(
                 id = "",
                 userId = userId,
                 name = request.name,
                 topic = request.topic,
                 language = language,
                 llmModels = request.llmModels,
-                ttsProvider = request.ttsProvider ?: "openai",
+                ttsProvider = ttsProvider,
                 ttsVoices = request.ttsVoices,
                 ttsSettings = request.ttsSettings,
-                style = request.style ?: "news-briefing",
+                style = style,
                 targetWords = request.targetWords,
                 cron = request.cron ?: "0 0 6 * * *",
                 customInstructions = request.customInstructions,
@@ -173,8 +174,14 @@ class PodcastController(
         if (request.language != null && !SupportedLanguage.isSupported(request.language)) {
             return ResponseEntity.badRequest().body(mapOf("error" to "Unsupported language: ${request.language}"))
         }
-        val effectiveTtsProvider = request.ttsProvider ?: existing.ttsProvider
-        val effectiveStyle = request.style ?: existing.style
+        val effectiveTtsProvider = request.ttsProvider?.let {
+            TtsProviderType.fromValue(it)
+                ?: return ResponseEntity.badRequest().body(mapOf("error" to "Unsupported TTS provider: $it. Supported: ${TtsProviderType.entries.joinToString { e -> e.value }}"))
+        } ?: existing.ttsProvider
+        val effectiveStyle = request.style?.let {
+            PodcastStyle.fromValue(it)
+                ?: return ResponseEntity.badRequest().body(mapOf("error" to "Unsupported style: $it. Supported: ${PodcastStyle.entries.joinToString { e -> e.value }}"))
+        } ?: existing.style
         val effectiveVoices = request.ttsVoices ?: existing.ttsVoices
         validateTtsConfig(effectiveTtsProvider, effectiveStyle, effectiveVoices)?.let {
             return ResponseEntity.badRequest().body(mapOf("error" to it))
@@ -186,10 +193,10 @@ class PodcastController(
                 topic = request.topic,
                 language = request.language ?: existing.language,
                 llmModels = request.llmModels ?: existing.llmModels,
-                ttsProvider = request.ttsProvider ?: existing.ttsProvider,
+                ttsProvider = effectiveTtsProvider,
                 ttsVoices = request.ttsVoices ?: existing.ttsVoices,
                 ttsSettings = request.ttsSettings ?: existing.ttsSettings,
-                style = request.style ?: existing.style,
+                style = effectiveStyle,
                 targetWords = request.targetWords ?: existing.targetWords,
                 cron = request.cron ?: existing.cron,
                 customInstructions = request.customInstructions ?: existing.customInstructions,
@@ -218,13 +225,8 @@ class PodcastController(
         val podcast = podcastService.findById(podcastId) ?: return ResponseEntity.notFound().build()
         if (podcast.userId != userId) return ResponseEntity.notFound().build()
 
-        if (podcast.requireReview) {
-            val pending = episodeRepository.findByPodcastIdAndStatusIn(
-                podcastId, listOf("PENDING_REVIEW", "APPROVED")
-            )
-            if (pending.isNotEmpty()) {
-                return ResponseEntity.status(409).body(mapOf("error" to "A pending or approved episode already exists. Approve or discard it first."))
-            }
+        if (podcast.requireReview && episodeService.hasPendingOrApprovedEpisode(podcastId)) {
+            return ResponseEntity.status(409).body(mapOf("error" to "A pending or approved episode already exists. Approve or discard it first."))
         }
 
         log.info("Manual briefing generation triggered for podcast {}", podcastId)
@@ -240,11 +242,11 @@ class PodcastController(
         }
     }
 
-    private fun com.aisummarypodcast.store.Podcast.toResponse() = PodcastResponse(
+    private fun Podcast.toResponse() = PodcastResponse(
         id = id, userId = userId, name = name, topic = topic,
-        language = language, llmModels = llmModels, ttsProvider = ttsProvider, ttsVoices = ttsVoices,
+        language = language, llmModels = llmModels, ttsProvider = ttsProvider.value, ttsVoices = ttsVoices,
         ttsSettings = ttsSettings,
-        style = style, targetWords = targetWords, cron = cron,
+        style = style.value, targetWords = targetWords, cron = cron,
         customInstructions = customInstructions, relevanceThreshold = relevanceThreshold,
         requireReview = requireReview, maxLlmCostCents = maxLlmCostCents,
         maxArticleAgeDays = maxArticleAgeDays, speakerNames = speakerNames, lastGeneratedAt = lastGeneratedAt

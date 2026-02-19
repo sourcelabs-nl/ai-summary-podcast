@@ -15,6 +15,7 @@ import com.aisummarypodcast.store.Podcast
 import com.aisummarypodcast.store.PostRepository
 import com.aisummarypodcast.store.Source
 import com.aisummarypodcast.store.SourceRepository
+import com.aisummarypodcast.store.SourceType
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
@@ -97,7 +98,7 @@ class SourcePollingSchedulerTest {
     @Test
     fun `resolves podcast owner userId for twitter source`() = runTest {
         val twitterSource = Source(
-            id = "s1", podcastId = "p1", type = "twitter", url = "testuser",
+            id = "s1", podcastId = "p1", type = SourceType.TWITTER, url = "testuser",
             lastPolled = Instant.now().minus(2, ChronoUnit.HOURS).toString(), enabled = true
         )
 
@@ -113,7 +114,7 @@ class SourcePollingSchedulerTest {
     @Test
     fun `does not resolve userId for rss source`() = runTest {
         val rssSource = Source(
-            id = "s2", podcastId = "p1", type = "rss", url = "https://example.com/feed",
+            id = "s2", podcastId = "p1", type = SourceType.RSS, url = "https://example.com/feed",
             lastPolled = Instant.now().minus(2, ChronoUnit.HOURS).toString(), enabled = true
         )
 
@@ -129,7 +130,7 @@ class SourcePollingSchedulerTest {
 
     @Test
     fun `applyStartupJitter sets synthetic lastPolled for sources with null lastPolled`() = runTest {
-        val source = Source(id = "s1", podcastId = "p1", type = "rss", url = "https://example.com/rss", pollIntervalMinutes = 60)
+        val source = Source(id = "s1", podcastId = "p1", type = SourceType.RSS, url = "https://example.com/rss", pollIntervalMinutes = 60)
         val saved = slot<Source>()
         every { sourceRepository.save(capture(saved)) } answers { saved.captured }
 
@@ -148,7 +149,7 @@ class SourcePollingSchedulerTest {
     fun `applyStartupJitter does not modify sources with existing lastPolled`() = runTest {
         val existingLastPolled = Instant.now().minus(30, ChronoUnit.MINUTES).toString()
         val source = Source(
-            id = "s1", podcastId = "p1", type = "rss", url = "https://example.com/rss",
+            id = "s1", podcastId = "p1", type = SourceType.RSS, url = "https://example.com/rss",
             lastPolled = existingLastPolled
         )
 
@@ -164,15 +165,15 @@ class SourcePollingSchedulerTest {
     @Test
     fun `sources are grouped by host and all get polled`() = runTest {
         val source1 = Source(
-            id = "s1", podcastId = "p1", type = "rss", url = "https://nitter.net/user1/rss",
+            id = "s1", podcastId = "p1", type = SourceType.RSS, url = "https://nitter.net/user1/rss",
             lastPolled = Instant.now().minus(2, ChronoUnit.HOURS).toString()
         )
         val source2 = Source(
-            id = "s2", podcastId = "p1", type = "rss", url = "https://nitter.net/user2/rss",
+            id = "s2", podcastId = "p1", type = SourceType.RSS, url = "https://nitter.net/user2/rss",
             lastPolled = Instant.now().minus(2, ChronoUnit.HOURS).toString()
         )
         val source3 = Source(
-            id = "s3", podcastId = "p1", type = "rss", url = "https://reddit.com/feed",
+            id = "s3", podcastId = "p1", type = SourceType.RSS, url = "https://reddit.com/feed",
             lastPolled = Instant.now().minus(2, ChronoUnit.HOURS).toString()
         )
         every { sourceRepository.findAll() } returns listOf(source1, source2, source3)
@@ -190,11 +191,11 @@ class SourcePollingSchedulerTest {
     @Test
     fun `one host group failure does not cancel other host groups`() = runTest {
         val source1 = Source(
-            id = "s1", podcastId = "p1", type = "rss", url = "https://failing-host.net/rss",
+            id = "s1", podcastId = "p1", type = SourceType.RSS, url = "https://failing-host.net/rss",
             lastPolled = Instant.now().minus(2, ChronoUnit.HOURS).toString()
         )
         val source2 = Source(
-            id = "s2", podcastId = "p1", type = "rss", url = "https://working-host.net/rss",
+            id = "s2", podcastId = "p1", type = SourceType.RSS, url = "https://working-host.net/rss",
             lastPolled = Instant.now().minus(2, ChronoUnit.HOURS).toString()
         )
         every { sourceRepository.findAll() } returns listOf(source1, source2)
@@ -211,7 +212,7 @@ class SourcePollingSchedulerTest {
     @Test
     fun `per-source pollDelaySeconds overrides host override`() {
         val source = Source(
-            id = "s1", podcastId = "p1", type = "rss", url = "https://nitter.net/user/rss",
+            id = "s1", podcastId = "p1", type = SourceType.RSS, url = "https://nitter.net/user/rss",
             pollDelaySeconds = 5
         )
         val props = appProperties(hostOverrides = mapOf("nitter.net" to HostOverride(pollDelaySeconds = 3)))
@@ -222,7 +223,7 @@ class SourcePollingSchedulerTest {
     @Test
     fun `host override delay is applied when no per-source delay`() {
         val source = Source(
-            id = "s1", podcastId = "p1", type = "rss", url = "https://nitter.net/user/rss"
+            id = "s1", podcastId = "p1", type = SourceType.RSS, url = "https://nitter.net/user/rss"
         )
         val props = appProperties(hostOverrides = mapOf("nitter.net" to HostOverride(pollDelaySeconds = 3)))
         val resolver = PollDelayResolver(props)
@@ -232,7 +233,7 @@ class SourcePollingSchedulerTest {
     @Test
     fun `type default delay is applied when no per-source or host override`() {
         val source = Source(
-            id = "s1", podcastId = "p1", type = "website", url = "https://example.com"
+            id = "s1", podcastId = "p1", type = SourceType.WEBSITE, url = "https://example.com"
         )
         val props = appProperties(pollDelaySeconds = mapOf("website" to 2))
         val resolver = PollDelayResolver(props)

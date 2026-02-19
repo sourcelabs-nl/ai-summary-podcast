@@ -6,6 +6,7 @@ import com.aisummarypodcast.store.Post
 import com.aisummarypodcast.store.PostArticle
 import com.aisummarypodcast.store.PostArticleRepository
 import com.aisummarypodcast.store.Source
+import com.aisummarypodcast.store.SourceType
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import java.net.URI
@@ -61,7 +62,7 @@ class SourceAggregator(
 
     internal fun shouldAggregate(source: Source): Boolean {
         if (source.aggregate != null) return source.aggregate
-        return source.type == "twitter" || source.url.contains("nitter.net")
+        return source.type == SourceType.TWITTER || source.url.contains("nitter.net")
     }
 
     private fun aggregatePosts(posts: List<Post>, source: Source): List<Article> {
