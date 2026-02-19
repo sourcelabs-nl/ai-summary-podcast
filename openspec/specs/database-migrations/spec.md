@@ -96,3 +96,40 @@ The system SHALL include a migration file `V14__add_episode_publications.sql` th
 #### Scenario: V14 migration on fresh database
 - **WHEN** Flyway applies V14 on a database with no prior data
 - **THEN** the migration completes successfully and the table is empty
+
+### Requirement: Foreign key enforcement at connection level
+The system SHALL enable SQLite foreign key enforcement by configuring HikariCP's `connection-init-sql` to execute `PRAGMA foreign_keys = ON` on every new database connection. This ensures referential integrity is enforced for all database operations, not just those that explicitly enable it.
+
+#### Scenario: Foreign keys enforced on new connection
+- **WHEN** a new database connection is obtained from the connection pool
+- **THEN** `PRAGMA foreign_keys = ON` has been executed and foreign key constraints are active
+
+#### Scenario: Delete parent row with child references
+- **WHEN** a row in a parent table is deleted and child rows reference it via a foreign key without `ON DELETE CASCADE`
+- **THEN** the delete fails with a foreign key constraint violation
+
+### Requirement: V30 migration adds indexes
+The system SHALL include a migration file `V30__add_indexes.sql` that adds indexes to frequently queried columns across multiple tables. The indexes SHALL include: `idx_articles_podcast_processed` on `articles(podcast_id, is_processed)`, `idx_articles_published_at` on `articles(published_at)`, `idx_articles_source_hash` on `articles(source_id, content_hash)`, `idx_episodes_podcast_status` on `episodes(podcast_id, status)`, `idx_episodes_created_at` on `episodes(created_at)`, `idx_posts_source_hash` on `posts(source_id, content_hash)`, `idx_posts_created_at` on `posts(created_at)`, `idx_sources_podcast_enabled` on `sources(podcast_id, enabled)`, `idx_episode_articles_episode` on `episode_articles(episode_id)`, and `idx_llm_cache_key` on `llm_cache(cache_key)`. All indexes SHALL use `CREATE INDEX IF NOT EXISTS` for idempotent application.
+
+#### Scenario: V30 migration adds performance indexes
+- **WHEN** Flyway applies `V30__add_indexes.sql`
+- **THEN** all 10 indexes are created on the respective tables
+
+#### Scenario: V30 migration is idempotent
+- **WHEN** V30 is applied on a database that already has some of these indexes
+- **THEN** the `IF NOT EXISTS` clause prevents errors and the migration completes successfully
+
+### Requirement: V31 migration adds cascade deletes on join tables
+The system SHALL include a migration file `V31__add_cascade_deletes.sql` that recreates the `post_articles` and `episode_articles` join tables with `ON DELETE CASCADE` foreign keys. Because SQLite does not support `ALTER CONSTRAINT`, the migration SHALL: (1) clean up any orphaned rows in the join tables, (2) create new tables with cascade delete foreign keys, (3) copy data from old to new tables, (4) drop old tables, (5) rename new tables. The migration SHALL also re-add the `idx_episode_articles_episode` index that is dropped with the old table.
+
+#### Scenario: V31 migration enables cascade deletes
+- **WHEN** Flyway applies `V31__add_cascade_deletes.sql`
+- **THEN** deleting an article cascades to remove related rows in `post_articles` and `episode_articles`
+
+#### Scenario: V31 migration cleans orphaned rows
+- **WHEN** V31 is applied and orphaned rows exist in join tables (referencing deleted parents)
+- **THEN** the orphaned rows are deleted before the new FK constraints are applied
+
+#### Scenario: Article deletion cascades to join tables
+- **WHEN** an article is deleted from the `articles` table
+- **THEN** all corresponding rows in `post_articles` and `episode_articles` are automatically deleted

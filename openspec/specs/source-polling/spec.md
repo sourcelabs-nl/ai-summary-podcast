@@ -85,6 +85,17 @@ The system SHALL scrape websites using Jsoup for sources with type `website`. Th
 - **WHEN** a website page content hash matches an existing post's hash for that source
 - **THEN** no new post is created
 
+### Requirement: Resilient datetime parsing
+The `SourcePoller` SHALL parse datetime strings resiliently, accepting both ISO-8601 format (`2026-02-19T10:48:10Z`) and SQLite datetime format (`2026-02-19 10:48:10`). A private `parseInstant()` method SHALL first attempt `Instant.parse()` (ISO-8601), and if that throws `DateTimeParseException`, SHALL fall back to parsing the string as a `LocalDateTime` (replacing the space separator with `T`) and converting to `Instant` assuming UTC. This ensures compatibility with timestamps stored by SQLite's `datetime()` function.
+
+#### Scenario: ISO-8601 datetime parsed
+- **WHEN** a source has `createdAt` in ISO-8601 format (e.g., `2026-02-19T10:48:10Z`)
+- **THEN** it is parsed correctly as an `Instant`
+
+#### Scenario: SQLite datetime format parsed
+- **WHEN** a source has `createdAt` in SQLite format (e.g., `2026-02-19 10:48:10`)
+- **THEN** it is parsed as UTC `Instant` by replacing the space with `T` and treating it as `LocalDateTime` at UTC
+
 ### Requirement: Content hash deduplication
 The system SHALL compute a SHA-256 hash of each post's body text before storing. Posts with a `(source_id, content_hash)` combination already present in the `posts` table SHALL be silently skipped. Posts whose `publishedAt` is older than the configured maximum article age (`app.source.max-article-age-days`, default 7 days) SHALL be silently skipped. Posts with `publishedAt` = null SHALL NOT be filtered by age. Additionally, for a source's first poll (`lastPolled` is null), posts with `publishedAt` before the source's `createdAt` timestamp SHALL be silently skipped. Posts with `publishedAt` = null SHALL NOT be filtered by the source's `createdAt`.
 
