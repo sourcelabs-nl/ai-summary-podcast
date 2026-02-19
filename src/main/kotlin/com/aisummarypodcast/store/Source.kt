@@ -10,7 +10,7 @@ data class Source(
     val podcastId: String,
     val type: String,
     val url: String,
-    val pollIntervalMinutes: Int = 60,
+    val pollIntervalMinutes: Int = 30,
     val enabled: Boolean = true,
     val lastPolled: String? = null,
     val lastSeenId: String? = null,

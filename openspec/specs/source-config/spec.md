@@ -7,7 +7,7 @@ Configuration loading for content sources and application settings, using Spring
 ## Requirements
 
 ### Requirement: Source configuration via YAML
-The system SHALL load content source definitions from a `sources.yml` file using Spring's `@ConfigurationProperties`. Each source entry SHALL have the fields: `id` (unique string), `type` (one of `rss`, `website`, `twitter`), `url`, `pollIntervalMinutes` (default: 60), `enabled` (default: true), `aggregate` (nullable boolean, default: null — enabling hybrid auto-detect/override for article aggregation), `pollDelaySeconds` (nullable integer, default: null — per-source override for delay between polls to the same host), and `categoryFilter` (nullable string, default: null — comma-separated list of category terms for RSS pre-ingestion filtering).
+The system SHALL load content source definitions from a `sources.yml` file using Spring's `@ConfigurationProperties`. Each source entry SHALL have the fields: `id` (unique string), `type` (one of `rss`, `website`, `twitter`), `url`, `pollIntervalMinutes` (default: 30), `enabled` (default: true), `aggregate` (nullable boolean, default: null — enabling hybrid auto-detect/override for article aggregation), `pollDelaySeconds` (nullable integer, default: null — per-source override for delay between polls to the same host), and `categoryFilter` (nullable string, default: null — comma-separated list of category terms for RSS pre-ingestion filtering).
 
 #### Scenario: Valid source configuration loaded at startup
 - **WHEN** the application starts with a valid `sources.yml` containing two RSS sources and one website source
@@ -15,7 +15,7 @@ The system SHALL load content source definitions from a `sources.yml` file using
 
 #### Scenario: Source with default values
 - **WHEN** a source entry omits `pollIntervalMinutes`, `enabled`, `aggregate`, `pollDelaySeconds`, and `categoryFilter`
-- **THEN** the source defaults to a 60-minute poll interval, enabled = true, aggregate = null (auto-detect), pollDelaySeconds = null (use global/host defaults), and categoryFilter = null (no category filtering)
+- **THEN** the source defaults to a 30-minute poll interval, enabled = true, aggregate = null (auto-detect), pollDelaySeconds = null (use global/host defaults), and categoryFilter = null (no category filtering)
 
 #### Scenario: Disabled source is loaded but not active
 - **WHEN** a source entry has `enabled: false`

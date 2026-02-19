@@ -9,7 +9,7 @@ import java.net.URI
 data class CreateSourceRequest(
     val type: String,
     val url: String,
-    val pollIntervalMinutes: Int = 60,
+    val pollIntervalMinutes: Int = 30,
     val enabled: Boolean = true,
     val aggregate: Boolean? = null,
     val maxFailures: Int? = null,
@@ -21,7 +21,7 @@ data class CreateSourceRequest(
 data class UpdateSourceRequest(
     val type: String,
     val url: String,
-    val pollIntervalMinutes: Int = 60,
+    val pollIntervalMinutes: Int = 30,
     val enabled: Boolean = true,
     val aggregate: Boolean? = null,
     val maxFailures: Int? = null,

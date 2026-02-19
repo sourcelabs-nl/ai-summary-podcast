@@ -18,7 +18,7 @@ class SourceService(
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    fun create(podcastId: String, type: String, url: String, pollIntervalMinutes: Int = 60, enabled: Boolean = true, aggregate: Boolean? = null, maxFailures: Int? = null, maxBackoffHours: Int? = null, pollDelaySeconds: Int? = null, categoryFilter: String? = null): Source {
+    fun create(podcastId: String, type: String, url: String, pollIntervalMinutes: Int = 30, enabled: Boolean = true, aggregate: Boolean? = null, maxFailures: Int? = null, maxBackoffHours: Int? = null, pollDelaySeconds: Int? = null, categoryFilter: String? = null): Source {
         val source = Source(
             id = UUID.randomUUID().toString(),
             podcastId = podcastId,
