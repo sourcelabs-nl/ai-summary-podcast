@@ -83,10 +83,17 @@ class ArticleScoreSummarizer(
             "$titleLine$authorLine\nContent: ${article.body}"
         }
 
+        val wordCount = article.body.split("\\s+".toRegex()).size
+        val summaryLengthInstruction = when {
+            wordCount >= 1500 -> "a full paragraph covering key points, context, and attribution"
+            wordCount >= 500 -> "4-6 sentences"
+            else -> "2-3 sentences"
+        }
+
         return """
             You are a relevance scorer and summarizer. Given the topic of interest and content, perform the following:
             1. Rate the content's relevance to the topic on a scale of 0-10
-            2. Summarize the relevant information in 2-3 sentences, filtering out any irrelevant parts
+            2. Summarize the relevant information in $summaryLengthInstruction, filtering out any irrelevant parts
 
             Write directly about what happened — say "Anthropic launched X" not "The article discusses Anthropic launching X".
 
@@ -96,7 +103,7 @@ class ArticleScoreSummarizer(
 
             Respond with a JSON object containing:
             - "relevanceScore" (integer 0-10)
-            - "summary" (2-3 sentences of direct, factual statements about the key relevant information)
+            - "summary" ($summaryLengthInstruction of direct, factual statements about the key relevant information)
 
             If the content attributes information to a specific person, organization, or study, preserve that attribution in your summary.
             If the content is completely irrelevant (score 0-2), you may leave the summary empty.

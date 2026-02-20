@@ -40,7 +40,8 @@ class PodcastService(
             requireReview = podcast?.requireReview ?: false,
             maxLlmCostCents = podcast?.maxLlmCostCents,
             maxArticleAgeDays = podcast?.maxArticleAgeDays,
-            speakerNames = podcast?.speakerNames
+            speakerNames = podcast?.speakerNames,
+            fullBodyThreshold = podcast?.fullBodyThreshold
         )
         return podcastRepository.save(newPodcast)
     }
@@ -67,7 +68,8 @@ class PodcastService(
             requireReview = updates.requireReview,
             maxLlmCostCents = updates.maxLlmCostCents,
             maxArticleAgeDays = updates.maxArticleAgeDays,
-            speakerNames = updates.speakerNames
+            speakerNames = updates.speakerNames,
+            fullBodyThreshold = updates.fullBodyThreshold
         )
         return podcastRepository.save(updated)
     }

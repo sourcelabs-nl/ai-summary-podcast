@@ -10,6 +10,7 @@ import io.mockk.slot
 import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.springframework.ai.chat.client.ChatClient
@@ -197,5 +198,55 @@ class ArticleScoreSummarizerTest {
         val prompt = scoreSummarizer.buildPrompt(article, podcast)
 
         assertTrue(prompt.contains("say \"Anthropic launched X\" not \"The article discusses Anthropic launching X\""))
+    }
+
+    @Test
+    fun `short article prompt requests 2-3 sentence summary`() {
+        val article = Article(
+            id = 11, sourceId = "s1", title = "Short Post",
+            body = "A brief update on AI.", url = "https://example.com/11",
+            contentHash = "hash11"
+        )
+
+        val prompt = scoreSummarizer.buildPrompt(article, podcast)
+
+        assertTrue(prompt.contains("2-3 sentences"))
+        assertFalse(prompt.contains("4-6 sentences"))
+        assertFalse(prompt.contains("full paragraph"))
+    }
+
+    @Test
+    fun `medium article prompt requests 4-6 sentence summary`() {
+        val body = (1..100).joinToString(" ") { "word$it" } // ~100 words repeated to get 500+
+        val mediumBody = (1..6).joinToString(" ") { body } // ~600 words
+
+        val article = Article(
+            id = 12, sourceId = "s1", title = "Medium Article",
+            body = mediumBody, url = "https://example.com/12",
+            contentHash = "hash12"
+        )
+
+        val prompt = scoreSummarizer.buildPrompt(article, podcast)
+
+        assertTrue(prompt.contains("4-6 sentences"))
+        assertFalse(prompt.contains("2-3 sentences"))
+        assertFalse(prompt.contains("full paragraph"))
+    }
+
+    @Test
+    fun `long article prompt requests full paragraph summary`() {
+        val body = (1..1600).joinToString(" ") { "word$it" } // 1600 words
+
+        val article = Article(
+            id = 13, sourceId = "s1", title = "Long Article",
+            body = body, url = "https://example.com/13",
+            contentHash = "hash13"
+        )
+
+        val prompt = scoreSummarizer.buildPrompt(article, podcast)
+
+        assertTrue(prompt.contains("full paragraph"))
+        assertFalse(prompt.contains("2-3 sentences"))
+        assertFalse(prompt.contains("4-6 sentences"))
     }
 }

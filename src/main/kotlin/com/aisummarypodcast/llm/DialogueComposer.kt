@@ -63,10 +63,13 @@ class DialogueComposer(
             "\n            - Speaker names: $nameMapping. Use these names naturally in conversation while keeping role keys as XML tags."
         } else ""
 
+        val fullBodyThreshold = podcast.fullBodyThreshold ?: appProperties.briefing.fullBodyThreshold
+        val useFullBody = articles.size < fullBodyThreshold
+
         val summaryBlock = articles.mapIndexed { index, article ->
             val source = extractDomain(article.url)
             val authorSuffix = article.author?.let { ", by $it" } ?: ""
-            val content = article.summary ?: article.body
+            val content = if (useFullBody) article.body else (article.summary ?: article.body)
             "${index + 1}. [$source$authorSuffix] ${article.title}\n$content"
         }.joinToString("\n\n")
 

@@ -17,8 +17,8 @@ flowchart LR
 1. **Source Poller** — Periodically fetches new content from configured RSS feeds, websites, and X (Twitter) accounts. Individual items (tweets, RSS entries, scraped pages) are stored as **posts** in a dedicated table. Posts older than a configurable threshold (default 7 days) are automatically discarded.
 2. **Aggregation** — At briefing generation time, unprocessed posts are aggregated into articles. For short-form sources (tweets, nitter feeds), multiple posts are merged into a single digest article. For long-form sources, each post maps 1:1 to an article. A `post_articles` join table maintains full traceability.
 3. **LLM Processing** — Two sequential stages, each using a configurable model from the named model registry:
-   - **Score + Summarize** — A single LLM call per article that scores relevance (0–10), filters out irrelevant content, and summarizes the relevant parts. Articles below the `relevanceThreshold` (default 5) are excluded.
-   - **Briefing Composition** — Composes a coherent briefing script from all relevant articles with natural transitions. When a previous episode exists, its recap is passed to the composer for continuity — the script references what was discussed last time.
+   - **Score + Summarize** — A single LLM call per article that scores relevance (0–10), filters out irrelevant content, and summarizes the relevant parts. Summary length scales with article length: short articles get 2–3 sentences, medium articles 4–6 sentences, and long articles a full paragraph. Articles below the `relevanceThreshold` (default 5) are excluded.
+   - **Briefing Composition** — Composes a coherent briefing script from all relevant articles with natural transitions. When few articles are available (below `fullBodyThreshold`, default 5), full article bodies are used instead of summaries for richer content. When a previous episode exists, its recap is passed to the composer for continuity — the script references what was discussed last time.
 4. **TTS Generation** — Converts the script to speech via OpenAI TTS or ElevenLabs, chunking at sentence boundaries and concatenating with FFmpeg. ElevenLabs also supports multi-speaker dialogue via its Text-to-Dialogue API. After each episode is saved, a short recap is generated and stored for use as continuity context in the next episode.
 5. **Podcast Feed** — Serves an RSS 2.0 feed with `<enclosure>` tags so any podcast app can subscribe.
 
@@ -161,6 +161,7 @@ Each podcast can be tailored to your preferences via the following settings:
 | `cron` | `"0 0 6 * * *"` | Generation schedule in cron format (default: daily at 6 AM) |
 | `customInstructions` | — | Free-form instructions appended to the LLM prompt (e.g. "Focus on recent breakthroughs" or "Avoid financial topics") |
 | `relevanceThreshold` | `5` | Minimum relevance score (0–10) for an article to be included in the briefing |
+| `fullBodyThreshold` | `5` | When the number of relevant articles is below this threshold, the composer uses full article bodies instead of summaries for richer content |
 | `requireReview` | `false` | When `true`, generated scripts pause for review before TTS — see [Episode Review](#episode-review) below |
 | `maxLlmCostCents` | `null` | Per-podcast LLM cost threshold in cents — see [Cost Gate](#cost-gate) below |
 

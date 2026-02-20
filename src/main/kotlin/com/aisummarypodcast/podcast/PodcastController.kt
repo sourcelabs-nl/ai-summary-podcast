@@ -27,7 +27,8 @@ data class CreatePodcastRequest(
     @JsonProperty("requireReview") val requireReview: Boolean? = null,
     @JsonProperty("maxLlmCostCents") val maxLlmCostCents: Int? = null,
     @JsonProperty("maxArticleAgeDays") val maxArticleAgeDays: Int? = null,
-    val speakerNames: Map<String, String>? = null
+    val speakerNames: Map<String, String>? = null,
+    @JsonProperty("fullBodyThreshold") val fullBodyThreshold: Int? = null
 )
 
 data class UpdatePodcastRequest(
@@ -46,7 +47,8 @@ data class UpdatePodcastRequest(
     @JsonProperty("requireReview") val requireReview: Boolean? = null,
     @JsonProperty("maxLlmCostCents") val maxLlmCostCents: Int? = null,
     @JsonProperty("maxArticleAgeDays") val maxArticleAgeDays: Int? = null,
-    val speakerNames: Map<String, String>? = null
+    val speakerNames: Map<String, String>? = null,
+    @JsonProperty("fullBodyThreshold") val fullBodyThreshold: Int? = null
 )
 
 data class PodcastResponse(
@@ -68,6 +70,7 @@ data class PodcastResponse(
     val maxLlmCostCents: Int?,
     val maxArticleAgeDays: Int?,
     val speakerNames: Map<String, String>?,
+    val fullBodyThreshold: Int?,
     val lastGeneratedAt: String?
 )
 
@@ -141,7 +144,8 @@ class PodcastController(
                 requireReview = request.requireReview ?: false,
                 maxLlmCostCents = request.maxLlmCostCents,
                 maxArticleAgeDays = request.maxArticleAgeDays,
-                speakerNames = request.speakerNames
+                speakerNames = request.speakerNames,
+                fullBodyThreshold = request.fullBodyThreshold
             )
         )
         return ResponseEntity.created(URI.create("/users/$userId/podcasts/${podcast.id}"))
@@ -204,7 +208,8 @@ class PodcastController(
                 requireReview = request.requireReview ?: existing.requireReview,
                 maxLlmCostCents = request.maxLlmCostCents ?: existing.maxLlmCostCents,
                 maxArticleAgeDays = request.maxArticleAgeDays ?: existing.maxArticleAgeDays,
-                speakerNames = request.speakerNames ?: existing.speakerNames
+                speakerNames = request.speakerNames ?: existing.speakerNames,
+                fullBodyThreshold = request.fullBodyThreshold ?: existing.fullBodyThreshold
             )
         ) ?: return ResponseEntity.notFound().build()
         return ResponseEntity.ok(updated.toResponse())
@@ -249,6 +254,7 @@ class PodcastController(
         style = style.value, targetWords = targetWords, cron = cron,
         customInstructions = customInstructions, relevanceThreshold = relevanceThreshold,
         requireReview = requireReview, maxLlmCostCents = maxLlmCostCents,
-        maxArticleAgeDays = maxArticleAgeDays, speakerNames = speakerNames, lastGeneratedAt = lastGeneratedAt
+        maxArticleAgeDays = maxArticleAgeDays, speakerNames = speakerNames,
+        fullBodyThreshold = fullBodyThreshold, lastGeneratedAt = lastGeneratedAt
     )
 }

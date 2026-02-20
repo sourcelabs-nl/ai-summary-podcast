@@ -39,7 +39,8 @@ data class StageDefaults(
 )
 
 data class BriefingProperties(
-    val targetWords: Int = 1500
+    val targetWords: Int = 1500,
+    val fullBodyThreshold: Int = 5
 )
 
 data class EpisodesProperties(

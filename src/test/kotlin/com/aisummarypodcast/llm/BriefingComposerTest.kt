@@ -199,8 +199,8 @@ class BriefingComposerTest {
     }
 
     @Test
-    fun `buildPrompt uses summary when available`() {
-        val podcast = Podcast(id = "p1", userId = "u1", name = "Test", topic = "tech")
+    fun `buildPrompt uses summary when available and above threshold`() {
+        val podcast = Podcast(id = "p1", userId = "u1", name = "Test", topic = "tech", fullBodyThreshold = 1)
         val articles = listOf(
             Article(
                 id = 1, sourceId = "s1", title = "Long Article",
@@ -298,8 +298,8 @@ class BriefingComposerTest {
     }
 
     @Test
-    fun `buildPrompt handles mixed summary and body articles`() {
-        val podcast = Podcast(id = "p1", userId = "u1", name = "Test", topic = "tech")
+    fun `buildPrompt handles mixed summary and body articles above threshold`() {
+        val podcast = Podcast(id = "p1", userId = "u1", name = "Test", topic = "tech", fullBodyThreshold = 1)
         val articles = listOf(
             Article(
                 id = 1, sourceId = "s1", title = "Long Article",
@@ -318,5 +318,72 @@ class BriefingComposerTest {
         assertTrue(prompt.contains("Summary of long article."))
         assertTrue(prompt.contains("Short body text."))
         assertFalse(prompt.contains("Long body text."))
+    }
+
+    @Test
+    fun `buildPrompt uses full body when article count is below threshold`() {
+        val podcast = Podcast(id = "p1", userId = "u1", name = "Test", topic = "tech")
+        val articles = listOf(
+            Article(
+                id = 1, sourceId = "s1", title = "Article 1",
+                body = "Full body of article one.",
+                url = "https://example.com/1", contentHash = "h1",
+                summary = "Summary of article one."
+            ),
+            Article(
+                id = 2, sourceId = "s1", title = "Article 2",
+                body = "Full body of article two.",
+                url = "https://example.com/2", contentHash = "h2",
+                summary = "Summary of article two."
+            )
+        )
+        // Default threshold is 5, 2 articles < 5 → use full body
+        val prompt = composer.buildPrompt(articles, podcast)
+        assertTrue(prompt.contains("Full body of article one."))
+        assertTrue(prompt.contains("Full body of article two."))
+        assertFalse(prompt.contains("Summary of article one."))
+        assertFalse(prompt.contains("Summary of article two."))
+    }
+
+    @Test
+    fun `buildPrompt uses summaries when article count is at or above threshold`() {
+        val podcast = Podcast(id = "p1", userId = "u1", name = "Test", topic = "tech", fullBodyThreshold = 3)
+        val articles = (1..3).map { i ->
+            Article(
+                id = i.toLong(), sourceId = "s1", title = "Article $i",
+                body = "Full body $i.",
+                url = "https://example.com/$i", contentHash = "h$i",
+                summary = "Summary $i."
+            )
+        }
+        // 3 articles, threshold 3 → not below threshold → use summaries
+        val prompt = composer.buildPrompt(articles, podcast)
+        assertTrue(prompt.contains("Summary 1."))
+        assertTrue(prompt.contains("Summary 2."))
+        assertTrue(prompt.contains("Summary 3."))
+        assertFalse(prompt.contains("Full body 1."))
+    }
+
+    @Test
+    fun `buildPrompt respects per-podcast fullBodyThreshold`() {
+        val podcast = Podcast(id = "p1", userId = "u1", name = "Test", topic = "tech", fullBodyThreshold = 2)
+        val articles = listOf(
+            Article(
+                id = 1, sourceId = "s1", title = "Article 1",
+                body = "Full body text.",
+                url = "https://example.com/1", contentHash = "h1",
+                summary = "Summary text."
+            ),
+            Article(
+                id = 2, sourceId = "s1", title = "Article 2",
+                body = "Full body text 2.",
+                url = "https://example.com/2", contentHash = "h2",
+                summary = "Summary text 2."
+            )
+        )
+        // 2 articles, threshold 2 → not below → use summaries
+        val prompt = composer.buildPrompt(articles, podcast)
+        assertTrue(prompt.contains("Summary text."))
+        assertFalse(prompt.contains("Full body text."))
     }
 }

@@ -32,7 +32,8 @@ class InterviewComposerTest {
         style = PodcastStyle.INTERVIEW,
         ttsProvider = TtsProviderType.ELEVENLABS,
         ttsVoices = mapOf("interviewer" to "v1", "expert" to "v2"),
-        speakerNames = mapOf("interviewer" to "Alice", "expert" to "Bob")
+        speakerNames = mapOf("interviewer" to "Alice", "expert" to "Bob"),
+        fullBodyThreshold = 1
     )
 
     private val articles = listOf(
@@ -143,5 +144,30 @@ class InterviewComposerTest {
         val prompt = composer.buildPrompt(articles, podcast)
 
         assertTrue(prompt.contains("[curious]"))
+    }
+
+    @Test
+    fun `prompt uses full body when article count is below threshold`() {
+        val podcastDefault = podcast.copy(fullBodyThreshold = null) // falls back to appProperties default of 5
+        val fewArticles = listOf(
+            Article(sourceId = "s1", title = "AI News", body = "Full AI body.", url = "https://example.com/ai", contentHash = "h1", summary = "AI summary.")
+        )
+        // Default threshold is 5, 1 article < 5 → use full body
+        val prompt = composer.buildPrompt(fewArticles, podcastDefault)
+
+        assertTrue(prompt.contains("Full AI body."))
+        assertFalse(prompt.contains("AI summary."))
+    }
+
+    @Test
+    fun `prompt uses summaries when article count is at or above threshold`() {
+        val podcastDefault = podcast.copy(fullBodyThreshold = null) // falls back to appProperties default of 5
+        val manyArticles = (1..5).map { i ->
+            Article(sourceId = "s1", title = "News $i", body = "Body $i.", url = "https://example.com/$i", contentHash = "h$i", summary = "Summary $i.")
+        }
+        val prompt = composer.buildPrompt(manyArticles, podcastDefault)
+
+        assertTrue(prompt.contains("Summary 1."))
+        assertFalse(prompt.contains("Body 1."))
     }
 }
