@@ -122,6 +122,9 @@ class PodcastController(
         validateTtsConfig(ttsProvider, style, request.ttsVoices)?.let {
             return ResponseEntity.badRequest().body(mapOf("error" to it))
         }
+        if (request.fullBodyThreshold != null && request.fullBodyThreshold < 1) {
+            return ResponseEntity.badRequest().body(mapOf("error" to "fullBodyThreshold must be at least 1"))
+        }
         val podcast = podcastService.create(
             userId = userId,
             name = request.name,
@@ -189,6 +192,9 @@ class PodcastController(
         val effectiveVoices = request.ttsVoices ?: existing.ttsVoices
         validateTtsConfig(effectiveTtsProvider, effectiveStyle, effectiveVoices)?.let {
             return ResponseEntity.badRequest().body(mapOf("error" to it))
+        }
+        if (request.fullBodyThreshold != null && request.fullBodyThreshold < 1) {
+            return ResponseEntity.badRequest().body(mapOf("error" to "fullBodyThreshold must be at least 1"))
         }
         val updated = podcastService.update(
             podcastId,

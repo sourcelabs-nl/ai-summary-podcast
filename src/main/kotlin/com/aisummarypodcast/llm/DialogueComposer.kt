@@ -8,7 +8,6 @@ import com.aisummarypodcast.store.Podcast
 import org.slf4j.LoggerFactory
 import org.springframework.ai.openai.OpenAiChatOptions
 import org.springframework.stereotype.Component
-import java.net.URI
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -63,13 +62,12 @@ class DialogueComposer(
             "\n            - Speaker names: $nameMapping. Use these names naturally in conversation while keeping role keys as XML tags."
         } else ""
 
-        val fullBodyThreshold = podcast.fullBodyThreshold ?: appProperties.briefing.fullBodyThreshold
-        val useFullBody = articles.size < fullBodyThreshold
+        val useFullBody = shouldUseFullBody(articles.size, podcast, appProperties.briefing.fullBodyThreshold)
 
         val summaryBlock = articles.mapIndexed { index, article ->
             val source = extractDomain(article.url)
             val authorSuffix = article.author?.let { ", by $it" } ?: ""
-            val content = if (useFullBody) article.body else (article.summary ?: article.body)
+            val content = resolveArticleContent(article, useFullBody)
             "${index + 1}. [$source$authorSuffix] ${article.title}\n$content"
         }.joinToString("\n\n")
 
@@ -125,10 +123,4 @@ class DialogueComposer(
         """.trimIndent()
     }
 
-    private fun extractDomain(url: String): String =
-        try {
-            URI(url).host?.removePrefix("www.") ?: url
-        } catch (_: Exception) {
-            url
-        }
 }

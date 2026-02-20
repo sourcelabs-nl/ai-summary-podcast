@@ -19,6 +19,11 @@ class ArticleScoreSummarizer(
     private val chatClientFactory: ChatClientFactory
 ) {
 
+    companion object {
+        private const val LONG_ARTICLE_WORD_THRESHOLD = 1500
+        private const val MEDIUM_ARTICLE_WORD_THRESHOLD = 500
+    }
+
     private val log = LoggerFactory.getLogger(javaClass)
 
     fun scoreSummarize(articles: List<Article>, podcast: Podcast, filterModelDef: ModelDefinition): List<Article> {
@@ -85,8 +90,8 @@ class ArticleScoreSummarizer(
 
         val wordCount = article.body.split("\\s+".toRegex()).size
         val summaryLengthInstruction = when {
-            wordCount >= 1500 -> "a full paragraph covering key points, context, and attribution"
-            wordCount >= 500 -> "4-6 sentences"
+            wordCount >= LONG_ARTICLE_WORD_THRESHOLD -> "a full paragraph covering key points, context, and attribution"
+            wordCount >= MEDIUM_ARTICLE_WORD_THRESHOLD -> "4-6 sentences"
             else -> "2-3 sentences"
         }
 

@@ -9,7 +9,6 @@ import com.aisummarypodcast.store.PodcastStyle
 import org.slf4j.LoggerFactory
 import org.springframework.ai.openai.OpenAiChatOptions
 import org.springframework.stereotype.Component
-import java.net.URI
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -69,13 +68,12 @@ class BriefingComposer(
         val targetWords = podcast.targetWords ?: appProperties.briefing.targetWords
         val stylePrompt = stylePrompts[podcast.style] ?: stylePrompts[PodcastStyle.NEWS_BRIEFING]!!
 
-        val fullBodyThreshold = podcast.fullBodyThreshold ?: appProperties.briefing.fullBodyThreshold
-        val useFullBody = articles.size < fullBodyThreshold
+        val useFullBody = shouldUseFullBody(articles.size, podcast, appProperties.briefing.fullBodyThreshold)
 
         val summaryBlock = articles.mapIndexed { index, article ->
             val source = extractDomain(article.url)
             val authorSuffix = article.author?.let { ", by $it" } ?: ""
-            val content = if (useFullBody) article.body else (article.summary ?: article.body)
+            val content = resolveArticleContent(article, useFullBody)
             "${index + 1}. [$source$authorSuffix] ${article.title}\n$content"
         }.joinToString("\n\n")
 
@@ -132,10 +130,4 @@ class BriefingComposer(
             .replace(Regex("\\s*\\((?:Dit script|This script|Note:|Disclaimer:)[^)]*\\)\\s*$"), "")
             .trim()
 
-    internal fun extractDomain(url: String): String =
-        try {
-            URI(url).host?.removePrefix("www.") ?: url
-        } catch (_: Exception) {
-            url
-        }
 }

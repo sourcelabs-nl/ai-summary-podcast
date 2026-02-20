@@ -62,27 +62,27 @@ class BriefingComposerTest {
 
     @Test
     fun `extractDomain extracts domain from standard URL`() {
-        assertEquals("techcrunch.com", composer.extractDomain("https://techcrunch.com/2026/02/12/example"))
+        assertEquals("techcrunch.com", extractDomain("https://techcrunch.com/2026/02/12/example"))
     }
 
     @Test
     fun `extractDomain strips www prefix`() {
-        assertEquals("theverge.com", composer.extractDomain("https://www.theverge.com/article"))
+        assertEquals("theverge.com", extractDomain("https://www.theverge.com/article"))
     }
 
     @Test
     fun `extractDomain handles URL without path`() {
-        assertEquals("example.com", composer.extractDomain("https://example.com"))
+        assertEquals("example.com", extractDomain("https://example.com"))
     }
 
     @Test
     fun `extractDomain returns original string for invalid URL`() {
-        assertEquals("not-a-url", composer.extractDomain("not-a-url"))
+        assertEquals("not-a-url", extractDomain("not-a-url"))
     }
 
     @Test
     fun `extractDomain handles http URL`() {
-        assertEquals("blog.example.org", composer.extractDomain("http://blog.example.org/posts/123"))
+        assertEquals("blog.example.org", extractDomain("http://blog.example.org/posts/123"))
     }
 
     @Test
