@@ -133,3 +133,18 @@ The system SHALL include a migration file `V31__add_cascade_deletes.sql` that re
 #### Scenario: Article deletion cascades to join tables
 - **WHEN** an article is deleted from the `articles` table
 - **THEN** all corresponding rows in `post_articles` and `episode_articles` are automatically deleted
+
+### Requirement: V32 migration adds cascade delete on episode publications
+The system SHALL include a migration file `V32__add_cascade_delete_episode_publications.sql` that recreates the `episode_publications` table with `ON DELETE CASCADE` on the `episode_id` foreign key. Because SQLite does not support `ALTER CONSTRAINT`, the migration SHALL: (1) clean up any orphaned rows referencing deleted episodes, (2) create a new table with the cascade delete foreign key, (3) copy data from old to new table, (4) drop old table, (5) rename new table. This ensures that deleting an episode automatically removes its publication records without requiring manual cleanup in application code.
+
+#### Scenario: V32 migration enables cascade delete on publications
+- **WHEN** Flyway applies `V32__add_cascade_delete_episode_publications.sql`
+- **THEN** deleting an episode cascades to remove related rows in `episode_publications`
+
+#### Scenario: V32 migration cleans orphaned rows
+- **WHEN** V32 is applied and orphaned publication rows exist (referencing deleted episodes)
+- **THEN** the orphaned rows are deleted before the new FK constraint is applied
+
+#### Scenario: Episode deletion cascades to publications
+- **WHEN** an episode with publication records is deleted
+- **THEN** all corresponding rows in `episode_publications` are automatically deleted

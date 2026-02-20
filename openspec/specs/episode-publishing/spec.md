@@ -90,8 +90,12 @@ The `podcasts` table SHALL have a nullable `soundcloud_playlist_id` column (TEXT
 - **THEN** the `soundcloud_playlist_id` column is updated with the new playlist ID
 
 ### Requirement: Cascade delete publications with episode
-When an episode is deleted (e.g., during cleanup), all of its publication records SHALL be deleted as part of the cascade.
+When an episode is deleted (e.g., during cleanup or podcast deletion), all of its publication records SHALL be automatically deleted via `ON DELETE CASCADE` on the `episode_publications.episode_id` foreign key. Application code SHALL NOT manually delete publication records before deleting an episode — the database cascade handles this.
 
 #### Scenario: Episode cleanup removes publications
 - **WHEN** an episode with two publication records is deleted by the cleanup scheduler
-- **THEN** both publication records are removed from the `episode_publications` table
+- **THEN** both publication records are automatically removed from the `episode_publications` table via database cascade
+
+#### Scenario: Podcast deletion cascades to publications
+- **WHEN** a podcast is deleted and its episodes have publication records
+- **THEN** the episode deletions cascade to remove all associated publication records
