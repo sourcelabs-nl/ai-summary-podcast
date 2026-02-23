@@ -37,7 +37,7 @@ app:
     directory: ./data/test-episodes
     retention-days: 365
   source:
-    max-article-age-days: 7
+    max-article-age-days: 90
   feed:
     base-url: http://localhost:8080
     title: AI Summary Podcast

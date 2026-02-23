@@ -44,7 +44,7 @@ app:
     directory: ./data/episodes
     retention-days: 365
   source:
-    max-article-age-days: 7
+    max-article-age-days: 90
   tts:
     cost-per-million-chars:
       openai: 15.00
