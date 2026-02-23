@@ -84,10 +84,10 @@ class EpisodeService(
                     llmOutputTokens = (episode.llmOutputTokens ?: 0) + recapResult.usage.outputTokens
                 )
             )
-            log.info("[Pipeline] Recap generated and stored for episode {}", episode.id)
+            log.info("[Pipeline] Recap generated and stored for episode {} (podcast '{}' ({}))", episode.id, podcast.name, podcast.id)
             updated
         } catch (e: Exception) {
-            log.warn("[Pipeline] Failed to generate recap for episode {} — continuing without recap: {} {}", episode.id, e.javaClass.simpleName, e.message)
+            log.warn("[Pipeline] Failed to generate recap for episode {} (podcast '{}' ({})) — continuing without recap: {} {}", episode.id, podcast.name, podcast.id, e.javaClass.simpleName, e.message)
             episode
         }
     }
@@ -131,11 +131,11 @@ class EpisodeService(
         }
 
         try {
-            log.info("Starting async TTS generation for episode {} (podcast {})", episodeId, podcastId)
+            log.info("Starting async TTS generation for episode {} (podcast '{}' ({}))", episodeId, podcast.name, podcastId)
             val generatedEpisode = ttsPipeline.generateForExistingEpisode(episode, podcast)
-            log.info("Async TTS generation complete for episode {} (podcast {})", episodeId, podcastId)
+            log.info("Async TTS generation complete for episode {} (podcast '{}' ({}))", episodeId, podcast.name, podcastId)
         } catch (e: Exception) {
-            log.error("Async TTS generation failed for episode {}: {}", episodeId, e.message, e)
+            log.error("Async TTS generation failed for episode {} (podcast '{}' ({})): {}", episodeId, podcast.name, podcastId, e.message, e)
             episodeRepository.save(episode.copy(status = EpisodeStatus.FAILED))
         }
     }

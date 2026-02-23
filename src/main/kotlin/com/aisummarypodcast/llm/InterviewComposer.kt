@@ -28,7 +28,7 @@ class InterviewComposer(
     }
 
     fun compose(articles: List<Article>, podcast: Podcast, composeModelDef: ModelDefinition, previousEpisodeRecap: String? = null): CompositionResult {
-        log.info("[LLM] Composing interview from {} articles", articles.size)
+        log.info("[LLM] Composing interview from {} articles for podcast '{}' ({})", articles.size, podcast.name, podcast.id)
         val chatClient = chatClientFactory.createForModel(podcast.userId, composeModelDef)
         val prompt = buildPrompt(articles, podcast, previousEpisodeRecap)
 
@@ -46,7 +46,7 @@ class InterviewComposer(
             CompositionResult(script, usage)
         }
 
-        log.info("[LLM] Interview composed — {} words in {}", result.script.split("\\s+".toRegex()).size, elapsed)
+        log.info("[LLM] Interview composed for podcast '{}' ({}) — {} words in {}", podcast.name, podcast.id, result.script.split("\\s+".toRegex()).size, elapsed)
         return result
     }
 

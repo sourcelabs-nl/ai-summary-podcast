@@ -2,6 +2,7 @@ package com.aisummarypodcast.scheduler
 
 import com.aisummarypodcast.llm.LlmPipeline
 import com.aisummarypodcast.podcast.EpisodeService
+import com.aisummarypodcast.store.Podcast
 import com.aisummarypodcast.store.PodcastRepository
 import org.slf4j.LoggerFactory
 import org.springframework.scheduling.annotation.Scheduled
@@ -42,34 +43,32 @@ class BriefingGenerationScheduler(
                 }
 
                 if (nextExecution != null && !nextExecution.isAfter(now)) {
-                    log.info("[Pipeline] Podcast {} is due for briefing generation", podcast.id)
-                    generateBriefing(podcast.id)
+                    log.info("[Pipeline] Podcast '{}' ({}) is due for briefing generation", podcast.name, podcast.id)
+                    generateBriefing(podcast)
                 }
             } catch (e: Exception) {
-                log.error("[Pipeline] Error checking/generating briefing for podcast {}: {}", podcast.id, e.message, e)
+                log.error("[Pipeline] Error checking/generating briefing for podcast '{}' ({}): {}", podcast.name, podcast.id, e.message, e)
             }
         }
     }
 
-    private fun generateBriefing(podcastId: String) {
-        log.info("[Pipeline] Starting briefing generation for podcast {}", podcastId)
+    private fun generateBriefing(podcast: Podcast) {
+        log.info("[Pipeline] Starting briefing generation for podcast '{}' ({})", podcast.name, podcast.id)
         val mark = TimeSource.Monotonic.markNow()
 
-        val podcast = podcastRepository.findById(podcastId).orElse(null) ?: return
-
-        if (podcast.requireReview && episodeService.hasPendingOrApprovedEpisode(podcastId)) {
-            log.info("[Pipeline] Podcast {} has a pending/approved episode — skipping generation ({})", podcastId, mark.elapsedNow())
+        if (podcast.requireReview && episodeService.hasPendingOrApprovedEpisode(podcast.id)) {
+            log.info("[Pipeline] Podcast '{}' ({}) has a pending/approved episode — skipping generation ({})", podcast.name, podcast.id, mark.elapsedNow())
             return
         }
 
         val result = llmPipeline.run(podcast)
         if (result == null) {
-            log.info("[Pipeline] No briefing script generated for podcast {} — nothing to synthesize ({})", podcastId, mark.elapsedNow())
+            log.info("[Pipeline] No briefing script generated for podcast '{}' ({}) — nothing to synthesize ({})", podcast.name, podcast.id, mark.elapsedNow())
             podcastRepository.save(podcast.copy(lastGeneratedAt = Instant.now().toString()))
             return
         }
 
         val episode = episodeService.createEpisodeFromPipelineResult(podcast, result)
-        log.info("[Pipeline] Briefing generation complete for podcast {}: episode {} — total {}", podcastId, episode.id, mark.elapsedNow())
+        log.info("[Pipeline] Briefing generation complete for podcast '{}' ({}): episode {} — total {}", podcast.name, podcast.id, episode.id, mark.elapsedNow())
     }
 }

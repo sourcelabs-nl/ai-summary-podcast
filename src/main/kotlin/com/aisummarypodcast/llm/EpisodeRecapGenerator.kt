@@ -20,7 +20,7 @@ class EpisodeRecapGenerator(
     private val log = LoggerFactory.getLogger(javaClass)
 
     fun generate(scriptText: String, podcast: Podcast, filterModelDef: ModelDefinition): RecapResult {
-        log.info("[LLM] Generating recap of previous episode for podcast {}", podcast.id)
+        log.info("[LLM] Generating recap of previous episode for podcast '{}' ({})", podcast.name, podcast.id)
         val chatClient = chatClientFactory.createForModel(podcast.userId, filterModelDef)
         val prompt = buildPrompt(scriptText)
 
@@ -38,7 +38,7 @@ class EpisodeRecapGenerator(
             RecapResult(recap.trim(), usage)
         }
 
-        log.info("[LLM] Episode recap generated in {}", elapsed)
+        log.info("[LLM] Episode recap generated for podcast '{}' ({}) in {}", podcast.name, podcast.id, elapsed)
         return result
     }
 

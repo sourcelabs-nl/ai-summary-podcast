@@ -26,12 +26,13 @@ class ArticleScoreSummarizer(
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    fun scoreSummarize(articles: List<Article>, podcast: Podcast, filterModelDef: ModelDefinition): List<Article> {
+    fun scoreSummarize(articles: List<Article>, podcast: Podcast, filterModelDef: ModelDefinition, sourceLabels: Map<String, String> = emptyMap()): List<Article> {
         val chatClient = chatClientFactory.createForModel(podcast.userId, filterModelDef)
         val model = filterModelDef.model
 
         return articles.mapNotNull { article ->
-            log.info("[LLM] Scoring and summarizing article {}: '{}'", article.id, article.title)
+            val sourceLabel = sourceLabels[article.sourceId]
+            log.info("[LLM] Scoring and summarizing article {}: '{}' (source: {})", article.id, article.title, sourceLabel ?: article.sourceId)
             try {
                 val prompt = buildPrompt(article, podcast)
 
@@ -62,10 +63,10 @@ class ArticleScoreSummarizer(
                 )
                 articleRepository.save(updated)
 
-                log.info("[LLM] Article '{}' scored {} — summary: {} chars", article.title, score, summary?.length ?: 0)
+                log.info("[LLM] Article '{}' scored {} — summary: {} chars (source: {})", article.title, score, summary?.length ?: 0, sourceLabel ?: article.sourceId)
                 updated
             } catch (e: Exception) {
-                log.error("[LLM] Error scoring/summarizing article '{}': {}", article.title, e.message, e)
+                log.error("[LLM] Error scoring/summarizing article '{}' (source: {}): {}", article.title, sourceLabel ?: article.sourceId, e.message, e)
                 null
             }
         }

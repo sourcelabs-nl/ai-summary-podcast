@@ -28,7 +28,7 @@ class DialogueComposer(
     }
 
     fun compose(articles: List<Article>, podcast: Podcast, composeModelDef: ModelDefinition, previousEpisodeRecap: String? = null): CompositionResult {
-        log.info("[LLM] Composing dialogue from {} articles", articles.size)
+        log.info("[LLM] Composing dialogue from {} articles for podcast '{}' ({})", articles.size, podcast.name, podcast.id)
         val chatClient = chatClientFactory.createForModel(podcast.userId, composeModelDef)
         val prompt = buildPrompt(articles, podcast, previousEpisodeRecap)
 
@@ -46,7 +46,7 @@ class DialogueComposer(
             CompositionResult(script, usage)
         }
 
-        log.info("[LLM] Dialogue composed — {} words in {}", result.script.split("\\s+".toRegex()).size, elapsed)
+        log.info("[LLM] Dialogue composed for podcast '{}' ({}) — {} words in {}", podcast.name, podcast.id, result.script.split("\\s+".toRegex()).size, elapsed)
         return result
     }
 

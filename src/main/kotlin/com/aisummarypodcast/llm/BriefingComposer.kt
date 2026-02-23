@@ -41,7 +41,7 @@ class BriefingComposer(
     }
 
     fun compose(articles: List<Article>, podcast: Podcast, composeModelDef: ModelDefinition, previousEpisodeRecap: String? = null): CompositionResult {
-        log.info("[LLM] Composing briefing from {} articles (style: {})", articles.size, podcast.style)
+        log.info("[LLM] Composing briefing from {} articles for podcast '{}' ({}) (style: {})", articles.size, podcast.name, podcast.id, podcast.style)
         val chatClient = chatClientFactory.createForModel(podcast.userId, composeModelDef)
         val prompt = buildPrompt(articles, podcast, previousEpisodeRecap)
 
@@ -60,7 +60,7 @@ class BriefingComposer(
             CompositionResult(script, usage)
         }
 
-        log.info("[LLM] Briefing composed — {} words in {}", result.script.split("\\s+".toRegex()).size, elapsed)
+        log.info("[LLM] Briefing composed for podcast '{}' ({}) — {} words in {}", podcast.name, podcast.id, result.script.split("\\s+".toRegex()).size, elapsed)
         return result
     }
 

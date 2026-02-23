@@ -45,13 +45,14 @@ class LlmPipeline(
         val sources = sourceRepository.findByPodcastId(podcast.id)
         val sourceIds = sources.map { it.id }
         if (sourceIds.isEmpty()) {
-            log.info("[LLM] Podcast {} has no sources — skipping", podcast.id)
+            log.info("[LLM] Podcast '{}' ({}) has no sources — skipping", podcast.name, podcast.id)
             return null
         }
 
         val filterModelDef = modelResolver.resolve(podcast, PipelineStage.FILTER)
         val composeModelDef = modelResolver.resolve(podcast, PipelineStage.COMPOSE)
         val threshold = podcast.relevanceThreshold
+        val sourceLabels = sources.associate { it.id to extractDomainAndPath(it.url) }
 
         // Step 1: Aggregate unlinked posts into articles
         val effectiveMaxArticleAgeDays = podcast.maxArticleAgeDays ?: appProperties.source.maxArticleAgeDays
@@ -59,7 +60,7 @@ class LlmPipeline(
         val unlinkedPosts = postRepository.findUnlinkedBySourceIds(sourceIds, cutoff)
 
         if (unlinkedPosts.isNotEmpty()) {
-            log.info("[LLM] Aggregating {} unlinked posts for podcast {}", unlinkedPosts.size, podcast.id)
+            log.info("[LLM] Aggregating {} unlinked posts for podcast '{}' ({})", unlinkedPosts.size, podcast.name, podcast.id)
             val postsBySource = unlinkedPosts.groupBy { it.sourceId }
             for ((sourceId, posts) in postsBySource) {
                 val source = sources.first { it.id == sourceId }
@@ -76,21 +77,21 @@ class LlmPipeline(
             )
             val costThreshold = podcast.maxLlmCostCents ?: appProperties.llm.maxCostCents
             if (estimatedCostCents == null) {
-                log.warn("[LLM] Cost estimation unavailable for podcast {} — pricing not configured for model(s), skipping cost gate", podcast.id)
+                log.warn("[LLM] Cost estimation unavailable for podcast '{}' ({}) — pricing not configured for model(s), skipping cost gate", podcast.name, podcast.id)
             } else if (estimatedCostCents > costThreshold) {
-                log.warn("[LLM] Cost gate triggered for podcast {}: estimated {}¢ exceeds threshold {}¢ — skipping pipeline", podcast.id, estimatedCostCents, costThreshold)
+                log.warn("[LLM] Cost gate triggered for podcast '{}' ({}): estimated {}¢ exceeds threshold {}¢ — skipping pipeline", podcast.name, podcast.id, estimatedCostCents, costThreshold)
                 return null
             } else {
-                log.info("[LLM] Cost gate passed for podcast {}: estimated {}¢ within threshold {}¢", podcast.id, estimatedCostCents, costThreshold)
+                log.info("[LLM] Cost gate passed for podcast '{}' ({}): estimated {}¢ within threshold {}¢", podcast.name, podcast.id, estimatedCostCents, costThreshold)
             }
         }
 
         // Step 2: Score and summarize unscored articles
         val unscored = allUnscored
         if (unscored.isNotEmpty()) {
-            log.info("[LLM] Scoring and summarizing {} articles for podcast {}", unscored.size, podcast.id)
+            log.info("[LLM] Scoring and summarizing {} articles for podcast '{}' ({})", unscored.size, podcast.name, podcast.id)
             val (_, scoringDuration) = measureTimedValue {
-                articleScoreSummarizer.scoreSummarize(unscored, podcast, filterModelDef)
+                articleScoreSummarizer.scoreSummarize(unscored, podcast, filterModelDef, sourceLabels)
             }
             log.info("[LLM] Score+summarize complete — {} articles in {}", unscored.size, scoringDuration)
         }
@@ -98,16 +99,16 @@ class LlmPipeline(
         // Step 3: Compose briefing from all relevant unprocessed articles
         val toCompose = articleRepository.findRelevantUnprocessedBySourceIds(sourceIds, threshold)
         if (toCompose.isEmpty()) {
-            log.info("[LLM] No relevant unprocessed articles for podcast {} — skipping briefing generation", podcast.id)
+            log.info("[LLM] No relevant unprocessed articles for podcast '{}' ({}) — skipping briefing generation", podcast.name, podcast.id)
             return null
         }
 
         // Fetch previous episode recap for continuity context
         val previousRecap = episodeRepository.findMostRecentByPodcastId(podcast.id)?.recap
         if (previousRecap != null) {
-            log.info("[LLM] Previous episode recap found for podcast {} — passing to composer", podcast.id)
+            log.info("[LLM] Previous episode recap found for podcast '{}' ({}) — passing to composer", podcast.name, podcast.id)
         } else {
-            log.info("[LLM] No previous episode recap for podcast {} — composing without continuity context", podcast.id)
+            log.info("[LLM] No previous episode recap for podcast '{}' ({}) — composing without continuity context", podcast.name, podcast.id)
         }
 
         val compositionResult = when (podcast.style) {
@@ -126,7 +127,7 @@ class LlmPipeline(
             compositionResult.usage.inputTokens, compositionResult.usage.outputTokens, composeModelDef
         )
 
-        log.info("[LLM] Pipeline complete for podcast {}: {} articles processed into briefing", podcast.id, toCompose.size)
+        log.info("[LLM] Pipeline complete for podcast '{}' ({}): {} articles processed into briefing", podcast.name, podcast.id, toCompose.size)
         return PipelineResult(
             script = compositionResult.script,
             filterModel = filterModelDef.model,

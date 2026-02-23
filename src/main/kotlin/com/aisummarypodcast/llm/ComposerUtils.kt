@@ -16,3 +16,13 @@ fun extractDomain(url: String): String =
     } catch (_: Exception) {
         url
     }
+
+fun extractDomainAndPath(url: String): String =
+    try {
+        val uri = URI(url)
+        val domain = uri.host?.removePrefix("www.") ?: return url
+        val path = uri.path?.trimEnd('/') ?: ""
+        if (path.isEmpty()) domain else "$domain$path"
+    } catch (_: Exception) {
+        url
+    }

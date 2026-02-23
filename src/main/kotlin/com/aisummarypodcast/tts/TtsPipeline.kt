@@ -28,7 +28,7 @@ class TtsPipeline(
     private val log = LoggerFactory.getLogger(javaClass)
 
     fun generate(script: String, podcast: Podcast): Episode {
-        log.info("[TTS] Starting audio generation for podcast {} (provider: {})", podcast.id, podcast.ttsProvider)
+        log.info("[TTS] Starting audio generation for podcast '{}' ({}) (provider: {})", podcast.name, podcast.id, podcast.ttsProvider)
 
         val ttsResult = callProvider(script, podcast)
         val ttsCostCents = CostEstimator.estimateTtsCostCents(ttsResult.totalCharacters, appProperties.tts.costPerMillionChars, podcast.ttsProvider.value)
@@ -48,13 +48,13 @@ class TtsPipeline(
             )
         )
 
-        log.info("[TTS] Episode generated for podcast {}: {} ({} seconds)", podcast.id, outputPath.fileName, duration)
+        log.info("[TTS] Episode generated for podcast '{}' ({}): {} ({} seconds)", podcast.name, podcast.id, outputPath.fileName, duration)
         staticFeedExporter.export(podcast)
         return episode
     }
 
     fun generateForExistingEpisode(episode: Episode, podcast: Podcast): Episode {
-        log.info("[TTS] Starting audio generation for episode {} (podcast {}, provider: {})", episode.id, podcast.id, podcast.ttsProvider)
+        log.info("[TTS] Starting audio generation for episode {} (podcast '{}' ({}), provider: {})", episode.id, podcast.name, podcast.id, podcast.ttsProvider)
 
         val ttsResult = callProvider(episode.scriptText, podcast)
         val ttsCostCents = CostEstimator.estimateTtsCostCents(ttsResult.totalCharacters, appProperties.tts.costPerMillionChars, podcast.ttsProvider.value)
@@ -72,7 +72,7 @@ class TtsPipeline(
             )
         )
 
-        log.info("[TTS] Episode {} audio generated for podcast {}: {} ({} seconds)", episode.id, podcast.id, outputPath.fileName, duration)
+        log.info("[TTS] Episode {} audio generated for podcast '{}' ({}): {} ({} seconds)", episode.id, podcast.name, podcast.id, outputPath.fileName, duration)
         staticFeedExporter.export(podcast)
         return updated
     }
