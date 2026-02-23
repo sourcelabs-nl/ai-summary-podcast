@@ -8,6 +8,8 @@ import org.slf4j.LoggerFactory
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.scheduling.support.CronExpression
 import org.springframework.stereotype.Component
+import java.time.Clock
+import java.time.Duration
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneOffset
@@ -17,15 +19,20 @@ import kotlin.time.TimeSource
 class BriefingGenerationScheduler(
     private val podcastRepository: PodcastRepository,
     private val llmPipeline: LlmPipeline,
-    private val episodeService: EpisodeService
+    private val episodeService: EpisodeService,
+    private val clock: Clock = Clock.systemUTC()
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
+    companion object {
+        val STALENESS_WINDOW: Duration = Duration.ofMinutes(30)
+    }
+
     @Scheduled(fixedDelay = 60_000)
     fun checkAndGenerate() {
         val podcasts = podcastRepository.findAll()
-        val now = LocalDateTime.now(ZoneOffset.UTC)
+        val now = LocalDateTime.now(clock)
 
         for (podcast in podcasts) {
             try {
@@ -34,12 +41,20 @@ class BriefingGenerationScheduler(
                     LocalDateTime.ofInstant(Instant.parse(it), ZoneOffset.UTC)
                 }
 
-                val nextExecution = if (lastGenerated != null) {
+                var nextExecution = if (lastGenerated != null) {
                     cronExpression.next(lastGenerated)
                 } else {
                     // Never generated — check if it should have run today
                     val startOfDay = now.toLocalDate().atStartOfDay()
                     cronExpression.next(startOfDay)
+                }
+
+                // Skip stale triggers that are beyond the staleness window
+                while (nextExecution != null && !nextExecution.isAfter(now)
+                    && Duration.between(nextExecution, now) > STALENESS_WINDOW
+                ) {
+                    log.warn("[Pipeline] Skipping stale trigger at {} for podcast '{}' ({})", nextExecution, podcast.name, podcast.id)
+                    nextExecution = cronExpression.next(nextExecution)
                 }
 
                 if (nextExecution != null && !nextExecution.isAfter(now)) {
