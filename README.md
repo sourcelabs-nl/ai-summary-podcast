@@ -226,7 +226,7 @@ Per-podcast overrides use the `llmModels` field, mapping stage names (`filter`, 
 
 When `requireReview` is enabled on a podcast, the generation pipeline pauses after the LLM produces a script — no audio is generated yet. This lets you review, edit, or discard the script before committing to TTS costs.
 
-The episode workflow is: `PENDING_REVIEW` → (edit script if needed) → `APPROVED` → TTS runs → `GENERATED`. You can also discard an episode — discarding resets the linked articles so they are included in the next generation run.
+The episode workflow is: `PENDING_REVIEW` → (edit script if needed) → `APPROVED` → TTS runs → `GENERATED`. You can also discard an episode — discarding resets non-aggregated articles so they are included in the next generation run, while aggregated articles (from X/Nitter sources) are deleted so their posts get re-aggregated fresh with any new posts on the next run.
 
 ### Cost Tracking
 

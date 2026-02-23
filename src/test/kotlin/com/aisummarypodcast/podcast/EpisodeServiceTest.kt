@@ -16,8 +16,10 @@ import com.aisummarypodcast.store.EpisodeRepository
 import com.aisummarypodcast.store.EpisodeStatus
 import com.aisummarypodcast.store.Podcast
 import com.aisummarypodcast.store.PodcastRepository
+import com.aisummarypodcast.store.PostArticleRepository
 import com.aisummarypodcast.tts.TtsPipeline
 import io.mockk.every
+import io.mockk.justRun
 import io.mockk.mockk
 import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -35,12 +37,14 @@ class EpisodeServiceTest {
     private val articleRepository = mockk<ArticleRepository>()
     private val episodeRecapGenerator = mockk<EpisodeRecapGenerator>()
     private val modelResolver = mockk<ModelResolver>()
+    private val postArticleRepository = mockk<PostArticleRepository>()
 
     private val filterModelDef = ModelDefinition(provider = "openrouter", model = "anthropic/claude-haiku-4.5")
 
     private val episodeService = EpisodeService(
         episodeRepository, podcastRepository, ttsPipeline,
-        episodeArticleRepository, articleRepository, episodeRecapGenerator, modelResolver
+        episodeArticleRepository, articleRepository, episodeRecapGenerator, modelResolver,
+        postArticleRepository
     )
 
     private val podcast = Podcast(id = "p1", userId = "u1", name = "Test", topic = "tech")
@@ -200,7 +204,7 @@ class EpisodeServiceTest {
     // --- discardAndResetArticles tests ---
 
     @Test
-    fun `discardAndResetArticles saves episode as DISCARDED and resets linked articles`() {
+    fun `discardAndResetArticles resets non-aggregated articles`() {
         val episode = Episode(id = 1L, podcastId = "p1", generatedAt = "now", scriptText = "Script", status = EpisodeStatus.PENDING_REVIEW)
         val article1 = Article(id = 10L, sourceId = "src-1", title = "A1", body = "body", url = "https://example.com/1", contentHash = "h1", isProcessed = true)
         val article2 = Article(id = 20L, sourceId = "src-1", title = "A2", body = "body", url = "https://example.com/2", contentHash = "h2", isProcessed = true)
@@ -214,12 +218,65 @@ class EpisodeServiceTest {
         every { articleRepository.findById(10L) } returns Optional.of(article1)
         every { articleRepository.findById(20L) } returns Optional.of(article2)
         every { articleRepository.save(any()) } answers { firstArg() }
+        every { postArticleRepository.countByArticleId(10L) } returns 1L
+        every { postArticleRepository.countByArticleId(20L) } returns 0L
 
         episodeService.discardAndResetArticles(episode)
 
         verify { episodeRepository.save(match { it.status == EpisodeStatus.DISCARDED }) }
         verify { articleRepository.save(match { it.id == 10L && !it.isProcessed }) }
         verify { articleRepository.save(match { it.id == 20L && !it.isProcessed }) }
+        verify(exactly = 0) { postArticleRepository.deleteByArticleId(any()) }
+        verify(exactly = 0) { articleRepository.deleteById(any<Long>()) }
+    }
+
+    @Test
+    fun `discardAndResetArticles deletes aggregated articles and unlinks posts`() {
+        val episode = Episode(id = 1L, podcastId = "p1", generatedAt = "now", scriptText = "Script", status = EpisodeStatus.PENDING_REVIEW)
+        val aggregatedArticle = Article(id = 30L, sourceId = "src-1", title = "Posts from @user", body = "body", url = "https://nitter.net/user", contentHash = "h3", isProcessed = true)
+        val links = listOf(EpisodeArticle(id = 1L, episodeId = 1L, articleId = 30L))
+
+        every { episodeRepository.save(any()) } answers { firstArg() }
+        every { episodeArticleRepository.findByEpisodeId(1L) } returns links
+        every { articleRepository.findById(30L) } returns Optional.of(aggregatedArticle)
+        every { postArticleRepository.countByArticleId(30L) } returns 5L
+        justRun { postArticleRepository.deleteByArticleId(30L) }
+        justRun { articleRepository.deleteById(30L) }
+
+        episodeService.discardAndResetArticles(episode)
+
+        verify { episodeRepository.save(match { it.status == EpisodeStatus.DISCARDED }) }
+        verify { postArticleRepository.deleteByArticleId(30L) }
+        verify { articleRepository.deleteById(30L) }
+        verify(exactly = 0) { articleRepository.save(any()) }
+    }
+
+    @Test
+    fun `discardAndResetArticles handles mixed article types`() {
+        val episode = Episode(id = 1L, podcastId = "p1", generatedAt = "now", scriptText = "Script", status = EpisodeStatus.PENDING_REVIEW)
+        val regularArticle = Article(id = 10L, sourceId = "src-1", title = "A1", body = "body", url = "https://example.com/1", contentHash = "h1", isProcessed = true)
+        val aggregatedArticle = Article(id = 30L, sourceId = "src-2", title = "Posts from @user", body = "body", url = "https://nitter.net/user", contentHash = "h3", isProcessed = true)
+        val links = listOf(
+            EpisodeArticle(id = 1L, episodeId = 1L, articleId = 10L),
+            EpisodeArticle(id = 2L, episodeId = 1L, articleId = 30L)
+        )
+
+        every { episodeRepository.save(any()) } answers { firstArg() }
+        every { episodeArticleRepository.findByEpisodeId(1L) } returns links
+        every { articleRepository.findById(10L) } returns Optional.of(regularArticle)
+        every { articleRepository.findById(30L) } returns Optional.of(aggregatedArticle)
+        every { articleRepository.save(any()) } answers { firstArg() }
+        every { postArticleRepository.countByArticleId(10L) } returns 1L
+        every { postArticleRepository.countByArticleId(30L) } returns 4L
+        justRun { postArticleRepository.deleteByArticleId(30L) }
+        justRun { articleRepository.deleteById(30L) }
+
+        episodeService.discardAndResetArticles(episode)
+
+        verify { episodeRepository.save(match { it.status == EpisodeStatus.DISCARDED }) }
+        verify { articleRepository.save(match { it.id == 10L && !it.isProcessed }) }
+        verify { postArticleRepository.deleteByArticleId(30L) }
+        verify { articleRepository.deleteById(30L) }
     }
 
     @Test

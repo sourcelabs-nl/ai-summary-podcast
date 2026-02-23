@@ -12,6 +12,7 @@ import com.aisummarypodcast.store.EpisodeRepository
 import com.aisummarypodcast.store.EpisodeStatus
 import com.aisummarypodcast.store.Podcast
 import com.aisummarypodcast.store.PodcastRepository
+import com.aisummarypodcast.store.PostArticleRepository
 import com.aisummarypodcast.tts.TtsPipeline
 import org.slf4j.LoggerFactory
 import org.springframework.scheduling.annotation.Async
@@ -27,7 +28,8 @@ class EpisodeService(
     private val episodeArticleRepository: EpisodeArticleRepository,
     private val articleRepository: ArticleRepository,
     private val episodeRecapGenerator: EpisodeRecapGenerator,
-    private val modelResolver: ModelResolver
+    private val modelResolver: ModelResolver,
+    private val postArticleRepository: PostArticleRepository
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -99,14 +101,25 @@ class EpisodeService(
         val linkedArticles = episodeArticleRepository.findByEpisodeId(episode.id!!)
         if (linkedArticles.isEmpty()) {
             log.warn("Episode {} has no episode-article links; cannot reset articles for reprocessing", episode.id)
-        } else {
-            for (link in linkedArticles) {
-                articleRepository.findById(link.articleId).ifPresent { article ->
+            return
+        }
+
+        var resetCount = 0
+        var deletedCount = 0
+        for (link in linkedArticles) {
+            articleRepository.findById(link.articleId).ifPresent { article ->
+                val postCount = postArticleRepository.countByArticleId(article.id!!)
+                if (postCount >= 2) {
+                    postArticleRepository.deleteByArticleId(article.id)
+                    articleRepository.deleteById(article.id)
+                    deletedCount++
+                } else {
                     articleRepository.save(article.copy(isProcessed = false))
+                    resetCount++
                 }
             }
-            log.info("Episode {} discarded, reset {} linked articles for reprocessing", episode.id, linkedArticles.size)
         }
+        log.info("Episode {} discarded, reset {} articles and deleted {} aggregated articles for reprocessing", episode.id, resetCount, deletedCount)
     }
 
     fun hasPendingOrApprovedEpisode(podcastId: String): Boolean {
