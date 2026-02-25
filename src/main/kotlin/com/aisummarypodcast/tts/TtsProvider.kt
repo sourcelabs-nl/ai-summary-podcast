@@ -1,5 +1,7 @@
 package com.aisummarypodcast.tts
 
+import com.aisummarypodcast.store.PodcastStyle
+
 data class TtsRequest(
     val script: String,
     val ttsVoices: Map<String, String>,
@@ -16,5 +18,7 @@ data class TtsResult(
 )
 
 interface TtsProvider {
+    val maxChunkSize: Int
     fun generate(request: TtsRequest): TtsResult
+    fun scriptGuidelines(style: PodcastStyle): String
 }

@@ -42,6 +42,13 @@ class InterviewComposerTest {
     )
 
     @Test
+    fun `prompt includes sponsor message instructions`() {
+        val prompt = composer.buildPrompt(articles, podcast)
+        assertTrue(prompt.contains("This podcast is brought to you by source-labs"))
+        assertTrue(prompt.contains("End with a sign-off that includes a mention of the sponsor: source-labs"))
+    }
+
+    @Test
     fun `prompt includes grounding instruction`() {
         val prompt = composer.buildPrompt(articles, podcast)
         assertTrue(prompt.contains("ONLY discuss topics that are present in the article summaries"))
@@ -140,10 +147,26 @@ class InterviewComposerTest {
     }
 
     @Test
-    fun `prompt mentions emotion cues`() {
+    fun `prompt includes TTS guidelines when provided`() {
+        val guidelines = "You MAY include emotion cues in square brackets."
+        val prompt = composer.buildPrompt(articles, podcast, ttsScriptGuidelines = guidelines)
+
+        assertTrue(prompt.contains("TTS script formatting:"))
+        assertTrue(prompt.contains("emotion cues in square brackets"))
+    }
+
+    @Test
+    fun `prompt omits TTS guidelines when empty`() {
+        val prompt = composer.buildPrompt(articles, podcast, ttsScriptGuidelines = "")
+
+        assertFalse(prompt.contains("TTS script formatting:"))
+    }
+
+    @Test
+    fun `prompt does not include hardcoded emotion cues`() {
         val prompt = composer.buildPrompt(articles, podcast)
 
-        assertTrue(prompt.contains("[curious]"))
+        assertFalse(prompt.contains("[curious]"))
     }
 
     @Test

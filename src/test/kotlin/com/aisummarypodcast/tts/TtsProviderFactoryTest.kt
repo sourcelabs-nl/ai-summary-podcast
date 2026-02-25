@@ -12,8 +12,9 @@ class TtsProviderFactoryTest {
     private val openAiProvider = mockk<OpenAiTtsProvider>()
     private val elevenLabsProvider = mockk<ElevenLabsTtsProvider>()
     private val elevenLabsDialogueProvider = mockk<ElevenLabsDialogueTtsProvider>()
+    private val inworldProvider = mockk<InworldTtsProvider>()
 
-    private val factory = TtsProviderFactory(openAiProvider, elevenLabsProvider, elevenLabsDialogueProvider)
+    private val factory = TtsProviderFactory(openAiProvider, elevenLabsProvider, elevenLabsDialogueProvider, inworldProvider)
 
     @Test
     fun `resolves OpenAI provider`() {
@@ -37,6 +38,30 @@ class TtsProviderFactoryTest {
     fun `resolves ElevenLabs dialogue provider for interview style`() {
         val podcast = Podcast(id = "p1", userId = "u1", name = "Test", topic = "tech", ttsProvider = TtsProviderType.ELEVENLABS, style = PodcastStyle.INTERVIEW)
         assertSame(elevenLabsDialogueProvider, factory.resolve(podcast))
+    }
+
+    @Test
+    fun `resolves Inworld provider for monologue style`() {
+        val podcast = Podcast(id = "p1", userId = "u1", name = "Test", topic = "tech", ttsProvider = TtsProviderType.INWORLD, style = PodcastStyle.NEWS_BRIEFING)
+        assertSame(inworldProvider, factory.resolve(podcast))
+    }
+
+    @Test
+    fun `resolves Inworld provider for casual style`() {
+        val podcast = Podcast(id = "p1", userId = "u1", name = "Test", topic = "tech", ttsProvider = TtsProviderType.INWORLD, style = PodcastStyle.CASUAL)
+        assertSame(inworldProvider, factory.resolve(podcast))
+    }
+
+    @Test
+    fun `resolves Inworld provider for dialogue style`() {
+        val podcast = Podcast(id = "p1", userId = "u1", name = "Test", topic = "tech", ttsProvider = TtsProviderType.INWORLD, style = PodcastStyle.DIALOGUE)
+        assertSame(inworldProvider, factory.resolve(podcast))
+    }
+
+    @Test
+    fun `resolves Inworld provider for interview style`() {
+        val podcast = Podcast(id = "p1", userId = "u1", name = "Test", topic = "tech", ttsProvider = TtsProviderType.INWORLD, style = PodcastStyle.INTERVIEW)
+        assertSame(inworldProvider, factory.resolve(podcast))
     }
 
 }

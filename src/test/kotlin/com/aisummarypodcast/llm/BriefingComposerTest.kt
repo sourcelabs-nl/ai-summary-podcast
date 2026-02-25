@@ -291,6 +291,14 @@ class BriefingComposerTest {
     }
 
     @Test
+    fun `buildPrompt includes sponsor message instructions`() {
+        val podcast = Podcast(id = "p1", userId = "u1", name = "Test", topic = "tech")
+        val prompt = composer.buildPrompt(sampleArticles, podcast)
+        assertTrue(prompt.contains("This podcast is brought to you by source-labs"))
+        assertTrue(prompt.contains("End with a sign-off that includes a mention of the sponsor: source-labs"))
+    }
+
+    @Test
     fun `buildPrompt includes author attribution instruction`() {
         val podcast = Podcast(id = "p1", userId = "u1", name = "Test", topic = "tech")
         val prompt = composer.buildPrompt(sampleArticles, podcast)
@@ -362,6 +370,22 @@ class BriefingComposerTest {
         assertTrue(prompt.contains("Summary 2."))
         assertTrue(prompt.contains("Summary 3."))
         assertFalse(prompt.contains("Full body 1."))
+    }
+
+    @Test
+    fun `buildPrompt includes TTS guidelines when provided`() {
+        val podcast = Podcast(id = "p1", userId = "u1", name = "Test", topic = "tech")
+        val guidelines = "Use *word* for emphasis and [laugh] for non-verbal cues."
+        val prompt = composer.buildPrompt(sampleArticles, podcast, ttsScriptGuidelines = guidelines)
+        assertTrue(prompt.contains("TTS script formatting:"))
+        assertTrue(prompt.contains("Use *word* for emphasis"))
+    }
+
+    @Test
+    fun `buildPrompt omits TTS guidelines when empty`() {
+        val podcast = Podcast(id = "p1", userId = "u1", name = "Test", topic = "tech")
+        val prompt = composer.buildPrompt(sampleArticles, podcast, ttsScriptGuidelines = "")
+        assertFalse(prompt.contains("TTS script formatting:"))
     }
 
     @Test

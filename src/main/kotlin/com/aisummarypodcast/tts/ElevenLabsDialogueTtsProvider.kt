@@ -1,5 +1,6 @@
 package com.aisummarypodcast.tts
 
+import com.aisummarypodcast.store.PodcastStyle
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 
@@ -9,6 +10,11 @@ class ElevenLabsDialogueTtsProvider(
 ) : TtsProvider {
 
     private val log = LoggerFactory.getLogger(javaClass)
+
+    override val maxChunkSize: Int = 5000
+
+    override fun scriptGuidelines(style: PodcastStyle): String =
+        "You MAY include emotion cues in square brackets to guide vocal delivery (e.g., [cheerfully], [seriously], [with excitement]). Keep cues natural and sparse."
 
     companion object {
         const val MAX_CHARS = 5000

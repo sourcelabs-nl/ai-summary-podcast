@@ -70,6 +70,36 @@ class CostEstimatorTest {
     }
 
     @Test
+    fun `estimates Inworld TTS Max cost by model name`() {
+        val pricing = mapOf("inworld-tts-1.5-max" to 10.00, "inworld-tts-1.5-mini" to 5.00)
+        // 8000 * 10.00 / 1_000_000 * 100 = 8 cents
+        val cost = CostEstimator.estimateTtsCostCents(8000, pricing, "inworld", "inworld-tts-1.5-max")
+        assertEquals(8, cost)
+    }
+
+    @Test
+    fun `estimates Inworld TTS Mini cost by model name`() {
+        val pricing = mapOf("inworld-tts-1.5-max" to 10.00, "inworld-tts-1.5-mini" to 5.00)
+        // 8000 * 5.00 / 1_000_000 * 100 = 4 cents
+        val cost = CostEstimator.estimateTtsCostCents(8000, pricing, "inworld", "inworld-tts-1.5-mini")
+        assertEquals(4, cost)
+    }
+
+    @Test
+    fun `returns null when Inworld model pricing not configured`() {
+        val pricing = mapOf("openai" to 15.00)
+        assertNull(CostEstimator.estimateTtsCostCents(8000, pricing, "inworld", "inworld-tts-1.5-max"))
+    }
+
+    @Test
+    fun `falls back to provider name when model not in pricing map`() {
+        val pricing = mapOf("openai" to 15.00)
+        // model "tts-1" not in map, falls back to "openai"
+        val cost = CostEstimator.estimateTtsCostCents(50000, pricing, "openai", "tts-1")
+        assertEquals(75, cost)
+    }
+
+    @Test
     fun `handles zero tokens`() {
         val modelDef = ModelDefinition(
             provider = "openrouter", model = "test",

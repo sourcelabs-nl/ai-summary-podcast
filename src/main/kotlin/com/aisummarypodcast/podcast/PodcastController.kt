@@ -85,15 +85,17 @@ class PodcastController(
 
     private val log = LoggerFactory.getLogger(javaClass)
 
+    private val dialogueProviders = setOf(TtsProviderType.ELEVENLABS, TtsProviderType.INWORLD)
+
     private fun validateTtsConfig(ttsProvider: TtsProviderType, style: PodcastStyle, ttsVoices: Map<String, String>?): String? {
-        if (style == PodcastStyle.DIALOGUE && ttsProvider != TtsProviderType.ELEVENLABS) {
-            return "Dialogue style requires ElevenLabs as TTS provider"
+        if (style == PodcastStyle.DIALOGUE && ttsProvider !in dialogueProviders) {
+            return "Dialogue style requires ElevenLabs or Inworld as TTS provider"
         }
         if (style == PodcastStyle.DIALOGUE && (ttsVoices == null || ttsVoices.size < 2)) {
             return "Dialogue style requires at least two voice roles in ttsVoices (e.g., host and cohost)"
         }
-        if (style == PodcastStyle.INTERVIEW && ttsProvider != TtsProviderType.ELEVENLABS) {
-            return "Interview style requires ElevenLabs as TTS provider"
+        if (style == PodcastStyle.INTERVIEW && ttsProvider !in dialogueProviders) {
+            return "Interview style requires ElevenLabs or Inworld as TTS provider"
         }
         if (style == PodcastStyle.INTERVIEW && (ttsVoices == null || ttsVoices.size < 2)) {
             return "Interview style requires at least two voice roles in ttsVoices (interviewer and expert)"

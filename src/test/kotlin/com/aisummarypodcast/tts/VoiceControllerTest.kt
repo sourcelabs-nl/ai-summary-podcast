@@ -24,6 +24,9 @@ class VoiceControllerTest {
     @MockkBean
     private lateinit var elevenLabsApiClient: ElevenLabsApiClient
 
+    @MockkBean
+    private lateinit var inworldApiClient: InworldApiClient
+
     @MockkBean(relaxed = true)
     private lateinit var appProperties: AppProperties
 
@@ -62,7 +65,7 @@ class VoiceControllerTest {
 
         mockMvc.perform(get("/users/$userId/voices?provider=openai"))
             .andExpect(status().isBadRequest)
-            .andExpect(jsonPath("$.error").value("Voice discovery is only supported for the 'elevenlabs' provider"))
+            .andExpect(jsonPath("$.error").value("Voice discovery is not supported for the 'openai' provider"))
     }
 
     @Test
@@ -83,5 +86,37 @@ class VoiceControllerTest {
         mockMvc.perform(get("/users/$userId/voices?provider=elevenlabs"))
             .andExpect(status().is5xxServerError)
             .andExpect(jsonPath("$.error").value("Failed to fetch voices from ElevenLabs: Connection refused"))
+    }
+
+    @Test
+    fun `returns voices from Inworld`() {
+        every { userService.findById(userId) } returns user
+        every { inworldApiClient.listVoices(userId) } returns listOf(
+            VoiceInfo("iw1", "Luna", "premade", "https://preview.com/luna.mp3")
+        )
+
+        mockMvc.perform(get("/users/$userId/voices?provider=inworld"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$[0].voiceId").value("iw1"))
+            .andExpect(jsonPath("$[0].name").value("Luna"))
+    }
+
+    @Test
+    fun `returns 400 when no Inworld config`() {
+        every { userService.findById(userId) } returns user
+        every { inworldApiClient.listVoices(userId) } throws IllegalStateException("No Inworld provider config found. Configure Inworld API credentials (INWORLD_AI_JWT_KEY and INWORLD_AI_JWT_SECRET).")
+
+        mockMvc.perform(get("/users/$userId/voices?provider=inworld"))
+            .andExpect(status().isBadRequest)
+    }
+
+    @Test
+    fun `returns 502 when Inworld API fails`() {
+        every { userService.findById(userId) } returns user
+        every { inworldApiClient.listVoices(userId) } throws RuntimeException("Connection refused")
+
+        mockMvc.perform(get("/users/$userId/voices?provider=inworld"))
+            .andExpect(status().is5xxServerError)
+            .andExpect(jsonPath("$.error").value("Failed to fetch voices from Inworld: Connection refused"))
     }
 }

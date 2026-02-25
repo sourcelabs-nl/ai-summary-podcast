@@ -19,7 +19,7 @@ flowchart LR
 3. **LLM Processing** — Two sequential stages, each using a configurable model from the named model registry:
    - **Score + Summarize** — A single LLM call per article that scores relevance (0–10), filters out irrelevant content, and summarizes the relevant parts. Summary length scales with article length: short articles get 2–3 sentences, medium articles 4–6 sentences, and long articles a full paragraph. Articles below the `relevanceThreshold` (default 5) are excluded.
    - **Briefing Composition** — Composes a coherent briefing script from all relevant articles with natural transitions. When few articles are available (below `fullBodyThreshold`, default 5), full article bodies are used instead of summaries for richer content. When a previous episode exists, its recap is passed to the composer for continuity — the script references what was discussed last time.
-4. **TTS Generation** — Converts the script to speech via OpenAI TTS or ElevenLabs, chunking at sentence boundaries and concatenating with FFmpeg. ElevenLabs also supports multi-speaker dialogue via its Text-to-Dialogue API. After each episode is saved, a short recap is generated and stored for use as continuity context in the next episode.
+4. **TTS Generation** — Converts the script to speech via OpenAI TTS, ElevenLabs, or Inworld AI, chunking at sentence boundaries and concatenating with FFmpeg. ElevenLabs and Inworld support multi-speaker dialogue and interview styles. Each TTS provider can inject provider-specific script guidelines into the LLM prompt (e.g. Inworld's expressiveness markup). After each episode is saved, a short recap is generated and stored for use as continuity context in the next episode.
 5. **Podcast Feed** — Serves an RSS 2.0 feed with `<enclosure>` tags so any podcast app can subscribe.
 
 Each user can create multiple podcasts, each with its own sources, topic, language, LLM models, TTS provider/voices, style, and generation schedule (cron).
@@ -34,6 +34,7 @@ Each user can create multiple podcasts, each with its own sources, topic, langua
 - A TTS provider — one of:
   - [OpenAI](https://platform.openai.com/) API key (default)
   - [ElevenLabs](https://elevenlabs.io/) API key (for advanced voices and multi-speaker dialogue)
+  - [Inworld AI](https://inworld.ai/tts) API key (for expressive voices with rich markup support)
 
 ## Setup
 
@@ -152,10 +153,10 @@ Each podcast can be tailored to your preferences via the following settings:
 | `topic` | — | Interest area used by the LLM to filter relevant articles |
 | `language` | `"en"` | Language for the briefing script, date formatting, and RSS feed metadata (actual audio language support depends on TTS provider) |
 | `style` | `"news-briefing"` | Briefing tone — see styles below |
-| `ttsProvider` | `"openai"` | TTS provider (`openai` or `elevenlabs`) |
+| `ttsProvider` | `"openai"` | TTS provider (`openai`, `elevenlabs`, or `inworld`) |
 | `ttsVoices` | `{"default": "nova"}` | Voice configuration — see [TTS Configuration](#tts-configuration) below |
 | `speakerNames` | `null` | Display names for speakers — e.g. `{"interviewer": "Alice", "expert": "Bob"}`. Used in dialogue/interview scripts so speakers address each other by name |
-| `ttsSettings` | — | Provider-specific settings (e.g. `{"speed": 1.25}` for OpenAI, `{"stability": 0.5}` for ElevenLabs) |
+| `ttsSettings` | — | Provider-specific settings (e.g. `{"speed": "1.25"}` for OpenAI, `{"stability": "0.5"}` for ElevenLabs, `{"model": "inworld-tts-1.5-max", "speed": "1.0", "temperature": "1.1"}` for Inworld) |
 | `llmModels` | — | Override the LLM models per pipeline stage — see [Model Configuration](#model-configuration) below |
 | `targetWords` | `1500` | Approximate word count for the briefing script |
 | `cron` | `"0 0 6 * * *"` | Generation schedule in cron format (default: daily at 6 AM) |
@@ -173,16 +174,18 @@ Each podcast can be tailored to your preferences via the following settings:
 | `casual` | Friendly podcast host — conversational, relaxed, like talking to a friend |
 | `deep-dive` | Analytical exploration — in-depth analysis and thoughtful commentary |
 | `executive-summary` | Concise and fact-focused — minimal commentary, straight to the point |
-| `dialogue` | Multi-speaker conversation — requires ElevenLabs TTS and at least two voice roles |
-| `interview` | Interviewer/expert conversation — asymmetric roles (~20% interviewer, ~80% expert). Requires ElevenLabs TTS with exactly `interviewer` and `expert` voice roles |
+| `dialogue` | Multi-speaker conversation — requires ElevenLabs or Inworld TTS and at least two voice roles |
+| `interview` | Interviewer/expert conversation — asymmetric roles (~20% interviewer, ~80% expert). Requires ElevenLabs or Inworld TTS with exactly `interviewer` and `expert` voice roles |
 
 ### TTS Configuration
 
-Two TTS providers are supported: **OpenAI** (default) and **ElevenLabs**.
+Three TTS providers are supported: **OpenAI** (default), **ElevenLabs**, and **Inworld AI**.
 
-**OpenAI** — Works out of the box with the global `OPENAI_API_KEY`. Voices: `alloy`, `echo`, `fable`, `nova`, `onyx`, `shimmer`. Settings: `{"speed": 1.25}`.
+**OpenAI** — Works out of the box with the global `OPENAI_API_KEY`. Voices: `alloy`, `echo`, `fable`, `nova`, `onyx`, `shimmer`. Settings: `{"speed": "1.25"}`.
 
 **ElevenLabs** — Uses the global `ELEVENLABS_API_KEY` as fallback, or a per-user key configured via the provider API (see [Setup](#using-elevenlabs-instead-of-openai-for-tts)). Supports single-voice monologue, multi-speaker dialogue, and interview styles. Use `GET /users/{userId}/voices?provider=elevenlabs` to discover available voice IDs.
+
+**Inworld AI** — Requires per-user API credentials configured via the provider API (JWT key and secret as `key:secret`). Supports monologue, dialogue, and interview styles with rich expressiveness markup (emphasis, non-verbal cues, IPA phonemes). Models: `inworld-tts-1.5-max` (default), `inworld-tts-1.5-mini`. Settings: `{"model": "inworld-tts-1.5-max", "speed": "1.0", "temperature": "1.1"}`. Use `GET /users/{userId}/voices?provider=inworld` to discover available voice IDs.
 
 Voice configuration uses the `ttsVoices` map:
 - Monologue: `{"default": "nova"}` (or any ElevenLabs voice ID)
@@ -467,6 +470,7 @@ DELETE /users/{userId}/oauth/x             — Disconnect X account
 
 ```
 GET    /users/{userId}/voices?provider=elevenlabs  — List available ElevenLabs voices
+GET    /users/{userId}/voices?provider=inworld     — List available Inworld AI voices
 ```
 
 ### Provider Configuration
@@ -477,7 +481,7 @@ PUT    /users/{userId}/api-keys/{category}   — Set provider (LLM or TTS)
 DELETE /users/{userId}/api-keys/{category}   — Remove provider config
 ```
 
-Users can configure their own LLM and TTS providers. Supported LLM providers: `openrouter`, `openai`, `ollama`. Supported TTS providers: `openai`, `elevenlabs`. API keys are stored encrypted (AES-256).
+Users can configure their own LLM and TTS providers. Supported LLM providers: `openrouter`, `openai`, `ollama`. Supported TTS providers: `openai`, `elevenlabs`, `inworld`. API keys are stored encrypted (AES-256).
 
 ## Running Tests
 

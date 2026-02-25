@@ -4,7 +4,8 @@ import com.fasterxml.jackson.annotation.JsonValue
 
 enum class TtsProviderType(@JsonValue val value: String) {
     OPENAI("openai"),
-    ELEVENLABS("elevenlabs");
+    ELEVENLABS("elevenlabs"),
+    INWORLD("inworld");
 
     companion object {
         fun fromValue(value: String): TtsProviderType? = entries.firstOrNull { it.value == value }

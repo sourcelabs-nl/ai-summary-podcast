@@ -8,6 +8,7 @@ import com.aisummarypodcast.store.Podcast
 import com.aisummarypodcast.store.PodcastStyle
 import com.aisummarypodcast.store.PostRepository
 import com.aisummarypodcast.store.SourceRepository
+import com.aisummarypodcast.tts.TtsProviderFactory
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import java.time.Instant
@@ -36,7 +37,8 @@ class LlmPipeline(
     private val postRepository: PostRepository,
     private val sourceAggregator: SourceAggregator,
     private val appProperties: AppProperties,
-    private val episodeRepository: EpisodeRepository
+    private val episodeRepository: EpisodeRepository,
+    private val ttsProviderFactory: TtsProviderFactory
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -111,10 +113,13 @@ class LlmPipeline(
             log.info("[LLM] No previous episode recap for podcast '{}' ({}) — composing without continuity context", podcast.name, podcast.id)
         }
 
+        val ttsProvider = ttsProviderFactory.resolve(podcast)
+        val ttsScriptGuidelines = ttsProvider.scriptGuidelines(podcast.style)
+
         val compositionResult = when (podcast.style) {
-            PodcastStyle.DIALOGUE -> dialogueComposer.compose(toCompose, podcast, composeModelDef, previousRecap)
-            PodcastStyle.INTERVIEW -> interviewComposer.compose(toCompose, podcast, composeModelDef, previousRecap)
-            else -> briefingComposer.compose(toCompose, podcast, composeModelDef, previousRecap)
+            PodcastStyle.DIALOGUE -> dialogueComposer.compose(toCompose, podcast, composeModelDef, previousRecap, ttsScriptGuidelines)
+            PodcastStyle.INTERVIEW -> interviewComposer.compose(toCompose, podcast, composeModelDef, previousRecap, ttsScriptGuidelines)
+            else -> briefingComposer.compose(toCompose, podcast, composeModelDef, previousRecap, ttsScriptGuidelines)
         }
 
         val processedArticleIds = toCompose.mapNotNull { it.id }

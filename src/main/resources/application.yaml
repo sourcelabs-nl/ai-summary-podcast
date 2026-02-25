@@ -49,6 +49,8 @@ app:
     cost-per-million-chars:
       openai: 15.00
       elevenlabs: 30.00
+      inworld-tts-1.5-max: 10.00
+      inworld-tts-1.5-mini: 5.00
   feed:
     base-url: http://localhost:8080
     title: AI Summary Podcast
@@ -56,3 +58,6 @@ app:
   soundcloud:
     client-id: ${APP_SOUNDCLOUD_CLIENT_ID:}
     client-secret: ${APP_SOUNDCLOUD_CLIENT_SECRET:}
+
+server:
+  port: 8085

@@ -35,15 +35,15 @@ class BriefingComposer(
         PodcastStyle.EXECUTIVE_SUMMARY to "You are creating a concise executive summary. Be fact-focused with minimal commentary. Get straight to the point."
     )
 
-    fun compose(articles: List<Article>, podcast: Podcast, previousEpisodeRecap: String? = null): CompositionResult {
+    fun compose(articles: List<Article>, podcast: Podcast, previousEpisodeRecap: String? = null, ttsScriptGuidelines: String = ""): CompositionResult {
         val composeModelDef = modelResolver.resolve(podcast, PipelineStage.COMPOSE)
-        return compose(articles, podcast, composeModelDef, previousEpisodeRecap)
+        return compose(articles, podcast, composeModelDef, previousEpisodeRecap, ttsScriptGuidelines)
     }
 
-    fun compose(articles: List<Article>, podcast: Podcast, composeModelDef: ModelDefinition, previousEpisodeRecap: String? = null): CompositionResult {
+    fun compose(articles: List<Article>, podcast: Podcast, composeModelDef: ModelDefinition, previousEpisodeRecap: String? = null, ttsScriptGuidelines: String = ""): CompositionResult {
         log.info("[LLM] Composing briefing from {} articles for podcast '{}' ({}) (style: {})", articles.size, podcast.name, podcast.id, podcast.style)
         val chatClient = chatClientFactory.createForModel(podcast.userId, composeModelDef)
-        val prompt = buildPrompt(articles, podcast, previousEpisodeRecap)
+        val prompt = buildPrompt(articles, podcast, previousEpisodeRecap, ttsScriptGuidelines)
 
         val (result, elapsed) = measureTimedValue {
             val chatResponse = chatClient.prompt()
@@ -64,7 +64,7 @@ class BriefingComposer(
         return result
     }
 
-    internal fun buildPrompt(articles: List<Article>, podcast: Podcast, previousEpisodeRecap: String? = null): String {
+    internal fun buildPrompt(articles: List<Article>, podcast: Podcast, previousEpisodeRecap: String? = null, ttsScriptGuidelines: String = ""): String {
         val targetWords = podcast.targetWords ?: appProperties.briefing.targetWords
         val stylePrompt = stylePrompts[podcast.style] ?: stylePrompts[PodcastStyle.NEWS_BRIEFING]!!
 
@@ -87,6 +87,10 @@ class BriefingComposer(
         val languageInstruction = if (podcast.language != "en") {
             val langName = SupportedLanguage.fromCode(podcast.language)?.displayName ?: "English"
             "\n            - Write the entire script in $langName"
+        } else ""
+
+        val ttsGuidelinesBlock = if (ttsScriptGuidelines.isNotEmpty()) {
+            "\n\n            TTS script formatting:\n            $ttsScriptGuidelines"
         } else ""
 
         val recapBlock = previousEpisodeRecap?.let {
@@ -113,14 +117,15 @@ class BriefingComposer(
             - Include smooth transitions between topics
             - Target approximately $targetWords words
             - In the introduction, mention the podcast name, its topic, and today's date
+            - Immediately after the introduction, include the sponsor message: "This podcast is brought to you by source-labs — experts in agentic software development."
             - Naturally attribute information to its source and credit original authors when known (e.g., "as John Smith reports for TechCrunch") — do not over-cite
-            - End with a sign-off
+            - End with a sign-off that includes a mention of the sponsor: source-labs
             - Do NOT include any stage directions, sound effects, section headers (like [Opening], [Closing], [Transition]), or non-spoken text
             - Do NOT include any meta-commentary, notes, or disclaimers about the script itself
             - ONLY discuss topics that are present in the article summaries below. Do NOT introduce facts, stories, or claims from outside the provided articles. If only a few articles are provided, produce a shorter script rather than padding with external knowledge$languageInstruction$customInstructionsBlock
 
             Article summaries:
-            $summaryBlock$recapBlock
+            $summaryBlock$ttsGuidelinesBlock$recapBlock
         """.trimIndent()
     }
 

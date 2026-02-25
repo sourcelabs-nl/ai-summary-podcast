@@ -19,7 +19,8 @@ class UserProviderConfigService(
             "openrouter" to "https://openrouter.ai/api",
             "openai" to "https://api.openai.com",
             "ollama" to "http://localhost:11434",
-            "elevenlabs" to "https://api.elevenlabs.io"
+            "elevenlabs" to "https://api.elevenlabs.io",
+            "inworld" to "https://api.inworld.ai"
         )
     }
 
@@ -80,6 +81,12 @@ class UserProviderConfigService(
     }
 
     private fun globalFallbackForProvider(category: ApiKeyCategory, provider: String): ProviderConfig? {
+        if (category == ApiKeyCategory.TTS && provider == "inworld") {
+            val jwtKey = System.getenv("INWORLD_AI_JWT_KEY") ?: return null
+            val jwtSecret = System.getenv("INWORLD_AI_JWT_SECRET") ?: return null
+            return ProviderConfig(baseUrl = resolveDefaultUrl(provider), apiKey = "$jwtKey:$jwtSecret")
+        }
+
         val envKey = when {
             category == ApiKeyCategory.LLM && provider == "openrouter" -> "OPENROUTER_API_KEY"
             category == ApiKeyCategory.TTS && provider == "openai" -> "OPENAI_API_KEY"

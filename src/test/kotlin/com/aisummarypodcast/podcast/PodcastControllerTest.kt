@@ -134,7 +134,7 @@ class PodcastControllerTest {
                 .content("""{"name":"My Podcast","topic":"tech","style":"interview","ttsProvider":"openai","ttsVoices":{"interviewer":"v1","expert":"v2"}}""")
         )
             .andExpect(status().isBadRequest)
-            .andExpect(jsonPath("$.error").value("Interview style requires ElevenLabs as TTS provider"))
+            .andExpect(jsonPath("$.error").value("Interview style requires ElevenLabs or Inworld as TTS provider"))
     }
 
     @Test

@@ -12,7 +12,8 @@ data class VoiceResponse(val voiceId: String, val name: String, val category: St
 @RequestMapping("/users/{userId}/voices")
 class VoiceController(
     private val userService: UserService,
-    private val elevenLabsApiClient: ElevenLabsApiClient
+    private val elevenLabsApiClient: ElevenLabsApiClient,
+    private val inworldApiClient: InworldApiClient
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -24,19 +25,27 @@ class VoiceController(
     ): ResponseEntity<Any> {
         userService.findById(userId) ?: return ResponseEntity.notFound().build()
 
-        if (provider != TtsProviderType.ELEVENLABS.value) {
-            return ResponseEntity.badRequest().body(mapOf("error" to "Voice discovery is only supported for the 'elevenlabs' provider"))
+        return when (provider) {
+            TtsProviderType.ELEVENLABS.value -> fetchVoices("ElevenLabs") {
+                elevenLabsApiClient.listVoices(userId)
+            }
+            TtsProviderType.INWORLD.value -> fetchVoices("Inworld") {
+                inworldApiClient.listVoices(userId)
+            }
+            else -> ResponseEntity.badRequest().body(mapOf("error" to "Voice discovery is not supported for the '$provider' provider"))
         }
+    }
 
+    private fun fetchVoices(providerName: String, fetch: () -> List<VoiceInfo>): ResponseEntity<Any> {
         return try {
-            val voices = elevenLabsApiClient.listVoices(userId)
+            val voices = fetch()
             val response = voices.map { VoiceResponse(it.voiceId, it.name, it.category, it.previewUrl) }
             ResponseEntity.ok(response)
         } catch (e: IllegalStateException) {
             ResponseEntity.badRequest().body(mapOf("error" to e.message))
         } catch (e: Exception) {
-            log.error("Failed to fetch voices from ElevenLabs: {}", e.message, e)
-            ResponseEntity.status(502).body(mapOf("error" to "Failed to fetch voices from ElevenLabs: ${e.message}"))
+            log.error("Failed to fetch voices from {}: {}", providerName, e.message, e)
+            ResponseEntity.status(502).body(mapOf("error" to "Failed to fetch voices from $providerName: ${e.message}"))
         }
     }
 }

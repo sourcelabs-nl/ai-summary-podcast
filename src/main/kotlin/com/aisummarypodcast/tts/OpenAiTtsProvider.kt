@@ -1,6 +1,7 @@
 package com.aisummarypodcast.tts
 
 import com.aisummarypodcast.store.ApiKeyCategory
+import com.aisummarypodcast.store.PodcastStyle
 import com.aisummarypodcast.user.UserProviderConfigService
 import org.slf4j.LoggerFactory
 import org.springframework.ai.audio.tts.TextToSpeechPrompt
@@ -16,12 +17,17 @@ class OpenAiTtsProvider(
 
     private val log = LoggerFactory.getLogger(javaClass)
 
+    override val maxChunkSize: Int = 4096
+
+    override fun scriptGuidelines(style: PodcastStyle): String =
+        "Write clean, natural speech. Do not use special markup, emotion tags, sound effects, or non-verbal cues — the TTS engine does not support them."
+
     override fun generate(request: TtsRequest): TtsResult {
         val voice = request.ttsVoices["default"]
             ?: throw IllegalStateException("OpenAI TTS requires a 'default' voice in ttsVoices")
         val speed = request.ttsSettings["speed"]?.toDoubleOrNull() ?: 1.0
 
-        val chunks = TextChunker.chunk(request.script)
+        val chunks = TextChunker.chunk(request.script, maxChunkSize)
         log.info("Generating OpenAI TTS audio for {} chunks (voice: {}, speed: {}, language: {})", chunks.size, voice, speed, request.language)
 
         val speechModel = createSpeechModel(request.userId)

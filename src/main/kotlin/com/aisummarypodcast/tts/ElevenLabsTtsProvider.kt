@@ -1,5 +1,6 @@
 package com.aisummarypodcast.tts
 
+import com.aisummarypodcast.store.PodcastStyle
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 
@@ -10,11 +11,16 @@ class ElevenLabsTtsProvider(
 
     private val log = LoggerFactory.getLogger(javaClass)
 
+    override val maxChunkSize: Int = 5000
+
+    override fun scriptGuidelines(style: PodcastStyle): String =
+        "You MAY include emotion cues in square brackets to guide vocal delivery (e.g., [cheerfully], [seriously], [with excitement]). Keep cues natural and sparse."
+
     override fun generate(request: TtsRequest): TtsResult {
         val voiceId = request.ttsVoices["default"]
             ?: throw IllegalStateException("ElevenLabs TTS requires a 'default' voice in ttsVoices")
 
-        val chunks = TextChunker.chunk(request.script)
+        val chunks = TextChunker.chunk(request.script, maxChunkSize)
         log.info("Generating ElevenLabs TTS audio for {} chunks (voice: {}, language: {})", chunks.size, voiceId, request.language)
 
         val voiceSettings = request.ttsSettings.ifEmpty { null }

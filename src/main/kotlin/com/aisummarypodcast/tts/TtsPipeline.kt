@@ -31,7 +31,7 @@ class TtsPipeline(
         log.info("[TTS] Starting audio generation for podcast '{}' ({}) (provider: {})", podcast.name, podcast.id, podcast.ttsProvider)
 
         val ttsResult = callProvider(script, podcast)
-        val ttsCostCents = CostEstimator.estimateTtsCostCents(ttsResult.totalCharacters, appProperties.tts.costPerMillionChars, podcast.ttsProvider.value)
+        val ttsCostCents = CostEstimator.estimateTtsCostCents(ttsResult.totalCharacters, appProperties.tts.costPerMillionChars, podcast.ttsProvider.value, ttsResult.model)
 
         val (outputPath, duration) = generateAudioFile(ttsResult, podcast)
 
@@ -57,7 +57,7 @@ class TtsPipeline(
         log.info("[TTS] Starting audio generation for episode {} (podcast '{}' ({}), provider: {})", episode.id, podcast.name, podcast.id, podcast.ttsProvider)
 
         val ttsResult = callProvider(episode.scriptText, podcast)
-        val ttsCostCents = CostEstimator.estimateTtsCostCents(ttsResult.totalCharacters, appProperties.tts.costPerMillionChars, podcast.ttsProvider.value)
+        val ttsCostCents = CostEstimator.estimateTtsCostCents(ttsResult.totalCharacters, appProperties.tts.costPerMillionChars, podcast.ttsProvider.value, ttsResult.model)
 
         val (outputPath, duration) = generateAudioFile(ttsResult, podcast)
 

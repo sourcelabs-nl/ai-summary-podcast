@@ -9,11 +9,13 @@ import org.springframework.stereotype.Component
 class TtsProviderFactory(
     private val openAiTtsProvider: OpenAiTtsProvider,
     private val elevenLabsTtsProvider: ElevenLabsTtsProvider,
-    private val elevenLabsDialogueTtsProvider: ElevenLabsDialogueTtsProvider
+    private val elevenLabsDialogueTtsProvider: ElevenLabsDialogueTtsProvider,
+    private val inworldTtsProvider: InworldTtsProvider
 ) {
 
     fun resolve(podcast: Podcast): TtsProvider = when (podcast.ttsProvider) {
         TtsProviderType.OPENAI -> openAiTtsProvider
         TtsProviderType.ELEVENLABS -> if (podcast.style in setOf(PodcastStyle.DIALOGUE, PodcastStyle.INTERVIEW)) elevenLabsDialogueTtsProvider else elevenLabsTtsProvider
+        TtsProviderType.INWORLD -> inworldTtsProvider
     }
 }

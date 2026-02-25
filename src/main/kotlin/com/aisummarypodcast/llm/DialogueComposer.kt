@@ -22,15 +22,15 @@ class DialogueComposer(
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    fun compose(articles: List<Article>, podcast: Podcast, previousEpisodeRecap: String? = null): CompositionResult {
+    fun compose(articles: List<Article>, podcast: Podcast, previousEpisodeRecap: String? = null, ttsScriptGuidelines: String = ""): CompositionResult {
         val composeModelDef = modelResolver.resolve(podcast, PipelineStage.COMPOSE)
-        return compose(articles, podcast, composeModelDef, previousEpisodeRecap)
+        return compose(articles, podcast, composeModelDef, previousEpisodeRecap, ttsScriptGuidelines)
     }
 
-    fun compose(articles: List<Article>, podcast: Podcast, composeModelDef: ModelDefinition, previousEpisodeRecap: String? = null): CompositionResult {
+    fun compose(articles: List<Article>, podcast: Podcast, composeModelDef: ModelDefinition, previousEpisodeRecap: String? = null, ttsScriptGuidelines: String = ""): CompositionResult {
         log.info("[LLM] Composing dialogue from {} articles for podcast '{}' ({})", articles.size, podcast.name, podcast.id)
         val chatClient = chatClientFactory.createForModel(podcast.userId, composeModelDef)
-        val prompt = buildPrompt(articles, podcast, previousEpisodeRecap)
+        val prompt = buildPrompt(articles, podcast, previousEpisodeRecap, ttsScriptGuidelines)
 
         val (result, elapsed) = measureTimedValue {
             val chatResponse = chatClient.prompt()
@@ -50,7 +50,7 @@ class DialogueComposer(
         return result
     }
 
-    internal fun buildPrompt(articles: List<Article>, podcast: Podcast, previousEpisodeRecap: String? = null): String {
+    internal fun buildPrompt(articles: List<Article>, podcast: Podcast, previousEpisodeRecap: String? = null, ttsScriptGuidelines: String = ""): String {
         val targetWords = podcast.targetWords ?: appProperties.briefing.targetWords
         val speakerRoles = podcast.ttsVoices?.keys?.toList() ?: listOf("host", "cohost")
         val tagExamples = speakerRoles.joinToString("\n            ") { role -> "<$role>Example text</$role>" }
@@ -83,6 +83,10 @@ class DialogueComposer(
             "\n            - Write the entire dialogue in $langName"
         } else ""
 
+        val ttsGuidelinesBlock = if (ttsScriptGuidelines.isNotEmpty()) {
+            "\n\n            TTS script formatting:\n            $ttsScriptGuidelines"
+        } else ""
+
         val recapBlock = previousEpisodeRecap?.let {
             """
 
@@ -109,17 +113,17 @@ class DialogueComposer(
             - Example format:
             $tagExamples
             - ALL text MUST be inside speaker tags — no text outside of tags
-            - You MAY include emotion cues in square brackets inside tags, e.g. <${speakerRoles.first()}>[cheerfully] Welcome back!</${speakerRoles.first()}>
             - Target approximately $targetWords words
             - In the introduction, mention the podcast name, its topic, and today's date
+            - Immediately after the introduction, include the sponsor message: "This podcast is brought to you by source-labs — experts in agentic software development."
             - Naturally attribute information to its source and credit original authors when known
-            - End with a sign-off
+            - End with a sign-off that includes a mention of the sponsor: source-labs
             - Do NOT include any stage directions, sound effects, or non-spoken text outside of tags
             - Do NOT include any meta-commentary, notes, or disclaimers about the script itself
             - ONLY discuss topics that are present in the article summaries below. Do NOT introduce facts, stories, or claims from outside the provided articles. If only a few articles are provided, produce a shorter script rather than padding with external knowledge$nameInstruction$languageInstruction$customInstructionsBlock
 
             Article summaries:
-            $summaryBlock$recapBlock
+            $summaryBlock$ttsGuidelinesBlock$recapBlock
         """.trimIndent()
     }
 
