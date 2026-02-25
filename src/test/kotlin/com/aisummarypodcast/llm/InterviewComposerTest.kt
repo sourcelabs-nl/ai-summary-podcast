@@ -61,7 +61,7 @@ class InterviewComposerTest {
 
         assertTrue(prompt.contains("Alice"))
         assertTrue(prompt.contains("Bob"))
-        assertTrue(prompt.contains("use each other's names naturally"))
+        assertTrue(prompt.contains("never as bare turn openers"))
     }
 
     @Test
@@ -144,6 +144,15 @@ class InterviewComposerTest {
 
         assertTrue(prompt.contains("Tech Talk"))
         assertTrue(prompt.contains("tech"))
+    }
+
+    @Test
+    fun `prompt includes transition guidance`() {
+        val prompt = composer.buildPrompt(articles, podcast)
+
+        assertTrue(prompt.contains("do NOT start a turn with a bare name address"))
+        assertTrue(prompt.contains("conversational bridges"))
+        assertTrue(prompt.contains("Vary transition patterns"))
     }
 
     @Test

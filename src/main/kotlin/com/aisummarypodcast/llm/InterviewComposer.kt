@@ -57,7 +57,7 @@ class InterviewComposer(
         val expertName = podcast.speakerNames?.get("expert")
 
         val nameInstruction = if (interviewerName != null && expertName != null) {
-            "\n            - The interviewer's name is \"$interviewerName\" and the expert's name is \"$expertName\". Speakers should use each other's names naturally in conversation."
+            "\n            - The interviewer's name is \"$interviewerName\" and the expert's name is \"$expertName\". Use names naturally in conversation — place them mid-sentence or at the end of questions, never as bare turn openers."
         } else {
             "\n            - Speakers should address each other without using names."
         }
@@ -119,7 +119,10 @@ class InterviewComposer(
             - End with a sign-off that includes a mention of the sponsor: source-labs
             - Do NOT include any stage directions, sound effects, or non-spoken text outside of tags
             - Do NOT include any meta-commentary, notes, or disclaimers about the script itself
-            - ONLY discuss topics that are present in the article summaries below. Do NOT introduce facts, stories, or claims from outside the provided articles. If only a few articles are provided, produce a shorter script rather than padding with external knowledge$nameInstruction$languageInstruction$customInstructionsBlock
+            - ONLY discuss topics that are present in the article summaries below. Do NOT introduce facts, stories, or claims from outside the provided articles. If only a few articles are provided, produce a shorter script rather than padding with external knowledge
+            - Speaker transitions must sound natural — do NOT start a turn with a bare name address (e.g., "Jarno, the market..."). Instead, use conversational bridges: reactions, follow-ups, or connectors before transitioning (e.g., "That's a great point. Now I'm curious about...", "Interesting — speaking of which...")
+            - When using the other speaker's name, place it mid-sentence or at the end of a question (e.g., "What do you make of this, Jarno?") rather than as the first word of a turn
+            - Vary transition patterns — not every handover needs a name, a reaction, or the same phrasing. Mix questions, reactions, bridges, and direct topic shifts$nameInstruction$languageInstruction$customInstructionsBlock
 
             Article summaries:
             $summaryBlock$ttsGuidelinesBlock$recapBlock
