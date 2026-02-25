@@ -52,7 +52,7 @@ app:
       inworld-tts-1.5-max: 10.00
       inworld-tts-1.5-mini: 5.00
   feed:
-    base-url: http://localhost:8080
+    base-url: http://localhost:8085
     title: AI Summary Podcast
     description: AI-generated audio briefings from your favourite content sources
   soundcloud:

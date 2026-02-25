@@ -31,7 +31,7 @@ class SoundCloudPublisher(
         )
         val title = "${podcast.name} - $episodeDate"
         val permalink = buildPermalink(podcast.name, episodeDate)
-        val description = episode.scriptText.take(500)
+        val description = episode.recap ?: episode.scriptText.take(500)
         val tagList = buildTagList(podcast.topic)
 
         val response = soundCloudClient.uploadTrack(
@@ -90,7 +90,8 @@ class SoundCloudPublisher(
                 DateTimeFormatter.ISO_INSTANT.withZone(ZoneOffset.UTC)
             )
             val permalink = buildPermalink(podcast.name, episodeDate)
-            soundCloudClient.updateTrack(accessToken, trackId, permalink)
+            val description = episode.recap ?: episode.scriptText.take(500)
+            soundCloudClient.updateTrack(accessToken, trackId, permalink = permalink, description = description)
         }
     }
 

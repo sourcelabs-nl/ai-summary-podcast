@@ -282,7 +282,13 @@ When not set, the static feed uses the same `app.feed.base-url` as the dynamic e
 
 Episodes can be published to SoundCloud after generation. This requires a SoundCloud OAuth app and a connected user account.
 
-1. **Register a SoundCloud app** at https://soundcloud.com/you/apps (must be logged in). Set the redirect URI to `http://localhost:8080/oauth/soundcloud/callback`.
+1. **Register a SoundCloud app** at https://soundcloud.com/you/apps (you must be logged in to SoundCloud). During registration, set the **redirect URI** to match your app's base URL:
+
+   ```
+   http://localhost:8085/oauth/soundcloud/callback
+   ```
+
+   The redirect URI must exactly match the `app.feed.base-url` configured in `application.yaml` followed by `/oauth/soundcloud/callback`. If these don't match, you'll get a `redirect_uri_mismatch` error during authorization.
 
 2. **Add credentials** to your `.env` file:
 
@@ -297,23 +303,27 @@ APP_SOUNDCLOUD_CLIENT_SECRET=<your-soundcloud-client-secret>
 
 ```bash
 # Get the authorization URL
-curl http://localhost:8080/users/{userId}/oauth/soundcloud/authorize
+curl http://localhost:8085/users/{userId}/oauth/soundcloud/authorize
 # → returns { "authorizationUrl": "https://secure.soundcloud.com/authorize?..." }
 
-# Open the URL in a browser, log in and authorize the app
-# The callback completes automatically and stores your tokens
+# Copy the authorizationUrl and open it in a browser
+# Log in to SoundCloud and authorize the app
+# The callback redirects back to your app and stores the tokens automatically
 
 # Verify the connection
-curl http://localhost:8080/users/{userId}/oauth/soundcloud/status
+curl http://localhost:8085/users/{userId}/oauth/soundcloud/status
+# → returns { "connected": true, ... }
 ```
 
 5. **Publish an episode** (must be in `GENERATED` status):
 
 ```bash
-curl -X POST http://localhost:8080/users/{userId}/podcasts/{podcastId}/episodes/{episodeId}/publish/soundcloud
+curl -X POST http://localhost:8085/users/{userId}/podcasts/{podcastId}/episodes/{episodeId}/publish/soundcloud
 ```
 
 The track is uploaded with the podcast name + date as title, a description from the script, and tags from the podcast topic. Episodes are automatically grouped into a SoundCloud playlist per podcast — on first publish a new playlist is created, and subsequent episodes are added to it. Publication status (PENDING, PUBLISHED, FAILED) is tracked per episode and target.
+
+To enable an RSS feed for your SoundCloud uploads, go to your SoundCloud **Settings > Content** tab, find your RSS feed URL, and enable **"Include in RSS feed"** under upload defaults. This lets podcast apps subscribe to your SoundCloud-hosted episodes directly.
 
 ### Monitoring X (Twitter) Accounts
 

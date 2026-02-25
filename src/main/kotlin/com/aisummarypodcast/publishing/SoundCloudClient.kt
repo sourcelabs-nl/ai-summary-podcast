@@ -146,11 +146,14 @@ class SoundCloudClient(restTemplateBuilder: RestTemplateBuilder) {
     fun updateTrack(
         accessToken: String,
         trackId: Long,
-        permalink: String
+        permalink: String? = null,
+        description: String? = null
     ): SoundCloudTrackResponse {
-        val body = mapOf(
-            "track" to mapOf("permalink" to permalink)
-        )
+        val trackFields = mutableMapOf<String, String>()
+        permalink?.let { trackFields["permalink"] = it }
+        description?.let { trackFields["description"] = it }
+        require(trackFields.isNotEmpty()) { "At least one field must be provided for track update" }
+        val body = mapOf("track" to trackFields)
 
         val headers = HttpHeaders().apply {
             contentType = MediaType.APPLICATION_JSON
