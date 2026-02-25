@@ -19,6 +19,18 @@ The system SHALL provide an `InworldTtsProvider` implementing `TtsProvider` that
 - **WHEN** a podcast has no `"model"` key in `ttsSettings`
 - **THEN** the Inworld API is called with `modelId: "inworld-tts-1.5-max"`
 
+#### Scenario: Speed setting applied via ttsSettings
+- **WHEN** a podcast has `ttsSettings: {"speed": "1.2"}`
+- **THEN** the Inworld API request includes `audioConfig.speakingRate: 1.2` (valid range: 0.5–1.5, default: 1.0)
+
+#### Scenario: Temperature setting applied via ttsSettings
+- **WHEN** a podcast has `ttsSettings: {"temperature": "0.8"}`
+- **THEN** the Inworld API request includes `temperature: 0.8` as a top-level field (valid range: >0 to 2.0, default: 1.1)
+
+#### Scenario: Speed and temperature omitted when not configured
+- **WHEN** a podcast has no `"speed"` or `"temperature"` keys in `ttsSettings`
+- **THEN** the Inworld API request does not include `speakingRate` in `audioConfig` or `temperature` at the top level, letting the API use its defaults
+
 #### Scenario: Voice resolved from ttsVoices map
 - **WHEN** a podcast has `ttsVoices: {"default": "some-inworld-voice-id"}`
 - **THEN** the Inworld API is called with `voiceId: "some-inworld-voice-id"`
@@ -27,20 +39,26 @@ The system SHALL provide an `InworldTtsProvider` implementing `TtsProvider` that
 - **WHEN** the Inworld API returns `usage.processedCharactersCount: 1800`
 - **THEN** the `TtsResult.totalCharacters` reflects the sum of processed characters across all chunks
 
-### Requirement: Inworld API client with JWT authentication
-The system SHALL provide an `InworldApiClient` that authenticates to the Inworld AI API using JWT. The client SHALL construct a JWT token signed with the secret from `INWORLD_AI_JWT_SECRET`, using the key ID from `INWORLD_AI_JWT_KEY`. The JWT SHALL be sent in the `Authorization` header as `Bearer <token>`. Per-user credentials SHALL be resolved via `UserProviderConfigService` with `ApiKeyCategory.TTS` and provider name `"inworld"`, falling back to the global env vars.
+### Requirement: Inworld API client with Basic authentication
+The system SHALL provide an `InworldApiClient` that authenticates to the Inworld AI API using HTTP Basic authentication. The client SHALL accept credentials in the format `key:secret` (stored as the `apiKey` in provider config), base64-encode them, and send the result in the `Authorization` header as `Basic <base64-encoded-credentials>`. Per-user credentials SHALL be resolved via `UserProviderConfigService` with `ApiKeyCategory.TTS` and provider name `"inworld"`, falling back to the global env vars (`INWORLD_AI_JWT_KEY` and `INWORLD_AI_JWT_SECRET` combined as `key:secret`).
+
+The HTTP client SHALL use a response timeout of 5 minutes to accommodate long TTS generation requests (Inworld may take over 30 seconds for large scripts).
+
+#### Scenario: Authentication with per-user config
+- **WHEN** a user has configured Inworld TTS provider credentials (e.g. via `PUT /users/{userId}/api-keys/tts` with provider `"inworld"` and apiKey `"my-key:my-secret"`)
+- **THEN** the client base64-encodes the credentials and sends them as `Authorization: Basic <token>`
 
 #### Scenario: Authentication with global env vars
 - **WHEN** no per-user Inworld config exists and `INWORLD_AI_JWT_KEY` and `INWORLD_AI_JWT_SECRET` env vars are set
-- **THEN** the client uses the global credentials to construct the JWT
-
-#### Scenario: Authentication with per-user config
-- **WHEN** a user has configured Inworld TTS provider credentials
-- **THEN** the client uses the user's credentials instead of global env vars
+- **THEN** the client uses the global credentials (combined as `key:secret`) to authenticate
 
 #### Scenario: Missing credentials
 - **WHEN** neither per-user config nor global env vars provide Inworld credentials
 - **THEN** the client throws an `IllegalStateException` with a message indicating Inworld API credentials must be configured
+
+#### Scenario: Response timeout for long scripts
+- **WHEN** the Inworld API takes longer than the default HTTP client timeout (e.g. 30+ seconds for a large dialogue script)
+- **THEN** the request does not time out because the client uses a 5-minute response timeout
 
 ### Requirement: Inworld API error handling
 The system SHALL handle Inworld API errors with clear error messages. HTTP 401 SHALL indicate invalid or expired credentials. HTTP 429 SHALL indicate rate limiting. Other error status codes SHALL include the HTTP status and response body in the error message.

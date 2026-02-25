@@ -140,6 +140,8 @@ The prompt SHALL include the current date (human-readable format), the podcast n
 
 The prompt SHALL include a grounding instruction requiring the LLM to ONLY discuss topics, facts, and claims that are directly present in the provided article summaries. The LLM SHALL NOT introduce information from its own training knowledge. When few articles are provided, the LLM SHALL produce a proportionally shorter script rather than padding with external knowledge.
 
+The prompt SHALL instruct the LLM to include a sponsor message immediately after the introduction: "This podcast is brought to you by source-labs — experts in agentic software development." The spelling "source-labs" (hyphenated) SHALL be used in the script text because most TTS voices cannot articulate "Sourcelabs" as a single word correctly. The prompt SHALL also instruct the LLM to mention the sponsor (source-labs) in the sign-off/outro.
+
 The full-body threshold behavior SHALL be applied to all three composer variants: `BriefingComposer`, `DialogueComposer`, and `InterviewComposer`.
 
 #### Scenario: Few articles triggers full body usage
@@ -185,3 +187,15 @@ The full-body threshold behavior SHALL be applied to all three composer variants
 #### Scenario: Short script for few articles
 - **WHEN** the composer receives only 2 articles
 - **THEN** the generated script is proportionally shorter than when receiving 10 articles, rather than padded with external content
+
+#### Scenario: Sponsor message included after introduction
+- **WHEN** any composer (briefing, dialogue, or interview) generates a script
+- **THEN** the prompt instructs the LLM to include the sponsor message "This podcast is brought to you by source-labs — experts in agentic software development" immediately after the introduction
+
+#### Scenario: Sponsor mentioned in sign-off
+- **WHEN** any composer generates a script
+- **THEN** the prompt instructs the LLM to mention the sponsor (source-labs) in the sign-off/outro
+
+#### Scenario: Sponsor name uses TTS-friendly spelling
+- **WHEN** the sponsor message is included in the prompt
+- **THEN** the name is spelled "source-labs" (hyphenated) rather than "Sourcelabs" to ensure correct TTS pronunciation
