@@ -1,9 +1,15 @@
 package com.aisummarypodcast.tts
 
 import com.aisummarypodcast.store.PodcastStyle
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.runBlocking
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import java.util.Base64
+import java.util.concurrent.atomic.AtomicInteger
 
 @Component
 class InworldTtsProvider(
@@ -16,6 +22,8 @@ class InworldTtsProvider(
 
     companion object {
         const val DEFAULT_MODEL = "inworld-tts-1.5-max"
+        private const val MAX_RETRY_ATTEMPTS = 3
+        private val RETRY_DELAYS_MS = longArrayOf(1000, 2000, 4000)
 
         private val CORE_GUIDELINES = """
             |The TTS engine supports rich expressiveness markup:
@@ -58,19 +66,23 @@ class InworldTtsProvider(
             ?: throw IllegalStateException("Inworld TTS requires a 'default' voice in ttsVoices")
 
         val chunks = TextChunker.chunk(request.script, maxChunkSize)
-        log.info("Generating Inworld TTS audio for {} chunks (voice: {}, model: {}, speed: {}, temperature: {})", chunks.size, voiceId, modelId, speed, temperature)
+        log.info("Generating Inworld TTS audio for {} chunks in parallel (voice: {}, model: {}, speed: {}, temperature: {})", chunks.size, voiceId, modelId, speed, temperature)
 
-        var totalCharacters = 0
-        val audioChunks = chunks.mapIndexed { index, chunk ->
-            log.info("Generating Inworld TTS chunk {}/{} ({} chars)", index + 1, chunks.size, chunk.length)
-            val response = apiClient.synthesizeSpeech(request.userId, voiceId, chunk, modelId, speed, temperature)
-            totalCharacters += response.processedCharactersCount
-            Base64.getDecoder().decode(response.audioContent)
+        val totalCharacters = AtomicInteger(0)
+        val audioChunks = runBlocking(Dispatchers.IO) {
+            chunks.mapIndexed { index, chunk ->
+                async {
+                    log.info("Generating Inworld TTS chunk {}/{} ({} chars)", index + 1, chunks.size, chunk.length)
+                    val response = synthesizeWithRetry(request.userId, voiceId, chunk, modelId, speed, temperature)
+                    totalCharacters.addAndGet(response.processedCharactersCount)
+                    Base64.getDecoder().decode(response.audioContent)
+                }
+            }.awaitAll()
         }
 
         return TtsResult(
             audioChunks = audioChunks,
-            totalCharacters = totalCharacters,
+            totalCharacters = totalCharacters.get(),
             requiresConcatenation = chunks.size > 1,
             model = modelId
         )
@@ -82,31 +94,55 @@ class InworldTtsProvider(
             throw IllegalStateException("Dialogue script produced no speaker turns")
         }
 
-        log.info("Generating Inworld dialogue: {} turns, model: {}, speed: {}, temperature: {}", turns.size, modelId, speed, temperature)
+        // Flatten all turn chunks into a single indexed list for full parallel generation
+        data class ChunkWork(val voiceId: String, val text: String)
 
-        var totalCharacters = 0
-        val audioChunks = turns.flatMapIndexed { index, turn ->
+        val allChunks = turns.flatMapIndexed { index, turn ->
             val voiceId = request.ttsVoices[turn.role]
                 ?: throw IllegalStateException(
                     "No voice configured for role '${turn.role}'. Available roles: ${request.ttsVoices.keys.joinToString()}"
                 )
-
             val turnChunks = TextChunker.chunk(turn.text, maxChunkSize)
-            log.info("Generating Inworld turn {}/{} (role: {}, {} chunks, {} chars)", index + 1, turns.size, turn.role, turnChunks.size, turn.text.length)
+            log.info("Inworld dialogue turn {}/{} (role: {}, {} chunks, {} chars)", index + 1, turns.size, turn.role, turnChunks.size, turn.text.length)
+            turnChunks.map { chunk -> ChunkWork(voiceId, chunk) }
+        }
 
-            turnChunks.map { chunk ->
-                val response = apiClient.synthesizeSpeech(request.userId, voiceId, chunk, modelId, speed, temperature)
-                totalCharacters += response.processedCharactersCount
-                Base64.getDecoder().decode(response.audioContent)
-            }
+        log.info("Generating Inworld dialogue: {} total chunks in parallel, model: {}", allChunks.size, modelId)
+
+        val totalCharacters = AtomicInteger(0)
+        val audioChunks = runBlocking(Dispatchers.IO) {
+            allChunks.mapIndexed { index, work ->
+                async {
+                    log.info("Generating Inworld dialogue chunk {}/{} ({} chars)", index + 1, allChunks.size, work.text.length)
+                    val response = synthesizeWithRetry(request.userId, work.voiceId, work.text, modelId, speed, temperature)
+                    totalCharacters.addAndGet(response.processedCharactersCount)
+                    Base64.getDecoder().decode(response.audioContent)
+                }
+            }.awaitAll()
         }
 
         return TtsResult(
             audioChunks = audioChunks,
-            totalCharacters = totalCharacters,
+            totalCharacters = totalCharacters.get(),
             requiresConcatenation = audioChunks.size > 1,
             model = modelId
         )
+    }
+
+    private suspend fun synthesizeWithRetry(
+        userId: String, voiceId: String, text: String, modelId: String, speed: Double?, temperature: Double?
+    ): InworldSpeechResponse {
+        for (attempt in 0 until MAX_RETRY_ATTEMPTS) {
+            try {
+                return apiClient.synthesizeSpeech(userId, voiceId, text, modelId, speed, temperature)
+            } catch (e: InworldRateLimitException) {
+                if (attempt == MAX_RETRY_ATTEMPTS - 1) throw e
+                val delayMs = RETRY_DELAYS_MS[attempt]
+                log.warn("Inworld rate limited (attempt {}/{}), retrying in {}ms", attempt + 1, MAX_RETRY_ATTEMPTS, delayMs)
+                delay(delayMs)
+            }
+        }
+        throw IllegalStateException("Unreachable")
     }
 
     private fun inferStyle(request: TtsRequest): PodcastStyle? {

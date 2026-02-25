@@ -3,6 +3,7 @@ package com.aisummarypodcast.tts
 import com.aisummarypodcast.store.PodcastStyle
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
@@ -63,18 +64,12 @@ class InworldTtsProviderTest {
     fun `throws when default voice is missing for monologue`() {
         val request = TtsRequest(
             script = "Test",
-            ttsVoices = mapOf("host" to "v1", "cohost" to "v2"),
+            ttsVoices = emptyMap(),
             ttsSettings = emptyMap(),
             language = "en",
             userId = "u1"
         )
-
-        // This will be treated as dialogue because of multiple non-default roles
-        // We need to set up the mocks for dialogue parsing
-        // Actually with host/cohost it'll go dialogue path and parse tags
-        // Let's test the monologue missing voice case
-        val monoRequest = request.copy(ttsVoices = emptyMap())
-        assertThrows<IllegalStateException> { provider.generate(monoRequest) }
+        assertThrows<IllegalStateException> { provider.generate(request) }
     }
 
     @Test
@@ -152,6 +147,126 @@ class InworldTtsProviderTest {
 
         assertEquals(1, result.audioChunks.size)
         assertEquals(11, result.totalCharacters)
+    }
+
+    // --- Parallel generation tests ---
+
+    @Test
+    fun `monologue generates multiple chunks in parallel and preserves order`() {
+        // Create a script that will be split into multiple chunks (each > 2000 chars total)
+        val chunk1Text = "A".repeat(1500) + ". "
+        val chunk2Text = "B".repeat(1500) + ". "
+        val chunk3Text = "C".repeat(1000)
+        val script = chunk1Text + chunk2Text + chunk3Text
+
+        val audio1 = Base64.getEncoder().encodeToString(byteArrayOf(1))
+        val audio2 = Base64.getEncoder().encodeToString(byteArrayOf(2))
+        val audio3 = Base64.getEncoder().encodeToString(byteArrayOf(3))
+
+        every { apiClient.synthesizeSpeech("u1", "voice-1", any(), "inworld-tts-1.5-max", null, null) } answers {
+            val text = arg<String>(2)
+            when {
+                text.startsWith("A") -> InworldSpeechResponse(audio1, text.length)
+                text.startsWith("B") -> InworldSpeechResponse(audio2, text.length)
+                else -> InworldSpeechResponse(audio3, text.length)
+            }
+        }
+
+        val request = TtsRequest(
+            script = script,
+            ttsVoices = mapOf("default" to "voice-1"),
+            ttsSettings = emptyMap(),
+            language = "en",
+            userId = "u1"
+        )
+
+        val result = provider.generate(request)
+
+        assertTrue(result.audioChunks.size >= 3)
+        assertTrue(result.requiresConcatenation)
+        // First chunk should decode to byte 1 (from chunk starting with 'A')
+        assertArrayEquals(byteArrayOf(1), result.audioChunks[0])
+        assertArrayEquals(byteArrayOf(2), result.audioChunks[1])
+        assertArrayEquals(byteArrayOf(3), result.audioChunks[2])
+    }
+
+    @Test
+    fun `dialogue generates all turn chunks in parallel and preserves order`() {
+        val audio1 = Base64.getEncoder().encodeToString(byteArrayOf(10))
+        val audio2 = Base64.getEncoder().encodeToString(byteArrayOf(20))
+        val audio3 = Base64.getEncoder().encodeToString(byteArrayOf(30))
+
+        val script = "<host>First turn.</host><cohost>Second turn.</cohost><host>Third turn.</host>"
+
+        every { apiClient.synthesizeSpeech("u1", "voice-1", "First turn.", "inworld-tts-1.5-max", null, null) } returns InworldSpeechResponse(audio1, 11)
+        every { apiClient.synthesizeSpeech("u1", "voice-2", "Second turn.", "inworld-tts-1.5-max", null, null) } returns InworldSpeechResponse(audio2, 12)
+        every { apiClient.synthesizeSpeech("u1", "voice-1", "Third turn.", "inworld-tts-1.5-max", null, null) } returns InworldSpeechResponse(audio3, 11)
+
+        val request = TtsRequest(
+            script = script,
+            ttsVoices = mapOf("host" to "voice-1", "cohost" to "voice-2"),
+            ttsSettings = emptyMap(),
+            language = "en",
+            userId = "u1"
+        )
+
+        val result = provider.generate(request)
+
+        assertEquals(3, result.audioChunks.size)
+        assertArrayEquals(byteArrayOf(10), result.audioChunks[0])
+        assertArrayEquals(byteArrayOf(20), result.audioChunks[1])
+        assertArrayEquals(byteArrayOf(30), result.audioChunks[2])
+        assertEquals(34, result.totalCharacters)
+    }
+
+    // --- Retry on 429 tests ---
+
+    @Test
+    fun `retries on 429 and succeeds on second attempt`() {
+        val request = TtsRequest(
+            script = "Hello world",
+            ttsVoices = mapOf("default" to "voice-1"),
+            ttsSettings = emptyMap(),
+            language = "en",
+            userId = "u1"
+        )
+
+        var callCount = 0
+        every {
+            apiClient.synthesizeSpeech("u1", "voice-1", "Hello world", "inworld-tts-1.5-max", null, null)
+        } answers {
+            callCount++
+            if (callCount == 1) throw InworldRateLimitException("Rate limited")
+            InworldSpeechResponse(sampleAudio, 11)
+        }
+
+        val result = provider.generate(request)
+
+        assertEquals(1, result.audioChunks.size)
+        assertEquals(11, result.totalCharacters)
+        assertEquals(2, callCount)
+    }
+
+    @Test
+    fun `throws InworldRateLimitException after exhausting retries`() {
+        val request = TtsRequest(
+            script = "Hello world",
+            ttsVoices = mapOf("default" to "voice-1"),
+            ttsSettings = emptyMap(),
+            language = "en",
+            userId = "u1"
+        )
+
+        every {
+            apiClient.synthesizeSpeech("u1", "voice-1", "Hello world", "inworld-tts-1.5-max", null, null)
+        } throws InworldRateLimitException("Rate limited")
+
+        val exception = assertThrows<InworldRateLimitException> { provider.generate(request) }
+        assertEquals("Rate limited", exception.message)
+
+        verify(exactly = 3) {
+            apiClient.synthesizeSpeech("u1", "voice-1", "Hello world", "inworld-tts-1.5-max", null, null)
+        }
     }
 
     // --- Script guidelines tests ---

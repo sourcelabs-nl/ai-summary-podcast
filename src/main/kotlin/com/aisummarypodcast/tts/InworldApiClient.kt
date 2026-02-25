@@ -117,7 +117,7 @@ class InworldApiClient(
         val bodyStr = String(body)
         when (status.value()) {
             401 -> throw IllegalStateException("Inworld API credentials are invalid or expired")
-            429 -> throw IllegalStateException("Inworld rate limit exceeded. Please try again later.")
+            429 -> throw InworldRateLimitException("Inworld rate limit exceeded. Please try again later.")
             else -> {
                 log.error("Inworld API error (HTTP {}): {}", status.value(), bodyStr)
                 throw IllegalStateException("Inworld API error (HTTP ${status.value()}): $bodyStr")
