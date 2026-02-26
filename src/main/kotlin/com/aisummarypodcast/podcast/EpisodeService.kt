@@ -122,6 +122,16 @@ class EpisodeService(
         log.info("Episode {} discarded, reset {} articles and deleted {} aggregated articles for reprocessing", episode.id, resetCount, deletedCount)
     }
 
+    fun updateScript(episode: Episode, scriptText: String): Episode {
+        return episodeRepository.save(episode.copy(scriptText = scriptText))
+    }
+
+    fun approveAndGenerateAudio(episode: Episode, podcastId: String) {
+        episodeRepository.save(episode.copy(status = EpisodeStatus.APPROVED))
+        log.info("Episode {} approved, triggering async TTS generation", episode.id)
+        generateAudioAsync(episode.id!!, podcastId)
+    }
+
     fun hasPendingOrApprovedEpisode(podcastId: String): Boolean {
         return episodeRepository.findByPodcastIdAndStatusIn(
             podcastId, listOf(EpisodeStatus.PENDING_REVIEW.name, EpisodeStatus.APPROVED.name)

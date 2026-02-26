@@ -19,7 +19,9 @@ class PublishingServiceTest {
     }
     private val registry = PublisherRegistry(listOf(publisher))
     private val publicationRepository = mockk<EpisodePublicationRepository>(relaxed = true)
-    private val service = PublishingService(registry, publicationRepository)
+    private val episodeRepository = mockk<com.aisummarypodcast.store.EpisodeRepository>()
+    private val soundCloudPublisher = mockk<SoundCloudPublisher>()
+    private val service = PublishingService(registry, publicationRepository, episodeRepository, soundCloudPublisher)
 
     private val podcast = Podcast(id = "pod1", userId = "user1", name = "Test Pod", topic = "tech")
     private val episode = Episode(

@@ -1,7 +1,6 @@
 package com.aisummarypodcast.podcast
 
 import com.aisummarypodcast.config.AppProperties
-import com.aisummarypodcast.llm.LlmPipeline
 import com.aisummarypodcast.store.Podcast
 import com.aisummarypodcast.store.User
 import com.aisummarypodcast.user.UserService
@@ -27,12 +26,6 @@ class PodcastControllerTest {
 
     @MockkBean
     private lateinit var userService: UserService
-
-    @MockkBean
-    private lateinit var llmPipeline: LlmPipeline
-
-    @MockkBean
-    private lateinit var episodeService: EpisodeService
 
     @MockkBean(relaxed = true)
     private lateinit var appProperties: AppProperties

@@ -1,8 +1,6 @@
 package com.aisummarypodcast.scheduler
 
-import com.aisummarypodcast.llm.LlmPipeline
-import com.aisummarypodcast.llm.PipelineResult
-import com.aisummarypodcast.podcast.EpisodeService
+import com.aisummarypodcast.podcast.PodcastService
 import com.aisummarypodcast.store.Episode
 import com.aisummarypodcast.store.EpisodeStatus
 import com.aisummarypodcast.store.Podcast
@@ -16,15 +14,14 @@ import java.time.ZoneOffset
 class BriefingGenerationSchedulerTest {
 
     private val podcastRepository = mockk<PodcastRepository>()
-    private val llmPipeline = mockk<LlmPipeline>()
-    private val episodeService = mockk<EpisodeService>()
+    private val podcastService = mockk<PodcastService>()
 
     // Fixed clock at 00:05 UTC — 5 minutes after the midnight cron trigger (within staleness window)
     private val defaultNow = Instant.parse("2026-02-23T00:05:00Z")
     private val defaultClock = Clock.fixed(defaultNow, ZoneOffset.UTC)
 
     private val scheduler = BriefingGenerationScheduler(
-        podcastRepository, llmPipeline, episodeService, defaultClock
+        podcastRepository, podcastService, defaultClock
     )
 
     private fun duePodcast(requireReview: Boolean = false) = Podcast(
@@ -36,84 +33,55 @@ class BriefingGenerationSchedulerTest {
 
     private fun schedulerWithClock(instant: Instant): BriefingGenerationScheduler {
         val clock = Clock.fixed(instant, ZoneOffset.UTC)
-        return BriefingGenerationScheduler(podcastRepository, llmPipeline, episodeService, clock)
+        return BriefingGenerationScheduler(podcastRepository, podcastService, clock)
     }
 
     @Test
-    fun `skips generation when pending review episode exists`() {
+    fun `skips generation when podcastService returns null`() {
         val podcast = duePodcast(requireReview = true)
         every { podcastRepository.findAll() } returns listOf(podcast)
-        every { podcastRepository.findById("p1") } returns java.util.Optional.of(podcast)
-        every { episodeService.hasPendingOrApprovedEpisode("p1") } returns true
+        every { podcastService.generateBriefing(podcast) } returns null
 
         scheduler.checkAndGenerate()
 
-        verify(exactly = 0) { llmPipeline.run(any()) }
+        verify { podcastService.generateBriefing(podcast) }
     }
 
     @Test
-    fun `skips generation when approved episode exists`() {
-        val podcast = duePodcast(requireReview = true)
-        every { podcastRepository.findAll() } returns listOf(podcast)
-        every { podcastRepository.findById("p1") } returns java.util.Optional.of(podcast)
-        every { episodeService.hasPendingOrApprovedEpisode("p1") } returns true
-
-        scheduler.checkAndGenerate()
-
-        verify(exactly = 0) { llmPipeline.run(any()) }
-    }
-
-    @Test
-    fun `delegates to EpisodeService when pipeline returns result`() {
+    fun `delegates to PodcastService when due`() {
         val podcast = duePodcast(requireReview = false)
-        val pipelineResult = PipelineResult(
-            script = "Generated script", filterModel = "anthropic/claude-haiku-4.5",
-            composeModel = "anthropic/claude-sonnet-4"
-        )
         val episode = Episode(id = 10, podcastId = "p1", generatedAt = Instant.now().toString(), scriptText = "Generated script")
 
         every { podcastRepository.findAll() } returns listOf(podcast)
-        every { podcastRepository.findById("p1") } returns java.util.Optional.of(podcast)
-        every { llmPipeline.run(podcast) } returns pipelineResult
-        every { episodeService.createEpisodeFromPipelineResult(podcast, pipelineResult) } returns episode
+        every { podcastService.generateBriefing(podcast) } returns episode
 
         scheduler.checkAndGenerate()
 
-        verify { episodeService.createEpisodeFromPipelineResult(podcast, pipelineResult) }
+        verify { podcastService.generateBriefing(podcast) }
     }
 
     @Test
-    fun `delegates to EpisodeService for review episode`() {
+    fun `delegates to PodcastService for review episode`() {
         val podcast = duePodcast(requireReview = true)
-        val pipelineResult = PipelineResult(
-            script = "Script", filterModel = "filter", composeModel = "compose",
-            processedArticleIds = listOf(10L, 20L)
-        )
         val episode = Episode(id = 7, podcastId = "p1", generatedAt = Instant.now().toString(), scriptText = "Script", status = EpisodeStatus.PENDING_REVIEW)
 
         every { podcastRepository.findAll() } returns listOf(podcast)
-        every { podcastRepository.findById("p1") } returns java.util.Optional.of(podcast)
-        every { episodeService.hasPendingOrApprovedEpisode("p1") } returns false
-        every { llmPipeline.run(podcast) } returns pipelineResult
-        every { episodeService.createEpisodeFromPipelineResult(podcast, pipelineResult) } returns episode
+        every { podcastService.generateBriefing(podcast) } returns episode
 
         scheduler.checkAndGenerate()
 
-        verify { episodeService.createEpisodeFromPipelineResult(podcast, pipelineResult) }
+        verify { podcastService.generateBriefing(podcast) }
     }
 
     @Test
-    fun `updates lastGeneratedAt when pipeline returns null`() {
+    fun `handles null result from generateBriefing`() {
         val podcast = duePodcast(requireReview = false)
         every { podcastRepository.findAll() } returns listOf(podcast)
-        every { podcastRepository.findById("p1") } returns java.util.Optional.of(podcast)
-        every { llmPipeline.run(podcast) } returns null
-        every { podcastRepository.save(any()) } answers { firstArg() }
+        every { podcastService.generateBriefing(podcast) } returns null
 
         scheduler.checkAndGenerate()
 
-        verify { podcastRepository.save(match { it.lastGeneratedAt != null }) }
-        verify(exactly = 0) { episodeService.createEpisodeFromPipelineResult(any(), any()) }
+        verify { podcastService.generateBriefing(podcast) }
     }
 
     @Test
@@ -125,16 +93,14 @@ class BriefingGenerationSchedulerTest {
             cron = "0 0 15 * * *",
             lastGeneratedAt = "2026-02-22T15:00:00Z"
         )
-        val result = PipelineResult(script = "Script", filterModel = "filter", composeModel = "compose")
         val episode = Episode(id = 1, podcastId = "p1", generatedAt = now.toString(), scriptText = "Script")
 
         every { podcastRepository.findAll() } returns listOf(podcast)
-        every { llmPipeline.run(podcast) } returns result
-        every { episodeService.createEpisodeFromPipelineResult(podcast, result) } returns episode
+        every { podcastService.generateBriefing(podcast) } returns episode
 
         schedulerWithClock(now).checkAndGenerate()
 
-        verify { llmPipeline.run(podcast) }
+        verify { podcastService.generateBriefing(podcast) }
     }
 
     @Test
@@ -151,7 +117,7 @@ class BriefingGenerationSchedulerTest {
 
         schedulerWithClock(now).checkAndGenerate()
 
-        verify(exactly = 0) { llmPipeline.run(any()) }
+        verify(exactly = 0) { podcastService.generateBriefing(any()) }
     }
 
     @Test
@@ -169,11 +135,11 @@ class BriefingGenerationSchedulerTest {
         schedulerWithClock(now).checkAndGenerate()
 
         // All 3 missed triggers (Feb 20, 21, 22) are stale, today's (Feb 23 15:00) is in the future
-        verify(exactly = 0) { llmPipeline.run(any()) }
+        verify(exactly = 0) { podcastService.generateBriefing(any()) }
     }
 
     @Test
-    fun `skipped triggers do not update lastGeneratedAt`() {
+    fun `skipped triggers do not call generateBriefing`() {
         // Cron: daily at 15:00. Now: 18:00 (3 hours past trigger)
         val now = Instant.parse("2026-02-23T18:00:00Z")
         val podcast = Podcast(
@@ -186,6 +152,6 @@ class BriefingGenerationSchedulerTest {
 
         schedulerWithClock(now).checkAndGenerate()
 
-        verify(exactly = 0) { podcastRepository.save(any()) }
+        verify(exactly = 0) { podcastService.generateBriefing(any()) }
     }
 }

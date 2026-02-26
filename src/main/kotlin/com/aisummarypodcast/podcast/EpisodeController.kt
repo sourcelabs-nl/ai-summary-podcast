@@ -4,7 +4,6 @@ import com.aisummarypodcast.store.Episode
 import com.aisummarypodcast.store.EpisodeRepository
 import com.aisummarypodcast.store.EpisodeStatus
 import com.aisummarypodcast.user.UserService
-import org.slf4j.LoggerFactory
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 
@@ -38,8 +37,6 @@ class EpisodeController(
     private val userService: UserService,
     private val episodeService: EpisodeService
 ) {
-
-    private val log = LoggerFactory.getLogger(javaClass)
 
     @GetMapping
     fun list(
@@ -96,7 +93,7 @@ class EpisodeController(
             return ResponseEntity.status(409).body(mapOf("error" to "Episode is not in PENDING_REVIEW status"))
         }
 
-        val updated = episodeRepository.save(episode.copy(scriptText = request.scriptText))
+        val updated = episodeService.updateScript(episode, request.scriptText)
         return ResponseEntity.ok(updated.toResponse())
     }
 
@@ -118,9 +115,7 @@ class EpisodeController(
             return ResponseEntity.status(409).body(mapOf("error" to "Episode is not in PENDING_REVIEW or FAILED status"))
         }
 
-        episodeRepository.save(episode.copy(status = EpisodeStatus.APPROVED))
-        log.info("Episode {} approved, triggering async TTS generation", episodeId)
-        episodeService.generateAudioAsync(episodeId, podcastId)
+        episodeService.approveAndGenerateAudio(episode, podcastId)
 
         return ResponseEntity.accepted().body(mapOf("message" to "Episode approved, audio generation started"))
     }

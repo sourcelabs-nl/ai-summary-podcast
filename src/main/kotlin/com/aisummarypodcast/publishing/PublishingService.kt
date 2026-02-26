@@ -3,6 +3,7 @@ package com.aisummarypodcast.publishing
 import com.aisummarypodcast.store.Episode
 import com.aisummarypodcast.store.EpisodePublication
 import com.aisummarypodcast.store.EpisodePublicationRepository
+import com.aisummarypodcast.store.EpisodeRepository
 import com.aisummarypodcast.store.EpisodeStatus
 import com.aisummarypodcast.store.Podcast
 import com.aisummarypodcast.store.PublicationStatus
@@ -13,7 +14,9 @@ import java.time.Instant
 @Service
 class PublishingService(
     private val publisherRegistry: PublisherRegistry,
-    private val publicationRepository: EpisodePublicationRepository
+    private val publicationRepository: EpisodePublicationRepository,
+    private val episodeRepository: EpisodeRepository,
+    private val soundCloudPublisher: SoundCloudPublisher
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -74,4 +77,19 @@ class PublishingService(
 
     fun getPublications(episodeId: Long): List<EpisodePublication> =
         publicationRepository.findByEpisodeId(episodeId)
+
+    fun rebuildSoundCloudPlaylist(podcast: Podcast, userId: String): List<Long> {
+        val publications = publicationRepository.findPublishedByPodcastIdAndTarget(podcast.id, "soundcloud")
+        require(publications.isNotEmpty()) { "No published SoundCloud tracks found for this podcast" }
+
+        val trackIds = publications.mapNotNull { it.externalId?.toLongOrNull() }
+        require(trackIds.isNotEmpty()) { "No valid SoundCloud track IDs found" }
+
+        val episodeIds = publications.map { it.episodeId }.distinct()
+        val episodes = episodeIds.mapNotNull { episodeRepository.findById(it).orElse(null) }
+        soundCloudPublisher.updateTrackPermalinks(podcast, userId, episodes, publications)
+        soundCloudPublisher.rebuildPlaylist(podcast, userId, trackIds)
+        log.info("Updated permalinks and rebuilt SoundCloud playlist for podcast {} with {} tracks", podcast.id, trackIds.size)
+        return trackIds
+    }
 }

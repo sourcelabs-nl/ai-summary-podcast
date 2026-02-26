@@ -1,6 +1,7 @@
 package com.aisummarypodcast.store
 
 import org.springframework.data.annotation.Id
+import org.springframework.data.annotation.Version
 import org.springframework.data.relational.core.mapping.Table
 
 @Table("episodes")
@@ -20,5 +21,6 @@ data class Episode(
     val ttsCharacters: Int? = null,
     val ttsCostCents: Int? = null,
     val ttsModel: String? = null,
-    val recap: String? = null
+    val recap: String? = null,
+    @Version val version: Long? = null
 )

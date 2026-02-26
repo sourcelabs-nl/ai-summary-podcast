@@ -117,7 +117,7 @@ class EpisodeControllerTest {
         every { userService.findById(userId) } returns user
         every { podcastService.findById(podcastId) } returns podcast
         every { episodeRepository.findById(1L) } returns Optional.of(pendingEpisode)
-        every { episodeRepository.save(any()) } answers { firstArg() }
+        every { episodeService.updateScript(pendingEpisode, "Updated script") } returns pendingEpisode.copy(scriptText = "Updated script")
 
         mockMvc.perform(
             put("/users/$userId/podcasts/$podcastId/episodes/1/script")
@@ -148,13 +148,12 @@ class EpisodeControllerTest {
         every { userService.findById(userId) } returns user
         every { podcastService.findById(podcastId) } returns podcast
         every { episodeRepository.findById(1L) } returns Optional.of(pendingEpisode)
-        every { episodeRepository.save(any()) } answers { firstArg() }
-        justRun { episodeService.generateAudioAsync(1L, podcastId) }
+        justRun { episodeService.approveAndGenerateAudio(pendingEpisode, podcastId) }
 
         mockMvc.perform(post("/users/$userId/podcasts/$podcastId/episodes/1/approve"))
             .andExpect(status().isAccepted)
 
-        verify { episodeService.generateAudioAsync(1L, podcastId) }
+        verify { episodeService.approveAndGenerateAudio(pendingEpisode, podcastId) }
     }
 
     @Test
@@ -163,8 +162,7 @@ class EpisodeControllerTest {
         every { userService.findById(userId) } returns user
         every { podcastService.findById(podcastId) } returns podcast
         every { episodeRepository.findById(1L) } returns Optional.of(failedEpisode)
-        every { episodeRepository.save(any()) } answers { firstArg() }
-        justRun { episodeService.generateAudioAsync(1L, podcastId) }
+        justRun { episodeService.approveAndGenerateAudio(failedEpisode, podcastId) }
 
         mockMvc.perform(post("/users/$userId/podcasts/$podcastId/episodes/1/approve"))
             .andExpect(status().isAccepted)

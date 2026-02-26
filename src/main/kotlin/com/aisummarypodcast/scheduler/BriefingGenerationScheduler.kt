@@ -1,7 +1,6 @@
 package com.aisummarypodcast.scheduler
 
-import com.aisummarypodcast.llm.LlmPipeline
-import com.aisummarypodcast.podcast.EpisodeService
+import com.aisummarypodcast.podcast.PodcastService
 import com.aisummarypodcast.store.Podcast
 import com.aisummarypodcast.store.PodcastRepository
 import org.slf4j.LoggerFactory
@@ -18,8 +17,7 @@ import kotlin.time.TimeSource
 @Component
 class BriefingGenerationScheduler(
     private val podcastRepository: PodcastRepository,
-    private val llmPipeline: LlmPipeline,
-    private val episodeService: EpisodeService,
+    private val podcastService: PodcastService,
     private val clock: Clock = Clock.systemUTC()
 ) {
 
@@ -71,19 +69,12 @@ class BriefingGenerationScheduler(
         log.info("[Pipeline] Starting briefing generation for podcast '{}' ({})", podcast.name, podcast.id)
         val mark = TimeSource.Monotonic.markNow()
 
-        if (podcast.requireReview && episodeService.hasPendingOrApprovedEpisode(podcast.id)) {
-            log.info("[Pipeline] Podcast '{}' ({}) has a pending/approved episode — skipping generation ({})", podcast.name, podcast.id, mark.elapsedNow())
+        val episode = podcastService.generateBriefing(podcast)
+        if (episode == null) {
+            log.info("[Pipeline] No briefing generated for podcast '{}' ({}) — skipped or no articles ({})", podcast.name, podcast.id, mark.elapsedNow())
             return
         }
 
-        val result = llmPipeline.run(podcast)
-        if (result == null) {
-            log.info("[Pipeline] No briefing script generated for podcast '{}' ({}) — nothing to synthesize ({})", podcast.name, podcast.id, mark.elapsedNow())
-            podcastRepository.save(podcast.copy(lastGeneratedAt = Instant.now().toString()))
-            return
-        }
-
-        val episode = episodeService.createEpisodeFromPipelineResult(podcast, result)
         log.info("[Pipeline] Briefing generation complete for podcast '{}' ({}): episode {} — total {}", podcast.name, podcast.id, episode.id, mark.elapsedNow())
     }
 }

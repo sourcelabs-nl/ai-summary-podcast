@@ -1,13 +1,16 @@
 package com.aisummarypodcast.podcast
 
 import com.aisummarypodcast.config.AppProperties
+import com.aisummarypodcast.llm.LlmPipeline
 import com.aisummarypodcast.store.PodcastStyle
 import com.aisummarypodcast.store.TtsProviderType
 import com.aisummarypodcast.store.*
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 import java.nio.file.Files
 import java.nio.file.Path
+import java.time.Instant
 import java.util.UUID
 
 @Service
@@ -16,7 +19,9 @@ class PodcastService(
     private val sourceRepository: SourceRepository,
     private val articleRepository: ArticleRepository,
     private val episodeRepository: EpisodeRepository,
-    private val appProperties: AppProperties
+    private val appProperties: AppProperties,
+    private val llmPipeline: LlmPipeline,
+    private val episodeService: EpisodeService
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -74,12 +79,28 @@ class PodcastService(
         return podcastRepository.save(updated)
     }
 
+    fun generateBriefing(podcast: Podcast): Episode? {
+        if (podcast.requireReview && episodeService.hasPendingOrApprovedEpisode(podcast.id)) {
+            log.info("Podcast '{}' ({}) has a pending/approved episode — skipping generation", podcast.name, podcast.id)
+            return null
+        }
+
+        val result = llmPipeline.run(podcast) ?: run {
+            podcastRepository.save(podcast.copy(lastGeneratedAt = Instant.now().toString()))
+            return null
+        }
+
+        return episodeService.createEpisodeFromPipelineResult(podcast, result)
+    }
+
+    @Transactional
     fun delete(podcastId: String): Boolean {
         val podcast = findById(podcastId) ?: return false
         deletePodcastCascade(podcast)
         return true
     }
 
+    @Transactional
     fun deleteAllByUserId(userId: String) {
         val podcasts = podcastRepository.findByUserId(userId)
         for (podcast in podcasts) {

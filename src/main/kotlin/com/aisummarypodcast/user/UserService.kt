@@ -5,6 +5,7 @@ import com.aisummarypodcast.store.User
 import com.aisummarypodcast.store.UserProviderConfigRepository
 import com.aisummarypodcast.store.UserRepository
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 import java.util.UUID
 
 @Service
@@ -29,6 +30,7 @@ class UserService(
         return userRepository.save(user.copy(name = name))
     }
 
+    @Transactional
     fun delete(userId: String): Boolean {
         val user = findById(userId) ?: return false
         podcastService.deleteAllByUserId(userId)

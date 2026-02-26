@@ -1,6 +1,5 @@
 package com.aisummarypodcast.podcast
 
-import com.aisummarypodcast.llm.LlmPipeline
 import com.aisummarypodcast.store.Podcast
 import com.aisummarypodcast.store.PodcastStyle
 import com.aisummarypodcast.store.TtsProviderType
@@ -81,9 +80,7 @@ data class PodcastResponse(
 @RequestMapping("/users/{userId}/podcasts")
 class PodcastController(
     private val podcastService: PodcastService,
-    private val userService: UserService,
-    private val llmPipeline: LlmPipeline,
-    private val episodeService: EpisodeService
+    private val userService: UserService
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -243,15 +240,9 @@ class PodcastController(
         val podcast = podcastService.findById(podcastId) ?: return ResponseEntity.notFound().build()
         if (podcast.userId != userId) return ResponseEntity.notFound().build()
 
-        if (podcast.requireReview && episodeService.hasPendingOrApprovedEpisode(podcastId)) {
-            return ResponseEntity.status(409).body(mapOf("error" to "A pending or approved episode already exists. Approve or discard it first."))
-        }
-
         log.info("Manual briefing generation triggered for podcast {}", podcastId)
-        val result = llmPipeline.run(podcast)
-            ?: return ResponseEntity.ok("No relevant articles to process")
-
-        val episode = episodeService.createEpisodeFromPipelineResult(podcast, result)
+        val episode = podcastService.generateBriefing(podcast)
+            ?: return ResponseEntity.ok("No relevant articles to process or a pending/approved episode exists")
 
         return if (podcast.requireReview) {
             ResponseEntity.ok(mapOf("message" to "Script ready for review", "episodeId" to episode.id))
