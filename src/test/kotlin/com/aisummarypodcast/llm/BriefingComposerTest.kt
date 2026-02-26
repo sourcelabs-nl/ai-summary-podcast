@@ -291,11 +291,22 @@ class BriefingComposerTest {
     }
 
     @Test
-    fun `buildPrompt includes sponsor message instructions`() {
+    fun `buildPrompt includes sponsor message when configured`() {
+        val podcast = Podcast(
+            id = "p1", userId = "u1", name = "Test", topic = "tech",
+            sponsor = mapOf("name" to "Acme Corp", "message" to "building the future")
+        )
+        val prompt = composer.buildPrompt(sampleArticles, podcast)
+        assertTrue(prompt.contains("This podcast is brought to you by Acme Corp"))
+        assertTrue(prompt.contains("building the future"))
+        assertTrue(prompt.contains("End with a sign-off that includes a mention of the sponsor: Acme Corp"))
+    }
+
+    @Test
+    fun `buildPrompt omits sponsor message when not configured`() {
         val podcast = Podcast(id = "p1", userId = "u1", name = "Test", topic = "tech")
         val prompt = composer.buildPrompt(sampleArticles, podcast)
-        assertTrue(prompt.contains("This podcast is brought to you by source-labs"))
-        assertTrue(prompt.contains("End with a sign-off that includes a mention of the sponsor: source-labs"))
+        assertFalse(prompt.contains("sponsor"))
     }
 
     @Test

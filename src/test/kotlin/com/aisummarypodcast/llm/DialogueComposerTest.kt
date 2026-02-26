@@ -145,10 +145,18 @@ class DialogueComposerTest {
     }
 
     @Test
-    fun `prompt includes sponsor message instructions`() {
+    fun `prompt includes sponsor message when configured`() {
+        val podcastWithSponsor = podcast.copy(sponsor = mapOf("name" to "Acme Corp", "message" to "building the future"))
+        val prompt = composer.buildPrompt(articles, podcastWithSponsor)
+        assertTrue(prompt.contains("This podcast is brought to you by Acme Corp"))
+        assertTrue(prompt.contains("building the future"))
+        assertTrue(prompt.contains("End with a sign-off that includes a mention of the sponsor: Acme Corp"))
+    }
+
+    @Test
+    fun `prompt omits sponsor message when not configured`() {
         val prompt = composer.buildPrompt(articles, podcast)
-        assertTrue(prompt.contains("This podcast is brought to you by source-labs"))
-        assertTrue(prompt.contains("End with a sign-off that includes a mention of the sponsor: source-labs"))
+        assertFalse(prompt.contains("sponsor"))
     }
 
     @Test

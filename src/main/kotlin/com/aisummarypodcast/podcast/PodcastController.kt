@@ -28,7 +28,8 @@ data class CreatePodcastRequest(
     @JsonProperty("maxLlmCostCents") val maxLlmCostCents: Int? = null,
     @JsonProperty("maxArticleAgeDays") val maxArticleAgeDays: Int? = null,
     val speakerNames: Map<String, String>? = null,
-    @JsonProperty("fullBodyThreshold") val fullBodyThreshold: Int? = null
+    @JsonProperty("fullBodyThreshold") val fullBodyThreshold: Int? = null,
+    val sponsor: Map<String, String>? = null
 )
 
 data class UpdatePodcastRequest(
@@ -48,7 +49,8 @@ data class UpdatePodcastRequest(
     @JsonProperty("maxLlmCostCents") val maxLlmCostCents: Int? = null,
     @JsonProperty("maxArticleAgeDays") val maxArticleAgeDays: Int? = null,
     val speakerNames: Map<String, String>? = null,
-    @JsonProperty("fullBodyThreshold") val fullBodyThreshold: Int? = null
+    @JsonProperty("fullBodyThreshold") val fullBodyThreshold: Int? = null,
+    val sponsor: Map<String, String>? = null
 )
 
 data class PodcastResponse(
@@ -71,6 +73,7 @@ data class PodcastResponse(
     val maxArticleAgeDays: Int?,
     val speakerNames: Map<String, String>?,
     val fullBodyThreshold: Int?,
+    val sponsor: Map<String, String>?,
     val lastGeneratedAt: String?
 )
 
@@ -150,7 +153,8 @@ class PodcastController(
                 maxLlmCostCents = request.maxLlmCostCents,
                 maxArticleAgeDays = request.maxArticleAgeDays,
                 speakerNames = request.speakerNames,
-                fullBodyThreshold = request.fullBodyThreshold
+                fullBodyThreshold = request.fullBodyThreshold,
+                sponsor = request.sponsor
             )
         )
         return ResponseEntity.created(URI.create("/users/$userId/podcasts/${podcast.id}"))
@@ -217,7 +221,8 @@ class PodcastController(
                 maxLlmCostCents = request.maxLlmCostCents ?: existing.maxLlmCostCents,
                 maxArticleAgeDays = request.maxArticleAgeDays ?: existing.maxArticleAgeDays,
                 speakerNames = request.speakerNames ?: existing.speakerNames,
-                fullBodyThreshold = request.fullBodyThreshold ?: existing.fullBodyThreshold
+                fullBodyThreshold = request.fullBodyThreshold ?: existing.fullBodyThreshold,
+                sponsor = request.sponsor ?: existing.sponsor
             )
         ) ?: return ResponseEntity.notFound().build()
         return ResponseEntity.ok(updated.toResponse())
@@ -263,6 +268,6 @@ class PodcastController(
         customInstructions = customInstructions, relevanceThreshold = relevanceThreshold,
         requireReview = requireReview, maxLlmCostCents = maxLlmCostCents,
         maxArticleAgeDays = maxArticleAgeDays, speakerNames = speakerNames,
-        fullBodyThreshold = fullBodyThreshold, lastGeneratedAt = lastGeneratedAt
+        fullBodyThreshold = fullBodyThreshold, sponsor = sponsor, lastGeneratedAt = lastGeneratedAt
     )
 }

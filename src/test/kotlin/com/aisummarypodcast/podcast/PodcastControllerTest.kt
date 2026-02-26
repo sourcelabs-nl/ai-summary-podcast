@@ -164,6 +164,24 @@ class PodcastControllerTest {
     }
 
     @Test
+    fun `create podcast with sponsor`() {
+        val podcastSlot = slot<Podcast>()
+        every { userService.findById(userId) } returns user
+        every { podcastService.create(userId, "My Podcast", "tech", capture(podcastSlot)) } answers {
+            podcastSlot.captured.copy(id = podcastId)
+        }
+
+        mockMvc.perform(
+            post("/users/$userId/podcasts")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"name":"My Podcast","topic":"tech","sponsor":{"name":"Acme Corp","message":"building the future"}}""")
+        )
+            .andExpect(status().isCreated)
+            .andExpect(jsonPath("$.sponsor.name").value("Acme Corp"))
+            .andExpect(jsonPath("$.sponsor.message").value("building the future"))
+    }
+
+    @Test
     fun `create podcast without optional fields uses defaults`() {
         val podcastSlot = slot<Podcast>()
         every { userService.findById(userId) } returns user
