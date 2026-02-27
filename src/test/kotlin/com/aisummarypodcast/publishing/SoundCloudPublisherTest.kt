@@ -180,13 +180,14 @@ class SoundCloudPublisherTest {
         val pub2 = EpisodePublication(id = 11, episodeId = 2L, target = "soundcloud", status = PublicationStatus.PUBLISHED, externalId = "200", createdAt = "2026-02-14T10:00:00Z")
 
         every { tokenManager.getValidAccessToken("user1") } returns "access-token"
-        every { soundCloudClient.updateTrack("access-token", 100, "tech-news-2026-02-13") } returns trackResponse
-        every { soundCloudClient.updateTrack("access-token", 200, "tech-news-2026-02-14") } returns trackResponse
+        val expectedDescription = episode.scriptText.take(500)
+        every { soundCloudClient.updateTrack("access-token", 100, "tech-news-2026-02-13", expectedDescription) } returns trackResponse
+        every { soundCloudClient.updateTrack("access-token", 200, "tech-news-2026-02-14", expectedDescription) } returns trackResponse
 
         publisher.updateTrackPermalinks(podcast, "user1", listOf(episode1, episode2), listOf(pub1, pub2))
 
-        verify { soundCloudClient.updateTrack("access-token", 100, "tech-news-2026-02-13") }
-        verify { soundCloudClient.updateTrack("access-token", 200, "tech-news-2026-02-14") }
+        verify { soundCloudClient.updateTrack("access-token", 100, "tech-news-2026-02-13", expectedDescription) }
+        verify { soundCloudClient.updateTrack("access-token", 200, "tech-news-2026-02-14", expectedDescription) }
     }
 
     @Test
