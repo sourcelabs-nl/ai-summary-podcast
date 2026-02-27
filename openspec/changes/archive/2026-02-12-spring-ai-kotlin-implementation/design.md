@@ -267,7 +267,7 @@ app:
     directory: ./data/episodes
     retention-days: 30
   feed:
-    base-url: http://localhost:8080
+    base-url: http://localhost:8085
     title: AI Summary Podcast
     description: AI-generated audio briefings from your favourite content sources
 ```

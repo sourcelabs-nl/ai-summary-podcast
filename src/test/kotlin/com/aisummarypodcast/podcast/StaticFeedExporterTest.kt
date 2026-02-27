@@ -29,7 +29,7 @@ class StaticFeedExporterTest {
 
     private fun createExporter(staticBaseUrl: String? = null): StaticFeedExporter {
         val feedProperties = FeedProperties(
-            baseUrl = "http://localhost:8080",
+            baseUrl = "http://localhost:8085",
             title = "AI Summary Podcast",
             description = "Test feed",
             staticBaseUrl = staticBaseUrl

@@ -41,7 +41,7 @@ class SoundCloudOAuthControllerTest {
             clientId = "test-client-id",
             clientSecret = "test-client-secret"
         )
-        every { appProperties.feed } returns FeedProperties(baseUrl = "http://localhost:8080")
+        every { appProperties.feed } returns FeedProperties(baseUrl = "http://localhost:8085")
         every { appProperties.encryption } returns EncryptionProperties(
             masterKey = "dGVzdC1tYXN0ZXIta2V5LTMyYnl0ZXMhIQ=="
         )

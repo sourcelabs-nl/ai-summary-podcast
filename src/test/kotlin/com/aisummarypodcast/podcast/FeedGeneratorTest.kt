@@ -18,7 +18,7 @@ class FeedGeneratorTest {
     private val episodeRepository = mockk<EpisodeRepository>()
     private val appProperties = mockk<AppProperties>().also {
         every { it.feed } returns FeedProperties(
-            baseUrl = "http://localhost:8080",
+            baseUrl = "http://localhost:8085",
             title = "AI Summary Podcast",
             description = "Test feed"
         )
