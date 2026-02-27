@@ -22,15 +22,21 @@ class InworldTtsProvider(
 
     companion object {
         const val DEFAULT_MODEL = "inworld-tts-1.5-max"
+        private const val DEFAULT_TEMPERATURE = 0.8
         private const val MAX_RETRY_ATTEMPTS = 3
         private val RETRY_DELAYS_MS = longArrayOf(1000, 2000, 4000)
 
         private val CORE_GUIDELINES = """
             |The TTS engine supports rich expressiveness markup:
             |- Non-verbal tags: [sigh], [laugh], [breathe], [cough], [clear_throat], [yawn] — use sparingly for natural effect
-            |- Emphasis: use *word* (single asterisks) for stressed words
+            |- Emphasis: use *word* (single asterisks) for stressed words. NEVER use **double asterisks** — the TTS engine will read the asterisk characters aloud
             |- Pacing: use ellipsis (...) for trailing pauses, exclamation marks for excitement
-            |- IPA phonemes: use /phoneme/ for precise pronunciation of proper nouns""".trimMargin()
+            |- IPA phonemes: use /phoneme/ for precise pronunciation of proper nouns
+            |Text formatting rules:
+            |- Write all numbers, dates, currencies, and symbols in fully spoken form (e.g. "twenty twenty-six" not "2026", "five thousand dollars" not "${'$'}5,000", "ten percent" not "10%")
+            |- NEVER use markdown formatting (headers, bold, bullet points, links) — write everything as natural spoken sentences
+            |- Use natural contractions throughout (don't, we're, it's, they've) for spoken naturalness
+            |- Always end sentences with proper punctuation (period, question mark, or exclamation mark) — the TTS engine uses these for pacing""".trimMargin()
 
         private val CASUAL_ADDITION = """
             |- Use natural filler words (uh, um, well, you know) to sound conversational and human""".trimMargin()
@@ -51,7 +57,7 @@ class InworldTtsProvider(
     override fun generate(request: TtsRequest): TtsResult {
         val modelId = request.ttsSettings["model"] ?: DEFAULT_MODEL
         val speed = request.ttsSettings["speed"]?.toDoubleOrNull()
-        val temperature = request.ttsSettings["temperature"]?.toDoubleOrNull()
+        val temperature = request.ttsSettings["temperature"]?.toDoubleOrNull() ?: DEFAULT_TEMPERATURE
         val style = inferStyle(request)
 
         return if (style == PodcastStyle.DIALOGUE || style == PodcastStyle.INTERVIEW) {
@@ -65,7 +71,8 @@ class InworldTtsProvider(
         val voiceId = request.ttsVoices["default"]
             ?: throw IllegalStateException("Inworld TTS requires a 'default' voice in ttsVoices")
 
-        val chunks = TextChunker.chunk(request.script, maxChunkSize)
+        val processedScript = InworldScriptPostProcessor.process(request.script)
+        val chunks = TextChunker.chunk(processedScript, maxChunkSize)
         log.info("Generating Inworld TTS audio for {} chunks in parallel (voice: {}, model: {}, speed: {}, temperature: {})", chunks.size, voiceId, modelId, speed, temperature)
 
         val totalCharacters = AtomicInteger(0)
@@ -102,7 +109,8 @@ class InworldTtsProvider(
                 ?: throw IllegalStateException(
                     "No voice configured for role '${turn.role}'. Available roles: ${request.ttsVoices.keys.joinToString()}"
                 )
-            val turnChunks = TextChunker.chunk(turn.text, maxChunkSize)
+            val processedText = InworldScriptPostProcessor.process(turn.text)
+            val turnChunks = TextChunker.chunk(processedText, maxChunkSize)
             log.info("Inworld dialogue turn {}/{} (role: {}, {} chunks, {} chars)", index + 1, turns.size, turn.role, turnChunks.size, turn.text.length)
             turnChunks.map { chunk -> ChunkWork(voiceId, chunk) }
         }

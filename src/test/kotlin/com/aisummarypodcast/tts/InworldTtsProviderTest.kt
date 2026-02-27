@@ -31,7 +31,7 @@ class InworldTtsProviderTest {
             userId = "u1"
         )
         every {
-            apiClient.synthesizeSpeech("u1", "voice-1", "Hello world", "inworld-tts-1.5-max", null, null)
+            apiClient.synthesizeSpeech("u1", "voice-1", "Hello world", "inworld-tts-1.5-max", null, 0.8)
         } returns InworldSpeechResponse(sampleAudio, 11)
 
         val result = provider.generate(request)
@@ -52,7 +52,7 @@ class InworldTtsProviderTest {
             userId = "u1"
         )
         every {
-            apiClient.synthesizeSpeech("u1", "voice-1", "Test", "inworld-tts-1.5-mini", null, null)
+            apiClient.synthesizeSpeech("u1", "voice-1", "Test", "inworld-tts-1.5-mini", null, 0.8)
         } returns InworldSpeechResponse(sampleAudio, 4)
 
         val result = provider.generate(request)
@@ -82,10 +82,10 @@ class InworldTtsProviderTest {
             userId = "u1"
         )
         every {
-            apiClient.synthesizeSpeech("u1", "voice-1", "Hello there!", "inworld-tts-1.5-max", null, null)
+            apiClient.synthesizeSpeech("u1", "voice-1", "Hello there!", "inworld-tts-1.5-max", null, 0.8)
         } returns InworldSpeechResponse(sampleAudio, 12)
         every {
-            apiClient.synthesizeSpeech("u1", "voice-2", "Hey, how are you?", "inworld-tts-1.5-max", null, null)
+            apiClient.synthesizeSpeech("u1", "voice-2", "Hey, how are you?", "inworld-tts-1.5-max", null, 0.8)
         } returns InworldSpeechResponse(sampleAudio, 17)
 
         val result = provider.generate(request)
@@ -118,10 +118,10 @@ class InworldTtsProviderTest {
             userId = "u1"
         )
         every {
-            apiClient.synthesizeSpeech("u1", "voice-1", "What happened?", "inworld-tts-1.5-max", null, null)
+            apiClient.synthesizeSpeech("u1", "voice-1", "What happened?", "inworld-tts-1.5-max", null, 0.8)
         } returns InworldSpeechResponse(sampleAudio, 14)
         every {
-            apiClient.synthesizeSpeech("u1", "voice-2", "A lot of things.", "inworld-tts-1.5-max", null, null)
+            apiClient.synthesizeSpeech("u1", "voice-2", "A lot of things.", "inworld-tts-1.5-max", null, 0.8)
         } returns InworldSpeechResponse(sampleAudio, 16)
 
         val result = provider.generate(request)
@@ -149,6 +149,48 @@ class InworldTtsProviderTest {
         assertEquals(11, result.totalCharacters)
     }
 
+    @Test
+    fun `uses default temperature of 0_8 when not configured`() {
+        val request = TtsRequest(
+            script = "Hello world",
+            ttsVoices = mapOf("default" to "voice-1"),
+            ttsSettings = emptyMap(),
+            language = "en",
+            userId = "u1"
+        )
+        every {
+            apiClient.synthesizeSpeech("u1", "voice-1", "Hello world", "inworld-tts-1.5-max", null, 0.8)
+        } returns InworldSpeechResponse(sampleAudio, 11)
+
+        val result = provider.generate(request)
+
+        assertEquals(1, result.audioChunks.size)
+        verify {
+            apiClient.synthesizeSpeech("u1", "voice-1", "Hello world", "inworld-tts-1.5-max", null, 0.8)
+        }
+    }
+
+    @Test
+    fun `uses explicit temperature when configured`() {
+        val request = TtsRequest(
+            script = "Hello world",
+            ttsVoices = mapOf("default" to "voice-1"),
+            ttsSettings = mapOf("temperature" to "1.1"),
+            language = "en",
+            userId = "u1"
+        )
+        every {
+            apiClient.synthesizeSpeech("u1", "voice-1", "Hello world", "inworld-tts-1.5-max", null, 1.1)
+        } returns InworldSpeechResponse(sampleAudio, 11)
+
+        val result = provider.generate(request)
+
+        assertEquals(1, result.audioChunks.size)
+        verify {
+            apiClient.synthesizeSpeech("u1", "voice-1", "Hello world", "inworld-tts-1.5-max", null, 1.1)
+        }
+    }
+
     // --- Parallel generation tests ---
 
     @Test
@@ -163,7 +205,7 @@ class InworldTtsProviderTest {
         val audio2 = Base64.getEncoder().encodeToString(byteArrayOf(2))
         val audio3 = Base64.getEncoder().encodeToString(byteArrayOf(3))
 
-        every { apiClient.synthesizeSpeech("u1", "voice-1", any(), "inworld-tts-1.5-max", null, null) } answers {
+        every { apiClient.synthesizeSpeech("u1", "voice-1", any(), "inworld-tts-1.5-max", null, 0.8) } answers {
             val text = arg<String>(2)
             when {
                 text.startsWith("A") -> InworldSpeechResponse(audio1, text.length)
@@ -198,9 +240,9 @@ class InworldTtsProviderTest {
 
         val script = "<host>First turn.</host><cohost>Second turn.</cohost><host>Third turn.</host>"
 
-        every { apiClient.synthesizeSpeech("u1", "voice-1", "First turn.", "inworld-tts-1.5-max", null, null) } returns InworldSpeechResponse(audio1, 11)
-        every { apiClient.synthesizeSpeech("u1", "voice-2", "Second turn.", "inworld-tts-1.5-max", null, null) } returns InworldSpeechResponse(audio2, 12)
-        every { apiClient.synthesizeSpeech("u1", "voice-1", "Third turn.", "inworld-tts-1.5-max", null, null) } returns InworldSpeechResponse(audio3, 11)
+        every { apiClient.synthesizeSpeech("u1", "voice-1", "First turn.", "inworld-tts-1.5-max", null, 0.8) } returns InworldSpeechResponse(audio1, 11)
+        every { apiClient.synthesizeSpeech("u1", "voice-2", "Second turn.", "inworld-tts-1.5-max", null, 0.8) } returns InworldSpeechResponse(audio2, 12)
+        every { apiClient.synthesizeSpeech("u1", "voice-1", "Third turn.", "inworld-tts-1.5-max", null, 0.8) } returns InworldSpeechResponse(audio3, 11)
 
         val request = TtsRequest(
             script = script,
@@ -233,7 +275,7 @@ class InworldTtsProviderTest {
 
         var callCount = 0
         every {
-            apiClient.synthesizeSpeech("u1", "voice-1", "Hello world", "inworld-tts-1.5-max", null, null)
+            apiClient.synthesizeSpeech("u1", "voice-1", "Hello world", "inworld-tts-1.5-max", null, 0.8)
         } answers {
             callCount++
             if (callCount == 1) throw InworldRateLimitException("Rate limited")
@@ -258,14 +300,62 @@ class InworldTtsProviderTest {
         )
 
         every {
-            apiClient.synthesizeSpeech("u1", "voice-1", "Hello world", "inworld-tts-1.5-max", null, null)
+            apiClient.synthesizeSpeech("u1", "voice-1", "Hello world", "inworld-tts-1.5-max", null, 0.8)
         } throws InworldRateLimitException("Rate limited")
 
         val exception = assertThrows<InworldRateLimitException> { provider.generate(request) }
         assertEquals("Rate limited", exception.message)
 
         verify(exactly = 3) {
-            apiClient.synthesizeSpeech("u1", "voice-1", "Hello world", "inworld-tts-1.5-max", null, null)
+            apiClient.synthesizeSpeech("u1", "voice-1", "Hello world", "inworld-tts-1.5-max", null, 0.8)
+        }
+    }
+
+    // --- Post-processing integration tests ---
+
+    @Test
+    fun `monologue post-processes script before sending to API`() {
+        val request = TtsRequest(
+            script = "**Breaking** news! [excitedly] Check [this](https://example.com).",
+            ttsVoices = mapOf("default" to "voice-1"),
+            ttsSettings = emptyMap(),
+            language = "en",
+            userId = "u1"
+        )
+        every {
+            apiClient.synthesizeSpeech("u1", "voice-1", "*Breaking* news! Check this.", "inworld-tts-1.5-max", null, 0.8)
+        } returns InworldSpeechResponse(sampleAudio, 28)
+
+        val result = provider.generate(request)
+
+        assertEquals(1, result.audioChunks.size)
+        verify {
+            apiClient.synthesizeSpeech("u1", "voice-1", "*Breaking* news! Check this.", "inworld-tts-1.5-max", null, 0.8)
+        }
+    }
+
+    @Test
+    fun `dialogue post-processes each turn before sending to API`() {
+        val request = TtsRequest(
+            script = "<host>**Welcome** to the show! [cheerfully] Hello.</host><cohost>[sigh] Thanks for having me.</cohost>",
+            ttsVoices = mapOf("host" to "voice-1", "cohost" to "voice-2"),
+            ttsSettings = emptyMap(),
+            language = "en",
+            userId = "u1"
+        )
+        every {
+            apiClient.synthesizeSpeech("u1", "voice-1", "*Welcome* to the show! Hello.", "inworld-tts-1.5-max", null, 0.8)
+        } returns InworldSpeechResponse(sampleAudio, 30)
+        every {
+            apiClient.synthesizeSpeech("u1", "voice-2", "[sigh] Thanks for having me.", "inworld-tts-1.5-max", null, 0.8)
+        } returns InworldSpeechResponse(sampleAudio, 28)
+
+        val result = provider.generate(request)
+
+        assertEquals(2, result.audioChunks.size)
+        verify {
+            apiClient.synthesizeSpeech("u1", "voice-1", "*Welcome* to the show! Hello.", "inworld-tts-1.5-max", null, 0.8)
+            apiClient.synthesizeSpeech("u1", "voice-2", "[sigh] Thanks for having me.", "inworld-tts-1.5-max", null, 0.8)
         }
     }
 
@@ -306,6 +396,46 @@ class InworldTtsProviderTest {
             assertTrue(guidelines.contains("*word*"), "Missing emphasis for $style")
             assertTrue(guidelines.contains("..."), "Missing pacing for $style")
             assertTrue(guidelines.contains("/phoneme/"), "Missing IPA for $style")
+        }
+    }
+
+    @Test
+    fun `all styles include text normalization rules`() {
+        for (style in PodcastStyle.entries) {
+            val guidelines = provider.scriptGuidelines(style)
+            assertTrue(guidelines.contains("spoken form"), "Missing text normalization for $style")
+        }
+    }
+
+    @Test
+    fun `all styles warn against double asterisks`() {
+        for (style in PodcastStyle.entries) {
+            val guidelines = provider.scriptGuidelines(style)
+            assertTrue(guidelines.contains("double asterisks"), "Missing double asterisk warning for $style")
+        }
+    }
+
+    @Test
+    fun `all styles include anti-markdown rules`() {
+        for (style in PodcastStyle.entries) {
+            val guidelines = provider.scriptGuidelines(style)
+            assertTrue(guidelines.contains("NEVER use markdown"), "Missing anti-markdown rule for $style")
+        }
+    }
+
+    @Test
+    fun `all styles include contractions guidance`() {
+        for (style in PodcastStyle.entries) {
+            val guidelines = provider.scriptGuidelines(style)
+            assertTrue(guidelines.contains("contractions"), "Missing contractions guidance for $style")
+        }
+    }
+
+    @Test
+    fun `all styles include punctuation rule`() {
+        for (style in PodcastStyle.entries) {
+            val guidelines = provider.scriptGuidelines(style)
+            assertTrue(guidelines.contains("end sentences with proper punctuation"), "Missing punctuation rule for $style")
         }
     }
 }

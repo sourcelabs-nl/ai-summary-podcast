@@ -74,7 +74,7 @@ ollama pull llama3
 Then configure a user's LLM provider to use Ollama (no API key needed):
 
 ```bash
-curl -X PUT http://localhost:8080/users/{userId}/api-keys/LLM \
+curl -X PUT http://localhost:8085/users/{userId}/api-keys/LLM \
   -H 'Content-Type: application/json' \
   -d '{"provider": "ollama"}'
 ```
@@ -90,7 +90,7 @@ This uses the default Ollama base URL (`http://localhost:11434`). You can omit `
 2. **Configure the user's TTS provider:**
 
 ```bash
-curl -X PUT http://localhost:8080/users/{userId}/api-keys/TTS \
+curl -X PUT http://localhost:8085/users/{userId}/api-keys/TTS \
   -H 'Content-Type: application/json' \
   -d '{"provider": "elevenlabs", "apiKey": "<your-elevenlabs-key>"}'
 ```
@@ -98,14 +98,14 @@ curl -X PUT http://localhost:8080/users/{userId}/api-keys/TTS \
 3. **Discover available voices:**
 
 ```bash
-curl http://localhost:8080/users/{userId}/voices?provider=elevenlabs
+curl http://localhost:8085/users/{userId}/voices?provider=elevenlabs
 ```
 
 4. **Create a podcast with ElevenLabs** (monologue or dialogue):
 
 ```bash
 # Monologue (single voice)
-curl -X POST http://localhost:8080/users/{userId}/podcasts \
+curl -X POST http://localhost:8085/users/{userId}/podcasts \
   -H 'Content-Type: application/json' \
   -d '{
     "name": "My Podcast",
@@ -115,7 +115,7 @@ curl -X POST http://localhost:8080/users/{userId}/podcasts \
   }'
 
 # Dialogue (multi-speaker)
-curl -X POST http://localhost:8080/users/{userId}/podcasts \
+curl -X POST http://localhost:8085/users/{userId}/podcasts \
   -H 'Content-Type: application/json' \
   -d '{
     "name": "My Dialogue Podcast",
@@ -141,7 +141,7 @@ Or run directly:
 source .env && ./mvnw spring-boot:run
 ```
 
-The app starts on `http://localhost:8080`. Data is stored in `./data/` (SQLite DB + episode audio files).
+The app starts on `http://localhost:8085`. Data is stored in `./data/` (SQLite DB + episode audio files).
 
 ## Customizing Your Podcast
 
@@ -185,7 +185,7 @@ Three TTS providers are supported: **OpenAI** (default), **ElevenLabs**, and **I
 
 **ElevenLabs** — Uses the global `ELEVENLABS_API_KEY` as fallback, or a per-user key configured via the provider API (see [Setup](#using-elevenlabs-instead-of-openai-for-tts)). Supports single-voice monologue, multi-speaker dialogue, and interview styles. Use `GET /users/{userId}/voices?provider=elevenlabs` to discover available voice IDs.
 
-**Inworld AI** — Requires per-user API credentials configured via the provider API (JWT key and secret as `key:secret`). Supports monologue, dialogue, and interview styles with rich expressiveness markup (emphasis, non-verbal cues, IPA phonemes). Models: `inworld-tts-1.5-max` (default), `inworld-tts-1.5-mini`. Settings: `{"model": "inworld-tts-1.5-max", "speed": "1.0", "temperature": "1.1"}`. Use `GET /users/{userId}/voices?provider=inworld` to discover available voice IDs.
+**Inworld AI** — Requires per-user API credentials configured via the provider API (JWT key and secret as `key:secret`). Supports monologue, dialogue, and interview styles with rich expressiveness markup (emphasis, non-verbal cues, IPA phonemes). Scripts are automatically post-processed to sanitize LLM output for Inworld (converts double asterisks, strips markdown, removes unsupported tags). Text normalization is enabled on the API as a safety net for numbers/dates. Models: `inworld-tts-1.5-max` (default), `inworld-tts-1.5-mini`. Settings: `{"model": "inworld-tts-1.5-max", "speed": "1.0", "temperature": "0.8"}` (temperature defaults to 0.8 for non-realtime podcast generation). Use `GET /users/{userId}/voices?provider=inworld` to discover available voice IDs.
 
 Voice configuration uses the `ttsVoices` map:
 - Monologue: `{"default": "nova"}` (or any ElevenLabs voice ID)
@@ -329,7 +329,7 @@ To enable an RSS feed for your SoundCloud uploads, go to your SoundCloud **Setti
 
 X accounts can be added as content sources so their posts are included in podcast briefings. This requires an X developer app and a connected user account.
 
-1. **Register an X app** at https://developer.x.com/en/portal/dashboard. Enable OAuth 2.0 with type "Web App" and set the redirect URI to `http://localhost:8080/oauth/x/callback`. Requires at least the Basic tier ($100/month).
+1. **Register an X app** at https://developer.x.com/en/portal/dashboard. Enable OAuth 2.0 with type "Web App" and set the redirect URI to `http://localhost:8085/oauth/x/callback`. Requires at least the Basic tier ($100/month).
 
 2. **Add credentials** to your `.env` file:
 
@@ -344,20 +344,20 @@ APP_X_CLIENT_SECRET=<your-x-client-secret>
 
 ```bash
 # Get the authorization URL
-curl http://localhost:8080/users/{userId}/oauth/x/authorize
+curl http://localhost:8085/users/{userId}/oauth/x/authorize
 # → returns { "authorizationUrl": "https://twitter.com/i/oauth2/authorize?..." }
 
 # Open the URL in a browser, log in and authorize the app
 # The callback completes automatically and stores your tokens
 
 # Verify the connection
-curl http://localhost:8080/users/{userId}/oauth/x/status
+curl http://localhost:8085/users/{userId}/oauth/x/status
 ```
 
 5. **Add an X source** to a podcast:
 
 ```bash
-curl -X POST http://localhost:8080/users/{userId}/podcasts/{podcastId}/sources \
+curl -X POST http://localhost:8085/users/{userId}/podcasts/{podcastId}/sources \
   -H 'Content-Type: application/json' \
   -d '{"type": "twitter", "url": "elonmusk", "pollIntervalMinutes": 60}'
 ```
@@ -369,7 +369,7 @@ The `url` field accepts a plain username (e.g., `elonmusk`), `@username`, or a f
 If you don't have an X developer account, you can use [Nitter](https://nitter.net) as a free alternative. Nitter is an open-source front-end for Twitter that exposes public RSS feeds — no API key or OAuth setup required. Add a Nitter feed as a regular RSS source:
 
 ```bash
-curl -X POST http://localhost:8080/users/{userId}/podcasts/{podcastId}/sources \
+curl -X POST http://localhost:8085/users/{userId}/podcasts/{podcastId}/sources \
   -H 'Content-Type: application/json' \
   -d '{"type": "rss", "url": "https://nitter.net/elonmusk/rss", "pollIntervalMinutes": 60}'
 ```
@@ -379,7 +379,7 @@ Nitter sources are automatically detected for aggregation — individual tweets 
 ### Example: Create a Customized Podcast
 
 ```bash
-curl -X POST http://localhost:8080/users/{userId}/podcasts \
+curl -X POST http://localhost:8085/users/{userId}/podcasts \
   -H 'Content-Type: application/json' \
   -d '{
     "name": "AI Weekly",

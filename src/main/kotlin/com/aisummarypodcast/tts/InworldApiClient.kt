@@ -42,6 +42,7 @@ class InworldApiClient(
             "audioConfig" to audioConfig
         )
         temperature?.let { body["temperature"] = it }
+        body["applyTextNormalization"] = true
 
         @Suppress("UNCHECKED_CAST")
         val response = client.post()
