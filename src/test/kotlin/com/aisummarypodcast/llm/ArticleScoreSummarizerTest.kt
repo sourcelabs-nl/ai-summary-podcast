@@ -249,4 +249,61 @@ class ArticleScoreSummarizerTest {
         assertFalse(prompt.contains("2-3 sentences"))
         assertFalse(prompt.contains("4-6 sentences"))
     }
+
+    @Test
+    fun `one article failure does not cancel others`() {
+        val article1 = Article(id = 1, sourceId = "s1", title = "Article 1", body = "body1", url = "https://example.com/1", contentHash = "h1")
+        val article2 = Article(id = 2, sourceId = "s1", title = "Article 2", body = "body2", url = "https://example.com/2", contentHash = "h2")
+        val article3 = Article(id = 3, sourceId = "s1", title = "Article 3", body = "body3", url = "https://example.com/3", contentHash = "h3")
+
+        val successResult = ScoreSummarizeResult(relevanceScore = 7, summary = "Good summary.")
+        val metadata = ChatResponseMetadata.builder()
+            .usage(DefaultUsage(500, 80))
+            .build()
+        val chatResponse = ChatResponse(listOf(Generation(AssistantMessage("{}"))), metadata)
+        val responseEntity = ResponseEntity(chatResponse, successResult)
+
+        val successCallSpec = mockk<ChatClient.CallResponseSpec>()
+        every { successCallSpec.responseEntity(ScoreSummarizeResult::class.java) } returns responseEntity
+
+        val failCallSpec = mockk<ChatClient.CallResponseSpec>()
+        every { failCallSpec.responseEntity(ScoreSummarizeResult::class.java) } throws RuntimeException("LLM unavailable")
+
+        var callCount = 0
+        val requestSpec = mockk<ChatClient.ChatClientRequestSpec>()
+        every { requestSpec.user(any<String>()) } returns requestSpec
+        every { requestSpec.options(any()) } returns requestSpec
+        every { requestSpec.call() } answers {
+            val current = callCount++
+            if (current == 1) failCallSpec else successCallSpec
+        }
+
+        every { chatClient.prompt() } returns requestSpec
+        every { chatClientFactory.createForModel(podcast.userId, filterModelDef) } returns chatClient
+
+        val result = scoreSummarizer.scoreSummarize(listOf(article1, article2, article3), podcast, filterModelDef)
+
+        assertEquals(2, result.size)
+        verify(exactly = 2) { articleRepository.save(any()) }
+    }
+
+    @Test
+    fun `all articles fail returns empty list`() {
+        val article1 = Article(id = 1, sourceId = "s1", title = "Article 1", body = "body1", url = "https://example.com/1", contentHash = "h1")
+        val article2 = Article(id = 2, sourceId = "s1", title = "Article 2", body = "body2", url = "https://example.com/2", contentHash = "h2")
+        val article3 = Article(id = 3, sourceId = "s1", title = "Article 3", body = "body3", url = "https://example.com/3", contentHash = "h3")
+
+        val requestSpec = mockk<ChatClient.ChatClientRequestSpec>()
+        every { requestSpec.user(any<String>()) } returns requestSpec
+        every { requestSpec.options(any()) } returns requestSpec
+        every { requestSpec.call() } throws RuntimeException("LLM unavailable")
+
+        every { chatClient.prompt() } returns requestSpec
+        every { chatClientFactory.createForModel(podcast.userId, filterModelDef) } returns chatClient
+
+        val result = scoreSummarizer.scoreSummarize(listOf(article1, article2, article3), podcast, filterModelDef)
+
+        assertTrue(result.isEmpty())
+        verify(exactly = 0) { articleRepository.save(any()) }
+    }
 }

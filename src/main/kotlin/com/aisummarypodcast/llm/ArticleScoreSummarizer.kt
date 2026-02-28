@@ -4,6 +4,11 @@ import com.aisummarypodcast.config.ModelDefinition
 import com.aisummarypodcast.store.Article
 import com.aisummarypodcast.store.ArticleRepository
 import com.aisummarypodcast.store.Podcast
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.supervisorScope
 import org.slf4j.LoggerFactory
 import org.springframework.ai.openai.OpenAiChatOptions
 import org.springframework.stereotype.Component
@@ -30,44 +35,50 @@ class ArticleScoreSummarizer(
         val chatClient = chatClientFactory.createForModel(podcast.userId, filterModelDef)
         val model = filterModelDef.model
 
-        return articles.mapNotNull { article ->
-            val sourceLabel = sourceLabels[article.sourceId]
-            log.info("[LLM] Scoring and summarizing article {}: '{}' (source: {})", article.id, article.title, sourceLabel ?: article.sourceId)
-            try {
-                val prompt = buildPrompt(article, podcast)
+        return runBlocking(Dispatchers.IO) {
+            supervisorScope {
+                articles.map { article ->
+                    async {
+                        val sourceLabel = sourceLabels[article.sourceId]
+                        log.info("[LLM] Scoring and summarizing article {}: '{}' (source: {})", article.id, article.title, sourceLabel ?: article.sourceId)
+                        try {
+                            val prompt = buildPrompt(article, podcast)
 
-                val responseEntity = chatClient.prompt()
-                    .user(prompt)
-                    .options(
-                        OpenAiChatOptions.builder()
-                            .model(model)
-                            .temperature(0.3)
-                            .build()
-                    )
-                    .call()
-                    .responseEntity(ScoreSummarizeResult::class.java)
+                            val responseEntity = chatClient.prompt()
+                                .user(prompt)
+                                .options(
+                                    OpenAiChatOptions.builder()
+                                        .model(model)
+                                        .temperature(0.3)
+                                        .build()
+                                )
+                                .call()
+                                .responseEntity(ScoreSummarizeResult::class.java)
 
-                val result = responseEntity.entity()
-                val usage = TokenUsage.fromChatResponse(responseEntity.response())
-                val costCents = CostEstimator.estimateLlmCostCents(usage.inputTokens, usage.outputTokens, filterModelDef)
+                            val result = responseEntity.entity()
+                            val usage = TokenUsage.fromChatResponse(responseEntity.response())
+                            val costCents = CostEstimator.estimateLlmCostCents(usage.inputTokens, usage.outputTokens, filterModelDef)
 
-                val score = result?.relevanceScore ?: 0
-                val summary = result?.summary?.takeIf { it.isNotBlank() }
+                            val score = result?.relevanceScore ?: 0
+                            val summary = result?.summary?.takeIf { it.isNotBlank() }
 
-                val updated = article.copy(
-                    relevanceScore = score,
-                    summary = summary,
-                    llmInputTokens = (article.llmInputTokens ?: 0) + usage.inputTokens,
-                    llmOutputTokens = (article.llmOutputTokens ?: 0) + usage.outputTokens,
-                    llmCostCents = CostEstimator.addNullableCosts(article.llmCostCents, costCents)
-                )
-                articleRepository.save(updated)
+                            val updated = article.copy(
+                                relevanceScore = score,
+                                summary = summary,
+                                llmInputTokens = (article.llmInputTokens ?: 0) + usage.inputTokens,
+                                llmOutputTokens = (article.llmOutputTokens ?: 0) + usage.outputTokens,
+                                llmCostCents = CostEstimator.addNullableCosts(article.llmCostCents, costCents)
+                            )
+                            articleRepository.save(updated)
 
-                log.info("[LLM] Article '{}' scored {} — summary: {} chars (source: {})", article.title, score, summary?.length ?: 0, sourceLabel ?: article.sourceId)
-                updated
-            } catch (e: Exception) {
-                log.error("[LLM] Error scoring/summarizing article '{}' (source: {}): {}", article.title, sourceLabel ?: article.sourceId, e.message, e)
-                null
+                            log.info("[LLM] Article '{}' scored {} — summary: {} chars (source: {})", article.title, score, summary?.length ?: 0, sourceLabel ?: article.sourceId)
+                            updated
+                        } catch (e: Exception) {
+                            log.error("[LLM] Error scoring/summarizing article '{}' (source: {}): {}", article.title, sourceLabels[article.sourceId] ?: article.sourceId, e.message, e)
+                            null
+                        }
+                    }
+                }.awaitAll().filterNotNull()
             }
         }
     }
