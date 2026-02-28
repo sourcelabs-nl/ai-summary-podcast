@@ -175,6 +175,60 @@ class PodcastControllerTest {
     }
 
     @Test
+    fun `create podcast with pronunciations`() {
+        val podcastSlot = slot<Podcast>()
+        every { userService.findById(userId) } returns user
+        every { podcastService.create(userId, "My Podcast", "tech", capture(podcastSlot)) } answers {
+            podcastSlot.captured.copy(id = podcastId)
+        }
+
+        mockMvc.perform(
+            post("/users/$userId/podcasts")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"name":"My Podcast","topic":"tech","pronunciations":{"Anthropic":"/ænˈθɹɒpɪk/","Jarno":"/jɑrnoː/"}}""")
+        )
+            .andExpect(status().isCreated)
+            .andExpect(jsonPath("$.pronunciations.Anthropic").value("/ænˈθɹɒpɪk/"))
+            .andExpect(jsonPath("$.pronunciations.Jarno").value("/jɑrnoː/"))
+    }
+
+    @Test
+    fun `update podcast with pronunciations`() {
+        val existing = Podcast(
+            id = podcastId, userId = userId, name = "My Podcast", topic = "tech"
+        )
+        val updatedSlot = slot<Podcast>()
+        every { userService.findById(userId) } returns user
+        every { podcastService.findById(podcastId) } returns existing
+        every { podcastService.update(podcastId, capture(updatedSlot)) } answers {
+            updatedSlot.captured
+        }
+
+        mockMvc.perform(
+            put("/users/$userId/podcasts/$podcastId")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"name":"My Podcast","topic":"tech","pronunciations":{"Stephan":"/ˈsteːfɑn/"}}""")
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.pronunciations.Stephan").value("/ˈsteːfɑn/"))
+    }
+
+    @Test
+    fun `get podcast includes pronunciations`() {
+        val podcastWithPronunciations = Podcast(
+            id = podcastId, userId = userId, name = "My Podcast", topic = "tech",
+            pronunciations = mapOf("Anthropic" to "/ænˈθɹɒpɪk/", "Jarno" to "/jɑrnoː/")
+        )
+        every { userService.findById(userId) } returns user
+        every { podcastService.findById(podcastId) } returns podcastWithPronunciations
+
+        mockMvc.perform(get("/users/$userId/podcasts/$podcastId"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.pronunciations.Anthropic").value("/ænˈθɹɒpɪk/"))
+            .andExpect(jsonPath("$.pronunciations.Jarno").value("/jɑrnoː/"))
+    }
+
+    @Test
     fun `create podcast without optional fields uses defaults`() {
         val podcastSlot = slot<Podcast>()
         every { userService.findById(userId) } returns user

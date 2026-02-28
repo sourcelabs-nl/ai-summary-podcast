@@ -28,7 +28,8 @@ data class CreatePodcastRequest(
     @JsonProperty("maxArticleAgeDays") val maxArticleAgeDays: Int? = null,
     val speakerNames: Map<String, String>? = null,
     @JsonProperty("fullBodyThreshold") val fullBodyThreshold: Int? = null,
-    val sponsor: Map<String, String>? = null
+    val sponsor: Map<String, String>? = null,
+    val pronunciations: Map<String, String>? = null
 )
 
 data class UpdatePodcastRequest(
@@ -49,7 +50,8 @@ data class UpdatePodcastRequest(
     @JsonProperty("maxArticleAgeDays") val maxArticleAgeDays: Int? = null,
     val speakerNames: Map<String, String>? = null,
     @JsonProperty("fullBodyThreshold") val fullBodyThreshold: Int? = null,
-    val sponsor: Map<String, String>? = null
+    val sponsor: Map<String, String>? = null,
+    val pronunciations: Map<String, String>? = null
 )
 
 data class PodcastResponse(
@@ -73,6 +75,7 @@ data class PodcastResponse(
     val speakerNames: Map<String, String>?,
     val fullBodyThreshold: Int?,
     val sponsor: Map<String, String>?,
+    val pronunciations: Map<String, String>?,
     val lastGeneratedAt: String?
 )
 
@@ -151,7 +154,8 @@ class PodcastController(
                 maxArticleAgeDays = request.maxArticleAgeDays,
                 speakerNames = request.speakerNames,
                 fullBodyThreshold = request.fullBodyThreshold,
-                sponsor = request.sponsor
+                sponsor = request.sponsor,
+                pronunciations = request.pronunciations
             )
         )
         return ResponseEntity.created(URI.create("/users/$userId/podcasts/${podcast.id}"))
@@ -219,7 +223,8 @@ class PodcastController(
                 maxArticleAgeDays = request.maxArticleAgeDays ?: existing.maxArticleAgeDays,
                 speakerNames = request.speakerNames ?: existing.speakerNames,
                 fullBodyThreshold = request.fullBodyThreshold ?: existing.fullBodyThreshold,
-                sponsor = request.sponsor ?: existing.sponsor
+                sponsor = request.sponsor ?: existing.sponsor,
+                pronunciations = request.pronunciations ?: existing.pronunciations
             )
         ) ?: return ResponseEntity.notFound().build()
         return ResponseEntity.ok(updated.toResponse())
@@ -259,6 +264,7 @@ class PodcastController(
         customInstructions = customInstructions, relevanceThreshold = relevanceThreshold,
         requireReview = requireReview, maxLlmCostCents = maxLlmCostCents,
         maxArticleAgeDays = maxArticleAgeDays, speakerNames = speakerNames,
-        fullBodyThreshold = fullBodyThreshold, sponsor = sponsor, lastGeneratedAt = lastGeneratedAt
+        fullBodyThreshold = fullBodyThreshold, sponsor = sponsor, pronunciations = pronunciations,
+        lastGeneratedAt = lastGeneratedAt
     )
 }

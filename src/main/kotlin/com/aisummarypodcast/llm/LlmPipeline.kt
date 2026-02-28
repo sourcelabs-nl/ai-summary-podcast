@@ -114,7 +114,7 @@ class LlmPipeline(
         }
 
         val ttsProvider = ttsProviderFactory.resolve(podcast)
-        val ttsScriptGuidelines = ttsProvider.scriptGuidelines(podcast.style)
+        val ttsScriptGuidelines = ttsProvider.scriptGuidelines(podcast.style, podcast.pronunciations ?: emptyMap())
 
         val compositionResult = when (podcast.style) {
             PodcastStyle.DIALOGUE -> dialogueComposer.compose(toCompose, podcast, composeModelDef, previousRecap, ttsScriptGuidelines)

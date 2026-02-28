@@ -26,6 +26,7 @@ data class Podcast(
     val speakerNames: Map<String, String>? = null,
     val fullBodyThreshold: Int? = null,
     val sponsor: Map<String, String>? = null,
+    val pronunciations: Map<String, String>? = null,
     val soundcloudPlaylistId: String? = null,
     val lastGeneratedAt: String? = null,
     @Version val version: Long? = null

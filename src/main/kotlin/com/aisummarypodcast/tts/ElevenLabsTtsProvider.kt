@@ -13,7 +13,7 @@ class ElevenLabsTtsProvider(
 
     override val maxChunkSize: Int = 5000
 
-    override fun scriptGuidelines(style: PodcastStyle): String =
+    override fun scriptGuidelines(style: PodcastStyle, pronunciations: Map<String, String>): String =
         "You MAY include emotion cues in square brackets to guide vocal delivery (e.g., [cheerfully], [seriously], [with excitement]). Keep cues natural and sparse."
 
     override fun generate(request: TtsRequest): TtsResult {

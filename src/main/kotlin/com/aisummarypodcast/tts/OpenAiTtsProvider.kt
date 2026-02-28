@@ -19,7 +19,7 @@ class OpenAiTtsProvider(
 
     override val maxChunkSize: Int = 4096
 
-    override fun scriptGuidelines(style: PodcastStyle): String =
+    override fun scriptGuidelines(style: PodcastStyle, pronunciations: Map<String, String>): String =
         "Write clean, natural speech. Do not use special markup, emotion tags, sound effects, or non-verbal cues — the TTS engine does not support them."
 
     override fun generate(request: TtsRequest): TtsResult {

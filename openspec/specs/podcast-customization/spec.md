@@ -182,6 +182,8 @@ The `maxLlmCostCents` field SHALL be accepted as an optional nullable integer in
 
 The `ttsProvider`, `ttsVoices`, and `ttsSettings` fields SHALL be accepted in podcast create and update endpoints and included in GET responses. The `ttsVoices` and `ttsSettings` fields SHALL be returned as JSON objects.
 
+The `pronunciations` field SHALL be accepted as an optional nullable JSON map in the podcast create (`POST`) and update (`PUT`) endpoints. When set, it stores a mapping of terms to IPA phoneme notation. The field SHALL be included in the podcast GET response.
+
 #### Scenario: Create podcast with per-stage model config
 - **WHEN** a `POST /users/{userId}/podcasts` request includes `llmModels: {"compose": "local"}`
 - **THEN** the podcast is created with `llm_models` stored as `{"compose": "local"}`
@@ -204,7 +206,7 @@ The `ttsProvider`, `ttsVoices`, and `ttsSettings` fields SHALL be accepted in po
 
 #### Scenario: Get podcast includes customization
 - **WHEN** a `GET /users/{userId}/podcasts/{podcastId}` request is received
-- **THEN** the response includes all customization fields (llmModels, ttsProvider, ttsVoices, ttsSettings, style, targetWords, cron, customInstructions, language, maxLlmCostCents)
+- **THEN** the response includes all customization fields (llmModels, ttsProvider, ttsVoices, ttsSettings, style, targetWords, cron, customInstructions, language, maxLlmCostCents, pronunciations)
 
 #### Scenario: Create podcast with TTS provider config
 - **WHEN** a `POST /users/{userId}/podcasts` request includes `ttsProvider: "elevenlabs"`, `ttsVoices: {"host": "id1", "cohost": "id2"}`, and `ttsSettings: {"stability": 0.5}`
@@ -233,6 +235,18 @@ The `ttsProvider`, `ttsVoices`, and `ttsSettings` fields SHALL be accepted in po
 #### Scenario: Get podcast includes cost threshold
 - **WHEN** a `GET /users/{userId}/podcasts/{podcastId}` request is received for a podcast with `max_llm_cost_cents` set to 500
 - **THEN** the response includes `"maxLlmCostCents": 500`
+
+#### Scenario: Create podcast with pronunciations
+- **WHEN** a `POST /users/{userId}/podcasts` request includes `pronunciations: {"Anthropic": "/ænˈθɹɒpɪk/"}`
+- **THEN** the podcast is created with `pronunciations` stored as `{"Anthropic": "/ænˈθɹɒpɪk/"}`
+
+#### Scenario: Update podcast pronunciations
+- **WHEN** a `PUT /users/{userId}/podcasts/{podcastId}` request includes `pronunciations: {"Jarno": "/jɑrnoː/"}`
+- **THEN** the podcast's `pronunciations` is updated to the new value
+
+#### Scenario: Get podcast includes pronunciations
+- **WHEN** a `GET /users/{userId}/podcasts/{podcastId}` request is received for a podcast with pronunciations configured
+- **THEN** the response includes the `pronunciations` field with its current value
 
 ### Requirement: Relevance threshold per podcast
 Each podcast SHALL have a `relevance_threshold` field (INTEGER, NOT NULL, default 5). The LLM pipeline SHALL use this threshold to determine which scored articles are relevant: articles with `relevance_score >= relevance_threshold` are considered relevant. Valid values are 0-10. The field SHALL be accepted in podcast create (`POST`) and update (`PUT`) endpoints and included in GET responses. Jackson 3 `@JsonProperty` annotations SHALL be used on the `relevanceThreshold` DTO field to ensure correct deserialization of nullable `Int?` values.

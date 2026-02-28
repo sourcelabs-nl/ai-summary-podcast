@@ -165,6 +165,7 @@ Each podcast can be tailored to your preferences via the following settings:
 | `fullBodyThreshold` | `5` | When the number of relevant articles is below this threshold, the composer uses full article bodies instead of summaries for richer content |
 | `requireReview` | `false` | When `true`, generated scripts pause for review before TTS — see [Episode Review](#episode-review) below |
 | `maxLlmCostCents` | `null` | Per-podcast LLM cost threshold in cents — see [Cost Gate](#cost-gate) below |
+| `pronunciations` | `null` | IPA pronunciation dictionary — maps terms to phonemes (e.g. `{"Anthropic": "/ænˈθɹɒpɪk/"}`) for correct TTS pronunciation. Currently supported by Inworld TTS |
 
 ### Briefing Styles
 
@@ -185,7 +186,7 @@ Three TTS providers are supported: **OpenAI** (default), **ElevenLabs**, and **I
 
 **ElevenLabs** — Uses the global `ELEVENLABS_API_KEY` as fallback, or a per-user key configured via the provider API (see [Setup](#using-elevenlabs-instead-of-openai-for-tts)). Supports single-voice monologue, multi-speaker dialogue, and interview styles. Use `GET /users/{userId}/voices?provider=elevenlabs` to discover available voice IDs.
 
-**Inworld AI** — Requires per-user API credentials configured via the provider API (JWT key and secret as `key:secret`). Supports monologue, dialogue, and interview styles with rich expressiveness markup (emphasis, non-verbal cues, IPA phonemes). Scripts are automatically post-processed to sanitize LLM output for Inworld (converts double asterisks, strips markdown, removes unsupported tags). Text normalization is enabled on the API as a safety net for numbers/dates. Models: `inworld-tts-1.5-max` (default), `inworld-tts-1.5-mini`. Settings: `{"model": "inworld-tts-1.5-max", "speed": "1.0", "temperature": "0.8"}` (temperature defaults to 0.8 for non-realtime podcast generation). Use `GET /users/{userId}/voices?provider=inworld` to discover available voice IDs.
+**Inworld AI** — Requires per-user API credentials configured via the provider API (JWT key and secret as `key:secret`). Supports monologue, dialogue, and interview styles with rich expressiveness markup (emphasis, non-verbal cues, IPA phonemes). Scripts are automatically post-processed to sanitize LLM output for Inworld (converts double asterisks, strips markdown, removes unsupported tags). Text normalization is enabled on the API as a safety net for numbers/dates. A per-podcast pronunciation dictionary (`pronunciations` field) can map terms to IPA phonemes for correct pronunciation of proper nouns and foreign names. Models: `inworld-tts-1.5-max` (default), `inworld-tts-1.5-mini`. Settings: `{"model": "inworld-tts-1.5-max", "speed": "1.0", "temperature": "0.8"}` (temperature defaults to 0.8 for non-realtime podcast generation). Use `GET /users/{userId}/voices?provider=inworld` to discover available voice IDs.
 
 Voice configuration uses the `ttsVoices` map:
 - Monologue: `{"default": "nova"}` (or any ElevenLabs voice ID)

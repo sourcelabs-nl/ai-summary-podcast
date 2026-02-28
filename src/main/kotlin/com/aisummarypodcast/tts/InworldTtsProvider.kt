@@ -45,13 +45,22 @@ class InworldTtsProvider(
             |- Avoid filler words (uh, um, well, you know) and minimize non-verbal tags — keep delivery clean and professional""".trimMargin()
     }
 
-    override fun scriptGuidelines(style: PodcastStyle): String {
+    override fun scriptGuidelines(style: PodcastStyle, pronunciations: Map<String, String>): String {
         val styleSpecific = when (style) {
             PodcastStyle.CASUAL, PodcastStyle.DIALOGUE -> CASUAL_ADDITION
             PodcastStyle.EXECUTIVE_SUMMARY, PodcastStyle.NEWS_BRIEFING -> FORMAL_ADDITION
             else -> ""
         }
-        return if (styleSpecific.isNotEmpty()) "$CORE_GUIDELINES\n$styleSpecific" else CORE_GUIDELINES
+        val base = if (styleSpecific.isNotEmpty()) "$CORE_GUIDELINES\n$styleSpecific" else CORE_GUIDELINES
+        if (pronunciations.isEmpty()) return base
+        val pronunciationGuide = buildString {
+            appendLine()
+            appendLine("Pronunciation Guide (use IPA notation on first occurrence of each term):")
+            for ((term, ipa) in pronunciations) {
+                appendLine("- $term: $ipa")
+            }
+        }.trimEnd()
+        return "$base\n$pronunciationGuide"
     }
 
     override fun generate(request: TtsRequest): TtsResult {

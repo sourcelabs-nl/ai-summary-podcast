@@ -46,7 +46,9 @@ class PodcastService(
             maxLlmCostCents = podcast?.maxLlmCostCents,
             maxArticleAgeDays = podcast?.maxArticleAgeDays,
             speakerNames = podcast?.speakerNames,
-            fullBodyThreshold = podcast?.fullBodyThreshold
+            fullBodyThreshold = podcast?.fullBodyThreshold,
+            sponsor = podcast?.sponsor,
+            pronunciations = podcast?.pronunciations
         )
         return podcastRepository.save(newPodcast)
     }
@@ -74,7 +76,9 @@ class PodcastService(
             maxLlmCostCents = updates.maxLlmCostCents,
             maxArticleAgeDays = updates.maxArticleAgeDays,
             speakerNames = updates.speakerNames,
-            fullBodyThreshold = updates.fullBodyThreshold
+            fullBodyThreshold = updates.fullBodyThreshold,
+            sponsor = updates.sponsor,
+            pronunciations = updates.pronunciations
         )
         return podcastRepository.save(updated)
     }

@@ -438,4 +438,37 @@ class InworldTtsProviderTest {
             assertTrue(guidelines.contains("end sentences with proper punctuation"), "Missing punctuation rule for $style")
         }
     }
+
+    // --- Pronunciation dictionary tests ---
+
+    @Test
+    fun `guidelines include pronunciation guide when pronunciations provided`() {
+        val pronunciations = mapOf("Anthropic" to "/ænˈθɹɒpɪk/", "Jarno" to "/jɑrnoː/")
+        val guidelines = provider.scriptGuidelines(PodcastStyle.CASUAL, pronunciations)
+        assertTrue(guidelines.contains("Pronunciation Guide"))
+        assertTrue(guidelines.contains("- Anthropic: /ænˈθɹɒpɪk/"))
+        assertTrue(guidelines.contains("- Jarno: /jɑrnoː/"))
+        assertTrue(guidelines.contains("first occurrence"))
+    }
+
+    @Test
+    fun `guidelines omit pronunciation section when empty map`() {
+        val guidelines = provider.scriptGuidelines(PodcastStyle.CASUAL, emptyMap())
+        assertFalse(guidelines.contains("Pronunciation Guide"))
+    }
+
+    @Test
+    fun `guidelines omit pronunciation section when no pronunciations parameter`() {
+        val guidelines = provider.scriptGuidelines(PodcastStyle.CASUAL)
+        assertFalse(guidelines.contains("Pronunciation Guide"))
+    }
+
+    @Test
+    fun `pronunciation guide preserves core guidelines and style additions`() {
+        val pronunciations = mapOf("LLaMA" to "/ˈlɑːmə/")
+        val guidelines = provider.scriptGuidelines(PodcastStyle.CASUAL, pronunciations)
+        assertTrue(guidelines.contains("[sigh]"), "Missing core guidelines")
+        assertTrue(guidelines.contains("filler words"), "Missing casual style addition")
+        assertTrue(guidelines.contains("- LLaMA: /ˈlɑːmə/"), "Missing pronunciation entry")
+    }
 }

@@ -49,7 +49,7 @@ class LlmPipelineTest {
         every { findMostRecentByPodcastId(any()) } returns null
     }
     private val ttsProviderMock = mockk<TtsProvider> {
-        every { scriptGuidelines(any()) } returns ""
+        every { scriptGuidelines(any(), any()) } returns ""
     }
     private val ttsProviderFactory = mockk<TtsProviderFactory> {
         every { resolve(any()) } returns ttsProviderMock
@@ -519,6 +519,49 @@ class LlmPipelineTest {
 
         assertNotNull(result)
         verify { briefingComposer.compose(listOf(article), podcast, composeModelDef, null, "") }
+    }
+
+    @Test
+    fun `passes pronunciations to scriptGuidelines`() {
+        val podcastWithPronunciations = podcast.copy(
+            pronunciations = mapOf("Anthropic" to "/ænˈθɹɒpɪk/", "Jarno" to "/jɑrnoː/")
+        )
+        val article = Article(
+            id = 1, sourceId = "s1", title = "AI News", body = "Body",
+            url = "https://example.com/ai", contentHash = "hash1", relevanceScore = 8, summary = "Summary."
+        )
+
+        every { sourceRepository.findByPodcastId("p1") } returns listOf(source)
+        every { modelResolver.resolve(podcastWithPronunciations, PipelineStage.FILTER) } returns filterModelDef
+        every { modelResolver.resolve(podcastWithPronunciations, PipelineStage.COMPOSE) } returns composeModelDef
+        every { postRepository.findUnlinkedBySourceIds(listOf("s1"), any()) } returns emptyList()
+        every { articleRepository.findUnscoredBySourceIds(listOf("s1")) } returns emptyList()
+        every { articleRepository.findRelevantUnprocessedBySourceIds(listOf("s1"), 5) } returns listOf(article)
+        every { briefingComposer.compose(any(), any(), any(), any(), any()) } returns CompositionResult("Script", TokenUsage(500, 200))
+
+        pipeline.run(podcastWithPronunciations)
+
+        verify { ttsProviderMock.scriptGuidelines(PodcastStyle.NEWS_BRIEFING, mapOf("Anthropic" to "/ænˈθɹɒpɪk/", "Jarno" to "/jɑrnoː/")) }
+    }
+
+    @Test
+    fun `passes empty map to scriptGuidelines when no pronunciations`() {
+        val article = Article(
+            id = 1, sourceId = "s1", title = "AI News", body = "Body",
+            url = "https://example.com/ai", contentHash = "hash1", relevanceScore = 8, summary = "Summary."
+        )
+
+        every { sourceRepository.findByPodcastId("p1") } returns listOf(source)
+        every { modelResolver.resolve(podcast, PipelineStage.FILTER) } returns filterModelDef
+        every { modelResolver.resolve(podcast, PipelineStage.COMPOSE) } returns composeModelDef
+        every { postRepository.findUnlinkedBySourceIds(listOf("s1"), any()) } returns emptyList()
+        every { articleRepository.findUnscoredBySourceIds(listOf("s1")) } returns emptyList()
+        every { articleRepository.findRelevantUnprocessedBySourceIds(listOf("s1"), 5) } returns listOf(article)
+        every { briefingComposer.compose(any(), any(), any(), any(), any()) } returns CompositionResult("Script", TokenUsage(500, 200))
+
+        pipeline.run(podcast)
+
+        verify { ttsProviderMock.scriptGuidelines(PodcastStyle.NEWS_BRIEFING, emptyMap()) }
     }
 
     @Test
