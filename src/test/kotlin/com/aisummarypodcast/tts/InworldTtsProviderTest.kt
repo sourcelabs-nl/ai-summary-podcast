@@ -446,9 +446,11 @@ class InworldTtsProviderTest {
         val pronunciations = mapOf("Anthropic" to "/ænˈθɹɒpɪk/", "Jarno" to "/jɑrnoː/")
         val guidelines = provider.scriptGuidelines(PodcastStyle.CASUAL, pronunciations)
         assertTrue(guidelines.contains("Pronunciation Guide"))
-        assertTrue(guidelines.contains("- Anthropic: /ænˈθɹɒpɪk/"))
-        assertTrue(guidelines.contains("- Jarno: /jɑrnoː/"))
-        assertTrue(guidelines.contains("first occurrence"))
+        assertTrue(guidelines.contains("- Anthropic → /ænˈθɹɒpɪk/"))
+        assertTrue(guidelines.contains("- Jarno → /jɑrnoː/"))
+        assertTrue(guidelines.contains("FIRST occurrence"))
+        assertTrue(guidelines.contains("REPLACE the word"))
+        assertTrue(guidelines.contains("ONLY use IPA notation for the terms listed"))
     }
 
     @Test
@@ -469,6 +471,6 @@ class InworldTtsProviderTest {
         val guidelines = provider.scriptGuidelines(PodcastStyle.CASUAL, pronunciations)
         assertTrue(guidelines.contains("[sigh]"), "Missing core guidelines")
         assertTrue(guidelines.contains("filler words"), "Missing casual style addition")
-        assertTrue(guidelines.contains("- LLaMA: /ˈlɑːmə/"), "Missing pronunciation entry")
+        assertTrue(guidelines.contains("- LLaMA → /ˈlɑːmə/"), "Missing pronunciation entry")
     }
 }

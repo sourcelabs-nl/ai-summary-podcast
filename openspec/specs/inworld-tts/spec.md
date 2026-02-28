@@ -114,7 +114,7 @@ The guidelines SHALL additionally include:
 
 For `CASUAL` and `DIALOGUE` styles, guidelines SHALL additionally encourage natural filler words (`uh`, `um`, `well`, `you know`). For `EXECUTIVE_SUMMARY` and `NEWS_BRIEFING` styles, guidelines SHALL instruct to avoid filler words and minimize non-verbal tags.
 
-When `pronunciations` is non-empty, the guidelines SHALL append a "Pronunciation Guide" section listing each term and its IPA phoneme, with an instruction to use the IPA notation on the first occurrence of each term in the script. When `pronunciations` is empty, no pronunciation section SHALL be appended.
+When `pronunciations` is non-empty, the guidelines SHALL append a "Pronunciation Guide" section listing each term and its IPA phoneme. The guidelines SHALL instruct the LLM to REPLACE the word with its IPA phoneme notation on the first occurrence only (not write both the word and the phoneme), and to ONLY use IPA for the listed terms (never invent IPA for unlisted words). On subsequent occurrences, the word SHALL be written normally. When `pronunciations` is empty, no pronunciation section SHALL be appended.
 
 #### Scenario: Casual style guidelines include filler words
 - **WHEN** `scriptGuidelines(PodcastStyle.CASUAL, emptyMap())` is called
@@ -134,7 +134,7 @@ When `pronunciations` is non-empty, the guidelines SHALL append a "Pronunciation
 
 #### Scenario: Guidelines include pronunciation dictionary
 - **WHEN** `scriptGuidelines(PodcastStyle.CASUAL, mapOf("Anthropic" to "/ænˈθɹɒpɪk/", "Jarno" to "/jɑrnoː/"))` is called
-- **THEN** the returned text includes a "Pronunciation Guide" section with both entries and instructs the LLM to use IPA notation on first occurrence
+- **THEN** the returned text includes a "Pronunciation Guide" section with both entries and instructs the LLM to REPLACE the word with its IPA phoneme on first occurrence only, and to ONLY use IPA for listed terms
 
 #### Scenario: Guidelines omit pronunciation section when empty
 - **WHEN** `scriptGuidelines(PodcastStyle.CASUAL, emptyMap())` is called

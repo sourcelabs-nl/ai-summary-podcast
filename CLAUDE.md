@@ -48,7 +48,7 @@ Required environment variables: `OPENROUTER_API_KEY`, `OPENAI_API_KEY`, `APP_ENC
 
 ## Testing
 
-Use **MockK** (not Mockito) for all Kotlin tests. For Spring integration tests, use `@MockkBean` from the `springmockk` library (`com.ninja-squad:springmockk`) to inject mocks into the Spring context.
+Use **MockK** (not Mockito) for all Kotlin tests. For Spring integration tests, use `@MockkBean` from the `springmockk` library (`com.ninja-squad:springmockk`) to inject mocks into the Spring context. Whenever a code change breaks existing tests, those tests must be fixed as part of the same change — never leave broken tests behind.
 
 ## Source Configuration
 
@@ -58,9 +58,17 @@ Sources are defined in YAML/JSON with fields: `id`, `type` (rss/website/twitter/
 
 Controllers validate input, delegate to services, and map responses — no business logic. Never duplicate logic that already exists in a service. For the full set of architectural review rules (controller hygiene, service layer, Spring Data JDBC, database consistency, testing, Jackson 3.x), see the `code-review` skill or run `/code-review`.
 
+## Application Restart After Changes
+
+Whenever code changes are made to the application, always restart it (`./stop.sh` then `./start.sh`) before testing or using the new feature. Never attempt to exercise a new or modified feature against a running instance that was built from old code.
+
 ## External API Integration
 
 When adding or modifying calls to external APIs (Inworld, ElevenLabs, OpenAI, etc.), always verify the request payload against the actual API documentation before implementing. Proto/gRPC-based APIs often use string enums (e.g., `"ON"` / `"OFF"`) rather than booleans — do not assume field types. After implementing an external API change, test it against the live API before considering the task complete.
+
+## Production Database
+
+The application database is at `./data/ai-summary-podcast.db`. Never query the database directly for information that is available via the application's REST API. Always use the API endpoints for production operations (generating episodes, publishing, approving, etc.). Only use direct database queries as a last resort, and always ask the user for permission before modifying the database directly.
 
 ## OpenSpec Workflow
 

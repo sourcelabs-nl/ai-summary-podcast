@@ -55,9 +55,11 @@ class InworldTtsProvider(
         if (pronunciations.isEmpty()) return base
         val pronunciationGuide = buildString {
             appendLine()
-            appendLine("Pronunciation Guide (use IPA notation on first occurrence of each term):")
+            appendLine("Pronunciation Guide:")
+            appendLine("On the FIRST occurrence of each term below, REPLACE the word with its IPA phoneme notation (e.g. write /jɑrnoː/ instead of Jarno). Do NOT write both the word and the phoneme — only the phoneme. On subsequent occurrences, write the word normally without any phoneme.")
+            appendLine("ONLY use IPA notation for the terms listed below. Do NOT invent IPA for any other words.")
             for ((term, ipa) in pronunciations) {
-                appendLine("- $term: $ipa")
+                appendLine("- $term → $ipa")
             }
         }.trimEnd()
         return "$base\n$pronunciationGuide"
