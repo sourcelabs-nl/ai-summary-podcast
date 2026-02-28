@@ -64,7 +64,9 @@ Stage 1 SHALL use the model resolved for the `filter` stage. Stage 2 SHALL use t
 - **THEN** the composer receives null for the recap parameter
 
 ### Requirement: Score, summarize, and filter stage
-The system SHALL process each article through a single LLM call that performs scoring, summarization, and content filtering simultaneously. The LLM prompt SHALL include the podcast's topic, the full article content, and instructions to: (1) assign a relevance score of 0-10, (2) summarize the relevant content, (3) identify which posts are relevant and which are not. The prompt SHALL request a JSON response with the structure: `{ "relevanceScore": <int>, "summary": "<text>", "includedPostIds": [<ids>], "excludedPostIds": [<ids>] }`. The prompt SHALL instruct the LLM to preserve attribution in the summary. The system SHALL persist the `relevanceScore` and `summary` on the article immediately after the call. Token usage SHALL be extracted and persisted on the article.
+The system SHALL process each article through a single LLM call that performs scoring, summarization, and content filtering simultaneously. Articles SHALL be processed concurrently using coroutines with `supervisorScope` for fault isolation — a failure in one article's LLM call SHALL NOT cancel or affect processing of other articles. Failed articles SHALL be excluded from the result list and logged as errors.
+
+The LLM prompt SHALL include the podcast's topic, the full article content, and instructions to: (1) assign a relevance score of 0-10, (2) summarize the relevant content, (3) identify which posts are relevant and which are not. The prompt SHALL request a JSON response with the structure: `{ "relevanceScore": <int>, "summary": "<text>", "includedPostIds": [<ids>], "excludedPostIds": [<ids>] }`. The prompt SHALL instruct the LLM to preserve attribution in the summary. The system SHALL persist the `relevanceScore` and `summary` on the article immediately after the call. Token usage SHALL be extracted and persisted on the article.
 
 The prompt SHALL scale the requested summary length based on the word count of the article body:
 - Articles with fewer than 500 words: 2-3 sentences.
@@ -78,6 +80,18 @@ The prompt SHALL use content-type-aware framing:
 The prompt SHALL include the author name (from `article.author`) as context when available, regardless of content type.
 
 The prompt SHALL instruct the LLM to write summaries as direct factual statements about what happened, not meta-descriptions of the content. The prompt SHALL include an explicit negative example: say "Anthropic launched X" not "The article discusses Anthropic launching X".
+
+#### Scenario: Articles processed concurrently
+- **WHEN** 5 articles are submitted for scoring and summarization
+- **THEN** all 5 LLM calls SHALL be dispatched concurrently rather than sequentially
+
+#### Scenario: One article failure does not cancel others
+- **WHEN** 3 articles are submitted and the 2nd article's LLM call throws an exception
+- **THEN** the 1st and 3rd articles SHALL still be processed and returned successfully, and the 2nd article SHALL be excluded from the result
+
+#### Scenario: All articles fail gracefully
+- **WHEN** 3 articles are submitted and all LLM calls throw exceptions
+- **THEN** an empty list SHALL be returned and all errors SHALL be logged
 
 #### Scenario: Short article summarized in 2-3 sentences
 - **WHEN** an article with a body of 300 words is scored and summarized
