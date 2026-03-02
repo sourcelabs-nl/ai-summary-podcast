@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import cronstrue from "cronstrue";
+import { Settings } from "lucide-react";
 import { useUser } from "@/lib/user-context";
 import type { Podcast, Episode, EpisodePublication } from "@/lib/types";
 import { Button } from "@/components/ui/button";
@@ -172,7 +173,10 @@ export default function EpisodesPage() {
           )}
         </div>
         <Link href={`/podcasts/${params.podcastId}/settings`}>
-          <Button variant="outline" size="sm">Settings</Button>
+          <Button variant="outline" size="xs">
+            <Settings className="size-3" />
+            Settings
+          </Button>
         </Link>
       </div>
 
