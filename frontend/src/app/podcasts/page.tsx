@@ -4,11 +4,15 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useUser } from "@/lib/user-context";
 import type { Podcast } from "@/lib/types";
+import { useRouter } from "next/navigation";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Settings } from "lucide-react";
 
 export default function PodcastsPage() {
   const { selectedUser, loading: userLoading } = useUser();
+  const router = useRouter();
   const [podcasts, setPodcasts] = useState<Podcast[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -47,6 +51,18 @@ export default function PodcastsPage() {
                 <CardDescription className="ml-auto text-sm">
                   {podcast.topic}
                 </CardDescription>
+                <Button
+                  variant="outline"
+                  size="xs"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    router.push(`/podcasts/${podcast.id}/settings`);
+                  }}
+                >
+                  <Settings className="size-3" />
+                  Settings
+                </Button>
               </CardHeader>
             </Card>
           </Link>

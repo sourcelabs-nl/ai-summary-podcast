@@ -152,8 +152,9 @@ cd frontend && npm run dev
 ```
 
 The dashboard provides:
-- **Podcast overview** — browse all podcasts with style badges and topics
-- **Episode management** — view episodes with status filtering, approve/discard pending reviews, view scripts in a chat-bubble dialog
+- **Podcast overview** — browse all podcasts with style badges, topics, and quick-access settings gear icon
+- **Podcast settings** — edit all podcast configuration (general, LLM, TTS, content) via a tabbed settings page with key-value editors for JSON map fields
+- **Episode management** — view episodes with status filtering, approve/discard pending reviews, view scripts in a chat-bubble dialog. Shows the generation schedule in human-readable form
 - **Publish wizard** — publish generated episodes to SoundCloud via a step-by-step wizard
 - **Publications tab** — view all publications with track/playlist links, republish with confirmation
 

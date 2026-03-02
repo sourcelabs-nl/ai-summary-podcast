@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import cronstrue from "cronstrue";
 import { useUser } from "@/lib/user-context";
 import type { Podcast, Episode, EpisodePublication } from "@/lib/types";
 import { Button } from "@/components/ui/button";
@@ -133,6 +134,15 @@ export default function EpisodesPage() {
     setRefreshKey((k) => k + 1);
   }
 
+  const cronDescription = useMemo(() => {
+    if (!podcast?.cron) return null;
+    try {
+      return cronstrue.toString(podcast.cron);
+    } catch {
+      return podcast.cron;
+    }
+  }, [podcast?.cron]);
+
   if (userLoading || loading) {
     return <p className="text-muted-foreground">Loading...</p>;
   }
@@ -150,10 +160,20 @@ export default function EpisodesPage() {
       </div>
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold">{podcast.name}</h2>
+          <div className="flex items-center gap-3">
+            <h2 className="text-2xl font-bold">{podcast.name}</h2>
+            <Badge>{podcast.style}</Badge>
+          </div>
           <p className="text-muted-foreground">{podcast.topic}</p>
+          {podcast.cron && cronDescription && (
+            <p className="text-muted-foreground">
+              Generates {cronDescription.toLowerCase()}
+            </p>
+          )}
         </div>
-        <Badge>{podcast.style}</Badge>
+        <Link href={`/podcasts/${params.podcastId}/settings`}>
+          <Button variant="outline" size="sm">Settings</Button>
+        </Link>
       </div>
 
       <Tabs defaultValue="episodes">
