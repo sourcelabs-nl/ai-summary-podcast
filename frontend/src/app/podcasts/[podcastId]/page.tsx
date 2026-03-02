@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useUser } from "@/lib/user-context";
-import type { Podcast, Episode } from "@/lib/types";
+import type { Podcast, Episode, EpisodePublication } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -22,7 +22,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScriptViewer } from "@/components/script-viewer";
+import { PublishWizard } from "@/components/publish-wizard";
+import { PublicationsTab } from "@/components/publications-tab";
 
 const STATUSES = [
   "GENERATED",
@@ -37,7 +40,7 @@ const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "
   PENDING_REVIEW: "default",
   APPROVED: "default",
   FAILED: "default",
-  DISCARDED: "default",
+  DISCARDED: "secondary",
 };
 
 export default function EpisodesPage() {
@@ -48,6 +51,36 @@ export default function EpisodesPage() {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [scriptEpisode, setScriptEpisode] = useState<Episode | null>(null);
+  const [publishEpisode, setPublishEpisode] = useState<Episode | null>(null);
+  const [publishedEpisodeIds, setPublishedEpisodeIds] = useState<Set<number>>(new Set());
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const fetchPublications = useCallback(
+    (episodeList: Episode[]) => {
+      if (!selectedUser || episodeList.length === 0) {
+        setPublishedEpisodeIds(new Set());
+        return;
+      }
+      Promise.all(
+        episodeList.map((ep) =>
+          fetch(
+            `/api/users/${selectedUser.id}/podcasts/${params.podcastId}/episodes/${ep.id}/publications`
+          )
+            .then((res) => (res.ok ? res.json() : []))
+            .catch(() => [] as EpisodePublication[])
+        )
+      ).then((results) => {
+        const published = new Set<number>();
+        results.forEach((pubs: EpisodePublication[], i) => {
+          if (pubs.some((p) => p.status === "PUBLISHED")) {
+            published.add(episodeList[i].id);
+          }
+        });
+        setPublishedEpisodeIds(published);
+      });
+    },
+    [selectedUser, params.podcastId]
+  );
 
   const fetchEpisodes = useCallback(() => {
     if (!selectedUser) return;
@@ -57,9 +90,12 @@ export default function EpisodesPage() {
         : `/api/users/${selectedUser.id}/podcasts/${params.podcastId}/episodes?status=${statusFilter}`;
     fetch(url)
       .then((res) => res.json())
-      .then((data) => setEpisodes(data))
+      .then((data) => {
+        setEpisodes(data);
+        fetchPublications(data);
+      })
       .catch(() => setEpisodes([]));
-  }, [selectedUser, params.podcastId, statusFilter]);
+  }, [selectedUser, params.podcastId, statusFilter, fetchPublications]);
 
   useEffect(() => {
     if (!selectedUser) return;
@@ -77,10 +113,11 @@ export default function EpisodesPage() {
       .then(([podcastData, episodeData]) => {
         setPodcast(podcastData);
         setEpisodes(episodeData);
+        fetchPublications(episodeData);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [selectedUser, params.podcastId, statusFilter]);
+  }, [selectedUser, params.podcastId, statusFilter, fetchPublications]);
 
   async function handleAction(episodeId: number, action: "approve" | "discard") {
     if (!selectedUser) return;
@@ -89,6 +126,11 @@ export default function EpisodesPage() {
       { method: "POST" }
     );
     fetchEpisodes();
+  }
+
+  function handlePublished() {
+    fetchEpisodes();
+    setRefreshKey((k) => k + 1);
   }
 
   if (userLoading || loading) {
@@ -114,79 +156,121 @@ export default function EpisodesPage() {
         <Badge>{podcast.style}</Badge>
       </div>
 
-      <div className="mb-4">
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-48">
-            <SelectValue placeholder="Filter by status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All statuses</SelectItem>
-            {STATUSES.map((status) => (
-              <SelectItem key={status} value={status}>
-                {status.replace("_", " ")}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      <Tabs defaultValue="episodes">
+        <TabsList>
+          <TabsTrigger value="episodes">Episodes</TabsTrigger>
+          <TabsTrigger value="publications">Publications</TabsTrigger>
+        </TabsList>
 
-      {episodes.length === 0 ? (
-        <p className="text-muted-foreground">No episodes found.</p>
-      ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-20">#</TableHead>
-              <TableHead>Date</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {episodes.map((episode) => (
-              <TableRow key={episode.id}>
-                <TableCell className="font-medium">{episode.id}</TableCell>
-                <TableCell>
-                  {new Date(episode.generatedAt).toLocaleDateString()}
-                </TableCell>
-                <TableCell>
-                  <Badge variant={STATUS_VARIANT[episode.status] ?? "secondary"}>
-                    {episode.status.replace("_", " ")}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-right">
-                  <div className="flex items-center justify-end gap-2">
-                    {episode.status === "PENDING_REVIEW" && (
-                      <>
+        <TabsContent value="episodes">
+          <div className="mb-4 mt-4">
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Filter by status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All statuses</SelectItem>
+                {STATUSES.map((status) => (
+                  <SelectItem key={status} value={status}>
+                    {status.replace("_", " ")}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {episodes.length === 0 ? (
+            <p className="text-muted-foreground">No episodes found.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-12">#</TableHead>
+                  <TableHead className="w-24">Date</TableHead>
+                  <TableHead className="w-12">Day</TableHead>
+                  <TableHead className="w-32">Status</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {episodes.map((episode) => (
+                  <TableRow key={episode.id}>
+                    <TableCell className="font-medium">{episode.id}</TableCell>
+                    <TableCell>
+                      {new Date(episode.generatedAt).toLocaleDateString()}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {new Date(episode.generatedAt).toLocaleDateString(undefined, { weekday: "short" })}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1.5">
+                        <Badge variant={STATUS_VARIANT[episode.status] ?? "secondary"} className="text-[11px] px-1.5 py-px">
+                          {episode.status.replace("_", " ")}
+                        </Badge>
+                        {publishedEpisodeIds.has(episode.id) && (
+                          <Badge variant="outline" className="text-[11px] px-1.5 py-px">
+                            Published
+                          </Badge>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        {episode.status === "PENDING_REVIEW" && (
+                          <>
+                            <Button
+                              size="sm"
+                              onClick={() => handleAction(episode.id, "approve")}
+                            >
+                              Approve
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => handleAction(episode.id, "discard")}
+                            >
+                              Discard
+                            </Button>
+                          </>
+                        )}
+                        {episode.status === "GENERATED" && !publishedEpisodeIds.has(episode.id) && (
+                          <Button
+                            size="sm"
+                            className="w-20"
+                            onClick={() => setPublishEpisode(episode)}
+                          >
+                            Publish
+                          </Button>
+                        )}
                         <Button
                           size="sm"
-                          onClick={() => handleAction(episode.id, "approve")}
+                          className="w-20"
+                          variant="outline"
+                          onClick={() => setScriptEpisode(episode)}
                         >
-                          Approve
+                          Script
                         </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => handleAction(episode.id, "discard")}
-                        >
-                          Discard
-                        </Button>
-                      </>
-                    )}
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setScriptEpisode(episode)}
-                    >
-                      View Script
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </TabsContent>
+
+        <TabsContent value="publications">
+          <div className="mt-4">
+            <PublicationsTab
+              userId={selectedUser.id}
+              podcastId={params.podcastId}
+              episodes={episodes}
+              refreshKey={refreshKey}
+              onRepublished={handlePublished}
+            />
+          </div>
+        </TabsContent>
+      </Tabs>
 
       {scriptEpisode && (
         <ScriptViewer
@@ -197,6 +281,20 @@ export default function EpisodesPage() {
           scriptText={scriptEpisode.scriptText}
           style={podcast.style}
           speakerNames={podcast.speakerNames}
+        />
+      )}
+
+      {publishEpisode && (
+        <PublishWizard
+          open={!!publishEpisode}
+          onOpenChange={(open) => {
+            if (!open) setPublishEpisode(null);
+          }}
+          episode={publishEpisode}
+          podcastName={podcast.name}
+          userId={selectedUser.id}
+          podcastId={params.podcastId}
+          onPublished={handlePublished}
         />
       )}
     </div>

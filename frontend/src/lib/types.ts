@@ -20,4 +20,17 @@ export interface Episode {
   status: string;
   audioFilePath?: string;
   durationSeconds?: number;
+  recap?: string;
+}
+
+export interface EpisodePublication {
+  id: number;
+  episodeId: number;
+  target: string;
+  status: string;
+  externalId: string | null;
+  externalUrl: string | null;
+  errorMessage: string | null;
+  publishedAt: string | null;
+  createdAt: string;
 }

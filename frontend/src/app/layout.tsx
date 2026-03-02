@@ -4,8 +4,8 @@ import { Header } from "@/components/header";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "AI Summary Podcast",
-  description: "Dashboard for AI Summary Podcast",
+  title: "AI Podcast Studio",
+  description: "Dashboard for AI Podcast Studio",
 };
 
 export default function RootLayout({

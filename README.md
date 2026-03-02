@@ -143,6 +143,22 @@ source .env && ./mvnw spring-boot:run
 
 The app starts on `http://localhost:8085`. Data is stored in `./data/` (SQLite DB + episode audio files).
 
+### Web Dashboard
+
+A Next.js dashboard is available in `frontend/` for visual management of podcasts, episodes, and publications.
+
+```bash
+cd frontend && npm run dev
+```
+
+The dashboard provides:
+- **Podcast overview** — browse all podcasts with style badges and topics
+- **Episode management** — view episodes with status filtering, approve/discard pending reviews, view scripts in a chat-bubble dialog
+- **Publish wizard** — publish generated episodes to SoundCloud via a step-by-step wizard
+- **Publications tab** — view all publications with track/playlist links, republish with confirmation
+
+The frontend proxies API calls to `http://localhost:8085` via Next.js rewrites.
+
 ## Customizing Your Podcast
 
 Each podcast can be tailored to your preferences via the following settings:

@@ -20,14 +20,8 @@ interface SpeakerBlock {
   text: string;
 }
 
-const SPEAKER_STYLES: Record<string, { bg: string; name: string }> = {
-  host: { bg: "bg-primary/10 border-primary/30", name: "text-primary" },
-  cohost: { bg: "bg-emerald-500/10 border-emerald-500/30", name: "text-emerald-600" },
-  interviewer: { bg: "bg-primary/10 border-primary/30", name: "text-primary" },
-  expert: { bg: "bg-emerald-500/10 border-emerald-500/30", name: "text-emerald-600" },
-};
-
-const DEFAULT_SPEAKER_STYLE = { bg: "bg-violet-500/10 border-violet-500/30", name: "text-violet-600" };
+const FIRST_SPEAKER_STYLE = { bg: "bg-muted border-border text-foreground", name: "text-muted-foreground" };
+const SECOND_SPEAKER_STYLE = { bg: "bg-primary border-primary text-primary-foreground", name: "text-primary" };
 
 function parseMultiSpeakerScript(scriptText: string): SpeakerBlock[] | null {
   const tagPattern = /<(\w+)>([\s\S]*?)<\/\1>/g;
@@ -51,7 +45,7 @@ function MonologueScript({ scriptText }: { scriptText: string }) {
       {paragraphs.map((paragraph, i) => (
         <div
           key={i}
-          className="rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3"
+          className="rounded-2xl border border-border bg-muted px-4 py-3"
         >
           <p className="leading-relaxed">{paragraph}</p>
         </div>
@@ -75,8 +69,8 @@ function MultiSpeakerScript({
       {blocks.map((block, i) => {
         const displayName =
           speakerNames?.[block.speaker] ?? block.speaker.toUpperCase();
-        const styles = SPEAKER_STYLES[block.speaker] ?? DEFAULT_SPEAKER_STYLE;
         const alignRight = block.speaker !== isFirst;
+        const styles = alignRight ? SECOND_SPEAKER_STYLE : FIRST_SPEAKER_STYLE;
 
         return (
           <div
@@ -118,7 +112,7 @@ export function ScriptViewer({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[80vh] w-[90vw] !max-w-7xl overflow-y-auto">
+      <DialogContent className="max-h-[80vh] w-[95vw] !max-w-[1600px] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Episode Script</DialogTitle>
         </DialogHeader>

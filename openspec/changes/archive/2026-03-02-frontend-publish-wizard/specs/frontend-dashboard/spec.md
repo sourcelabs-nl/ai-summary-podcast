@@ -1,34 +1,4 @@
-## Purpose
-
-Defines the requirements for the Next.js web frontend dashboard that provides visual management of podcasts, episodes, and the episode approval workflow.
-
-## Requirements
-
-### Requirement: User picker
-The system SHALL display a user picker dropdown in the header that fetches all users from `GET /users` and allows selecting one. The selected user context SHALL be used for all subsequent API calls. The dropdown popover SHALL align to the end (right) of the trigger.
-
-#### Scenario: User selection persists across navigation
-- **WHEN** user selects a user from the picker and navigates between pages
-- **THEN** the selected user remains active and all API calls use that user's ID
-
-#### Scenario: No users available
-- **WHEN** the user picker fetches from `GET /users` and receives an empty list
-- **THEN** the picker SHALL display a message indicating no users are available
-
-### Requirement: Podcast overview page
-The system SHALL display a vertical list of all podcasts for the selected user at the `/podcasts` route, fetched from `GET /users/{userId}/podcasts`. Each podcast row SHALL show the podcast name, an orange style badge (default variant), and topic aligned to the right.
-
-#### Scenario: Display podcasts
-- **WHEN** a user is selected and the podcasts page loads
-- **THEN** all podcasts for that user are displayed in a single-column list with name, orange style badge, and topic
-
-#### Scenario: Navigate to episode list
-- **WHEN** user clicks on a podcast row
-- **THEN** the app navigates to `/podcasts/{podcastId}` showing that podcast's episodes
-
-#### Scenario: No podcasts
-- **WHEN** the selected user has no podcasts
-- **THEN** an empty state message is displayed
+## MODIFIED Requirements
 
 ### Requirement: Episode list page
 The system SHALL display a list of episodes for a podcast at `/podcasts/{podcastId}` within a tabbed layout, fetched from `GET /users/{userId}/podcasts/{podcastId}/episodes`. Each episode row SHALL show the episode ID, generated date, day of week (short format), status badge, and action buttons. The episodes list SHALL be displayed under the "Episodes" tab, which is the default active tab. A "Publications" tab SHALL be displayed alongside it. The "Script" button label SHALL be used (not "View Script") and SHALL have equal fixed width as the "Publish" button. The Date column SHALL have a fixed width. All badge text SHALL be consistently lowercased.
@@ -65,27 +35,12 @@ The system SHALL display a list of episodes for a podcast at `/podcasts/{podcast
 - **WHEN** an episode has status `GENERATED` and has not been published
 - **THEN** a "Publish" button is displayed alongside the "Script" button
 
-### Requirement: Approve episode
-The system SHALL display an "Approve" button on episodes with status `PENDING_REVIEW`. Clicking the button SHALL call `POST /users/{userId}/podcasts/{podcastId}/episodes/{episodeId}/approve`.
+### Requirement: Badge text casing
+All badges across the frontend SHALL render text in consistent lowercase using the `lowercase` CSS class applied to the badge base styles.
 
-#### Scenario: Successful approval
-- **WHEN** user clicks "Approve" on a PENDING_REVIEW episode
-- **THEN** the API is called, the episode status updates to APPROVED, and the button is removed
-
-#### Scenario: Approve button visibility
-- **WHEN** an episode has a status other than PENDING_REVIEW
-- **THEN** the "Approve" button SHALL NOT be displayed
-
-### Requirement: Discard episode
-The system SHALL display a "Discard" button on episodes with status `PENDING_REVIEW`. Clicking the button SHALL call `POST /users/{userId}/podcasts/{podcastId}/episodes/{episodeId}/discard`.
-
-#### Scenario: Successful discard
-- **WHEN** user clicks "Discard" on a PENDING_REVIEW episode
-- **THEN** the API is called and the episode status updates to DISCARDED
-
-#### Scenario: Discard button visibility
-- **WHEN** an episode has a status other than PENDING_REVIEW
-- **THEN** the "Discard" button SHALL NOT be displayed
+#### Scenario: Badge text is lowercased
+- **WHEN** any badge is rendered (status badges, style badges, published badges)
+- **THEN** the text is displayed in lowercase
 
 ### Requirement: Script viewer dialog
 The system SHALL provide a "Script" button on each episode row that opens a wide shadcn Dialog (95vw, max 1600px) displaying the episode's `scriptText` in a chat-bubble style.
@@ -101,13 +56,6 @@ The system SHALL provide a "Script" button on each episode row that opens a wide
 #### Scenario: Fallback on parse failure
 - **WHEN** a multi-speaker script fails to parse (malformed XML tags)
 - **THEN** the script SHALL fall back to monologue bubble rendering
-
-### Requirement: Badge text casing
-All badges across the frontend SHALL render text in consistent lowercase using the `lowercase` CSS class applied to the badge base styles.
-
-#### Scenario: Badge text is lowercased
-- **WHEN** any badge is rendered (status badges, style badges, published badges)
-- **THEN** the text is displayed in lowercase
 
 ### Requirement: Application title
 The frontend SHALL display "AI Podcast Studio" as the application name in the header and page metadata (title and description).
@@ -126,10 +74,3 @@ The `Episode` TypeScript interface SHALL include an optional `recap` field (stri
 #### Scenario: Recap available in type
 - **WHEN** the frontend fetches episode data
 - **THEN** the `recap` field is available on the Episode type for use in the publish wizard confirmation step
-
-### Requirement: Orange theme
-The frontend SHALL use the shadcn/ui orange color theme with oklch color variables following the official shadcn theming documentation. All badges, buttons (default variant), and focus rings SHALL use the primary orange color for consistent branding.
-
-#### Scenario: Consistent orange branding
-- **WHEN** any component uses the `default` variant (Badge, Button)
-- **THEN** it renders with the primary orange color (`oklch(0.705 0.187 47.604)` in light mode)

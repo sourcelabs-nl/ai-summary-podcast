@@ -13,14 +13,14 @@ export function Header() {
   const { users, selectedUser, setSelectedUser, loading } = useUser();
 
   return (
-    <header className="bg-background">
+    <header className="bg-primary text-primary-foreground">
       <div className="container mx-auto flex h-14 items-center justify-between px-4">
-        <h1 className="text-lg font-semibold">AI Summary Podcast</h1>
+        <h1 className="text-lg font-semibold">AI Podcast Studio</h1>
         <div className="ml-auto w-48">
           {loading ? (
-            <span className="text-sm text-muted-foreground">Loading...</span>
+            <span className="text-sm opacity-80">Loading...</span>
           ) : users.length === 0 ? (
-            <span className="text-sm text-muted-foreground">No users available</span>
+            <span className="text-sm opacity-80">No users available</span>
           ) : (
             <Select
               value={selectedUser?.id ?? ""}
