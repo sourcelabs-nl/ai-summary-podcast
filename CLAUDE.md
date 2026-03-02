@@ -70,6 +70,17 @@ When adding or modifying calls to external APIs (Inworld, ElevenLabs, OpenAI, et
 
 The application database is at `./data/ai-summary-podcast.db`. Never query the database directly for information that is available via the application's REST API. Always use the API endpoints for production operations (generating episodes, publishing, approving, etc.). Only use direct database queries as a last resort, and always ask the user for permission before modifying the database directly.
 
+## Frontend (Next.js Dashboard)
+
+The frontend lives in `frontend/` and uses Next.js (App Router), shadcn/ui, and Tailwind CSS v4.
+
+- **Theme:** Orange primary color using oklch variables following official shadcn theming docs. All CSS variables go in `globals.css` under `:root` / `.dark` using oklch format, mapped via `@theme inline`.
+- **Consistency:** All badges and primary action buttons use the `default` variant (orange). Do not mix `secondary`/`outline` badge variants for visual differentiation — use `default` everywhere for consistent branding.
+- **Script rendering:** Episode scripts render in chat-bubble style. Monologue styles use paragraph bubbles; dialogue/interview styles use alternating left/right chat bubbles with speaker labels.
+- **Dialog width:** Script viewer dialog uses near-full viewport width (`w-[90vw] !max-w-7xl`). The `!important` is needed to override shadcn's default `sm:max-w-lg`.
+- **API proxy:** `next.config.ts` rewrites `/api/**` to `http://localhost:8085/**`. Update the port if the backend port changes.
+- **Running:** `cd frontend && npm run dev` (use `/Users/soudmaijer/.nvm/versions/node/v22.16.0/bin/npm` to avoid the stale npm v2 at `~/node_modules/.bin/npm`).
+
 ## OpenSpec Workflow
 
 When archiving an OpenSpec change (`/opsx:archive`), always update `README.md` to reflect any new or changed capabilities introduced by the change. Follow the README Structure rules in the `readme-structure` skill when making updates. After completing the archive, always ask the user to commit the changes with `/conventional-commits:cc`.

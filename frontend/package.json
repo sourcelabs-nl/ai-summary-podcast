@@ -1,0 +1,31 @@
+{
+  "name": "ai-summary-podcast-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --turbopack",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.576.0",
+    "next": "^15.3.3",
+    "radix-ui": "^1.4.3",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "tailwind-merge": "^3.5.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.8",
+    "@types/node": "^22.15.29",
+    "@types/react": "^19.1.6",
+    "@types/react-dom": "^19.1.5",
+    "shadcn": "^3.8.5",
+    "tailwindcss": "^4.1.8",
+    "tw-animate-css": "^1.4.0",
+    "typescript": "^5.8.3"
+  }
+}
