@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import cronstrue from "cronstrue";
-import { Settings } from "lucide-react";
+import { Check, Settings, Upload, X } from "lucide-react";
 import { useUser } from "@/lib/user-context";
 import type { Podcast, Episode, EpisodePublication } from "@/lib/types";
 import { Button } from "@/components/ui/button";
@@ -25,7 +25,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ScriptViewer } from "@/components/script-viewer";
 import { PublishWizard } from "@/components/publish-wizard";
 import { PublicationsTab } from "@/components/publications-tab";
 
@@ -52,8 +51,8 @@ export default function EpisodesPage() {
   const [episodes, setEpisodes] = useState<Episode[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [scriptEpisode, setScriptEpisode] = useState<Episode | null>(null);
   const [publishEpisode, setPublishEpisode] = useState<Episode | null>(null);
+  const router = useRouter();
   const [publishedEpisodeIds, setPublishedEpisodeIds] = useState<Set<number>>(new Set());
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -173,8 +172,8 @@ export default function EpisodesPage() {
           )}
         </div>
         <Link href={`/podcasts/${params.podcastId}/settings`}>
-          <Button variant="outline" size="xs">
-            <Settings className="size-3" />
+          <Button variant="outline" size="sm">
+            <Settings className="size-4" />
             Settings
           </Button>
         </Link>
@@ -218,7 +217,11 @@ export default function EpisodesPage() {
               </TableHeader>
               <TableBody>
                 {episodes.map((episode) => (
-                  <TableRow key={episode.id}>
+                  <TableRow
+                    key={episode.id}
+                    className="cursor-pointer"
+                    onClick={() => router.push(`/podcasts/${params.podcastId}/episodes/${episode.id}`)}
+                  >
                     <TableCell className="font-medium">{episode.id}</TableCell>
                     <TableCell>
                       {new Date(episode.generatedAt).toLocaleDateString()}
@@ -238,14 +241,15 @@ export default function EpisodesPage() {
                         )}
                       </div>
                     </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-2">
+                    <TableCell className="text-right h-12">
+                      <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
                         {episode.status === "PENDING_REVIEW" && (
                           <>
                             <Button
                               size="sm"
                               onClick={() => handleAction(episode.id, "approve")}
                             >
+                              <Check className="size-4" />
                               Approve
                             </Button>
                             <Button
@@ -253,6 +257,7 @@ export default function EpisodesPage() {
                               variant="destructive"
                               onClick={() => handleAction(episode.id, "discard")}
                             >
+                              <X className="size-4" />
                               Discard
                             </Button>
                           </>
@@ -260,20 +265,12 @@ export default function EpisodesPage() {
                         {episode.status === "GENERATED" && !publishedEpisodeIds.has(episode.id) && (
                           <Button
                             size="sm"
-                            className="w-20"
                             onClick={() => setPublishEpisode(episode)}
                           >
+                            <Upload className="size-4" />
                             Publish
                           </Button>
                         )}
-                        <Button
-                          size="sm"
-                          className="w-20"
-                          variant="outline"
-                          onClick={() => setScriptEpisode(episode)}
-                        >
-                          Script
-                        </Button>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -295,18 +292,6 @@ export default function EpisodesPage() {
           </div>
         </TabsContent>
       </Tabs>
-
-      {scriptEpisode && (
-        <ScriptViewer
-          open={!!scriptEpisode}
-          onOpenChange={(open) => {
-            if (!open) setScriptEpisode(null);
-          }}
-          scriptText={scriptEpisode.scriptText}
-          style={podcast.style}
-          speakerNames={podcast.speakerNames}
-        />
-      )}
 
       {publishEpisode && (
         <PublishWizard

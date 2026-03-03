@@ -7,12 +7,15 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-interface ScriptViewerProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+interface ScriptContentProps {
   scriptText: string;
   style: string;
   speakerNames?: Record<string, string>;
+}
+
+interface ScriptViewerProps extends ScriptContentProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }
 
 interface SpeakerBlock {
@@ -100,6 +103,17 @@ function MultiSpeakerScript({
   );
 }
 
+export function ScriptContent({ scriptText, style, speakerNames }: ScriptContentProps) {
+  const isMultiSpeaker = style === "dialogue" || style === "interview";
+  const blocks = isMultiSpeaker ? parseMultiSpeakerScript(scriptText) : null;
+
+  return blocks ? (
+    <MultiSpeakerScript blocks={blocks} speakerNames={speakerNames} />
+  ) : (
+    <MonologueScript scriptText={scriptText} />
+  );
+}
+
 export function ScriptViewer({
   open,
   onOpenChange,
@@ -107,9 +121,6 @@ export function ScriptViewer({
   style,
   speakerNames,
 }: ScriptViewerProps) {
-  const isMultiSpeaker = style === "dialogue" || style === "interview";
-  const blocks = isMultiSpeaker ? parseMultiSpeakerScript(scriptText) : null;
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[80vh] w-[95vw] !max-w-[1600px] overflow-y-auto">
@@ -117,11 +128,7 @@ export function ScriptViewer({
           <DialogTitle>Episode Script</DialogTitle>
         </DialogHeader>
         <div className="mt-4">
-          {blocks ? (
-            <MultiSpeakerScript blocks={blocks} speakerNames={speakerNames} />
-          ) : (
-            <MonologueScript scriptText={scriptText} />
-          )}
+          <ScriptContent scriptText={scriptText} style={style} speakerNames={speakerNames} />
         </div>
       </DialogContent>
     </Dialog>

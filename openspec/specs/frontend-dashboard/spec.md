@@ -35,15 +35,11 @@ The system SHALL display a vertical list of all podcasts for the selected user a
 - **THEN** an empty state message is displayed
 
 ### Requirement: Episode list page
-The system SHALL display a list of episodes for a podcast at `/podcasts/{podcastId}` within a tabbed layout, fetched from `GET /users/{userId}/podcasts/{podcastId}/episodes`. Each episode row SHALL show the episode ID, generated date, day of week (short format), status badge, and action buttons. The episodes list SHALL be displayed under the "Episodes" tab, which is the default active tab. A "Publications" tab SHALL be displayed alongside it. The "Script" button label SHALL be used (not "View Script") and SHALL have equal fixed width as the "Publish" button. The Date column SHALL have a fixed width. All badge text SHALL be consistently lowercased. The podcast detail header SHALL display the podcast name with the style badge inline next to it, and a "Settings" button right-aligned. The podcast detail header SHALL display the cron schedule in human-readable form below the topic, prefixed with "Generates" (e.g., "Generates at 03:00 PM, Monday through Friday"), at the same text size as the topic description.
+The system SHALL display a list of episodes for a podcast at `/podcasts/{podcastId}` within a tabbed layout, fetched from `GET /users/{userId}/podcasts/{podcastId}/episodes`. Each episode row SHALL be a clickable link that navigates to `/podcasts/{podcastId}/episodes/{episodeId}`. Each episode row SHALL show the episode ID, generated date, day of week (short format), status badge, and action buttons. The episodes list SHALL be displayed under the "Episodes" tab, which is the default active tab. A "Publications" tab SHALL be displayed alongside it. The Date column SHALL have a fixed width. All badge text SHALL be consistently lowercased. The podcast detail header SHALL display the podcast name with the style badge inline next to it, and a "Settings" button right-aligned. The podcast detail header SHALL display the cron schedule in human-readable form below the topic, prefixed with "Generates" (e.g., "Generates at 03:00 PM, Monday through Friday"), at the same text size as the topic description.
 
-#### Scenario: Settings button in podcast header
-- **WHEN** the podcast detail page loads
-- **THEN** the header area displays the podcast name with the style badge inline next to it, and a "Settings" outline button right-aligned that navigates to `/podcasts/{podcastId}/settings`
-
-#### Scenario: Cron schedule display
-- **WHEN** the podcast detail page loads and the podcast has a cron schedule
-- **THEN** the header area displays the cron expression converted to human-readable text below the topic, prefixed with "Generates" (e.g., "Generates at 03:00 PM, Monday through Friday"), at the same text size as the topic description, using the `cronstrue` library
+#### Scenario: Click episode row navigates to detail page
+- **WHEN** user clicks on an episode row
+- **THEN** the app navigates to `/podcasts/{podcastId}/episodes/{episodeId}`
 
 #### Scenario: Display episodes with columns
 - **WHEN** the episode list page loads
@@ -73,9 +69,21 @@ The system SHALL display a list of episodes for a podcast at `/podcasts/{podcast
 - **WHEN** user navigates to `/podcasts/{podcastId}`
 - **THEN** the page displays two tabs: "Episodes" (default active) and "Publications"
 
+#### Scenario: Action buttons on episode rows
+- **WHEN** an episode has status `PENDING_REVIEW`
+- **THEN** "Approve" and "Discard" buttons are displayed in the row (these perform actions without navigating away)
+
 #### Scenario: Publish button on unpublished GENERATED episodes
 - **WHEN** an episode has status `GENERATED` and has not been published
-- **THEN** a "Publish" button is displayed alongside the "Script" button
+- **THEN** a "Publish" button is displayed in the row
+
+#### Scenario: Settings button in podcast header
+- **WHEN** the podcast detail page loads
+- **THEN** the header area displays the podcast name with the style badge inline next to it, and a "Settings" outline button right-aligned that navigates to `/podcasts/{podcastId}/settings`
+
+#### Scenario: Cron schedule display
+- **WHEN** the podcast detail page loads and the podcast has a cron schedule
+- **THEN** the header area displays the cron expression converted to human-readable text below the topic, prefixed with "Generates" (e.g., "Generates at 03:00 PM, Monday through Friday"), at the same text size as the topic description, using the `cronstrue` library
 
 ### Requirement: Approve episode
 The system SHALL display an "Approve" button on episodes with status `PENDING_REVIEW`. Clicking the button SHALL call `POST /users/{userId}/podcasts/{podcastId}/episodes/{episodeId}/approve`.
@@ -98,21 +106,6 @@ The system SHALL display a "Discard" button on episodes with status `PENDING_REV
 #### Scenario: Discard button visibility
 - **WHEN** an episode has a status other than PENDING_REVIEW
 - **THEN** the "Discard" button SHALL NOT be displayed
-
-### Requirement: Script viewer dialog
-The system SHALL provide a "Script" button on each episode row that opens a wide shadcn Dialog (95vw, max 1600px) displaying the episode's `scriptText` in a chat-bubble style.
-
-#### Scenario: View monologue script
-- **WHEN** user opens the script dialog for an episode from a podcast with style `news-briefing`, `casual`, `deep-dive`, or `executive-summary`
-- **THEN** each paragraph is rendered in a rounded card bubble with `bg-muted` background and `border-border`
-
-#### Scenario: View dialogue script
-- **WHEN** user opens the script dialog for an episode from a podcast with style `dialogue` or `interview`
-- **THEN** the script is parsed for XML speaker tags and rendered as alternating chat bubbles — the first speaker's bubbles align left with `bg-muted` (grey), the second speaker's bubbles align right with `bg-primary` and `text-primary-foreground` (solid orange, white text), with speaker name labels above each bubble
-
-#### Scenario: Fallback on parse failure
-- **WHEN** a multi-speaker script fails to parse (malformed XML tags)
-- **THEN** the script SHALL fall back to monologue bubble rendering
 
 ### Requirement: Badge text casing
 All badges across the frontend SHALL render text in consistent lowercase using the `lowercase` CSS class applied to the badge base styles.

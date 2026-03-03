@@ -53,14 +53,14 @@ export default function PodcastsPage() {
                 </CardDescription>
                 <Button
                   variant="outline"
-                  size="xs"
+                  size="sm"
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
                     router.push(`/podcasts/${podcast.id}/settings`);
                   }}
                 >
-                  <Settings className="size-3" />
+                  <Settings className="size-4" />
                   Settings
                 </Button>
               </CardHeader>

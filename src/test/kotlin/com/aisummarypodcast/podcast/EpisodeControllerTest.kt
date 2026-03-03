@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest
 import org.springframework.http.MediaType
+import org.springframework.jdbc.core.simple.JdbcClient
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.*
@@ -40,6 +41,9 @@ class EpisodeControllerTest {
 
     @MockkBean(relaxed = true)
     private lateinit var appProperties: AppProperties
+
+    @MockkBean(relaxed = true)
+    private lateinit var jdbcClient: JdbcClient
 
     private val userId = "user-1"
     private val user = User(id = userId, name = "Test User")
@@ -199,5 +203,26 @@ class EpisodeControllerTest {
 
         mockMvc.perform(post("/users/$userId/podcasts/$podcastId/episodes/2/discard"))
             .andExpect(status().isConflict)
+    }
+
+    @Test
+    fun `articles for non-existing episode returns 404`() {
+        every { userService.findById(userId) } returns user
+        every { podcastService.findById(podcastId) } returns podcast
+        every { episodeRepository.findById(99L) } returns Optional.empty()
+
+        mockMvc.perform(get("/users/$userId/podcasts/$podcastId/episodes/99/articles"))
+            .andExpect(status().isNotFound)
+    }
+
+    @Test
+    fun `articles for episode in wrong podcast returns 404`() {
+        val otherPodcastEpisode = pendingEpisode.copy(podcastId = "other-podcast")
+        every { userService.findById(userId) } returns user
+        every { podcastService.findById(podcastId) } returns podcast
+        every { episodeRepository.findById(1L) } returns Optional.of(otherPodcastEpisode)
+
+        mockMvc.perform(get("/users/$userId/podcasts/$podcastId/episodes/1/articles"))
+            .andExpect(status().isNotFound)
     }
 }

@@ -1,0 +1,205 @@
+"use client";
+
+import { useEffect, useState, useCallback } from "react";
+import { useParams } from "next/navigation";
+import Link from "next/link";
+import { Check, Upload, X } from "lucide-react";
+import { useUser } from "@/lib/user-context";
+import type { Podcast, Episode } from "@/lib/types";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ScriptContent } from "@/components/script-viewer";
+import { ArticlesTab } from "@/components/articles-tab";
+import { PublicationsTab } from "@/components/publications-tab";
+import { PublishWizard } from "@/components/publish-wizard";
+
+const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+  GENERATED: "default",
+  PENDING_REVIEW: "default",
+  APPROVED: "default",
+  FAILED: "default",
+  DISCARDED: "secondary",
+};
+
+export default function EpisodeDetailPage() {
+  const params = useParams<{ podcastId: string; episodeId: string }>();
+  const { selectedUser, loading: userLoading } = useUser();
+  const [podcast, setPodcast] = useState<Podcast | null>(null);
+  const [episode, setEpisode] = useState<Episode | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [articleCount, setArticleCount] = useState<number | null>(null);
+  const [publishOpen, setPublishOpen] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const fetchEpisode = useCallback(() => {
+    if (!selectedUser) return;
+    fetch(`/api/users/${selectedUser.id}/podcasts/${params.podcastId}/episodes/${params.episodeId}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then(setEpisode)
+      .catch(() => setEpisode(null));
+  }, [selectedUser, params.podcastId, params.episodeId]);
+
+  useEffect(() => {
+    if (!selectedUser) return;
+    setLoading(true);
+    Promise.all([
+      fetch(`/api/users/${selectedUser.id}/podcasts/${params.podcastId}`).then((res) => res.json()),
+      fetch(`/api/users/${selectedUser.id}/podcasts/${params.podcastId}/episodes/${params.episodeId}`).then((res) => res.json()),
+    ])
+      .then(([podcastData, episodeData]) => {
+        setPodcast(podcastData);
+        setEpisode(episodeData);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [selectedUser, params.podcastId, params.episodeId]);
+
+  async function handleAction(action: "approve" | "discard") {
+    if (!selectedUser || !episode) return;
+    await fetch(
+      `/api/users/${selectedUser.id}/podcasts/${params.podcastId}/episodes/${episode.id}/${action}`,
+      { method: "POST" }
+    );
+    fetchEpisode();
+  }
+
+  function handlePublished() {
+    fetchEpisode();
+    setRefreshKey((k) => k + 1);
+  }
+
+  const handleArticleCountLoaded = useCallback((count: number) => {
+    setArticleCount(count);
+  }, []);
+
+  if (userLoading || loading) {
+    return <p className="text-muted-foreground">Loading...</p>;
+  }
+
+  if (!selectedUser || !podcast || !episode) {
+    return <p className="text-muted-foreground">Episode not found.</p>;
+  }
+
+  const generatedDate = new Date(episode.generatedAt);
+
+  return (
+    <div>
+      <div className="mb-4">
+        <Link
+          href={`/podcasts/${params.podcastId}`}
+          className="text-sm text-muted-foreground hover:underline"
+        >
+          &larr; Back to Episodes
+        </Link>
+      </div>
+
+      <div className="mb-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <h2 className="text-2xl font-bold">
+              Episode #{episode.id}
+            </h2>
+            <Badge variant={STATUS_VARIANT[episode.status] ?? "secondary"}>
+              {episode.status.replace("_", " ")}
+            </Badge>
+          </div>
+          <div className="flex items-center gap-2">
+            {episode.status === "PENDING_REVIEW" && (
+              <>
+                <Button size="sm" onClick={() => handleAction("approve")}>
+                  <Check className="size-4" />
+                  Approve
+                </Button>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={() => handleAction("discard")}
+                >
+                  <X className="size-4" />
+                  Discard
+                </Button>
+              </>
+            )}
+            {episode.status === "GENERATED" && (
+              <Button size="sm" onClick={() => setPublishOpen(true)}>
+                <Upload className="size-4" />
+                Publish
+              </Button>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-2 flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
+          <span>
+            {generatedDate.toLocaleDateString()} ({generatedDate.toLocaleDateString(undefined, { weekday: "long" })})
+          </span>
+          {episode.durationSeconds != null && (
+            <span>
+              {Math.floor(episode.durationSeconds / 60)}:{String(episode.durationSeconds % 60).padStart(2, "0")}
+            </span>
+          )}
+        </div>
+
+        {episode.recap && (
+          <p className="mt-3 text-sm text-muted-foreground italic">{episode.recap}</p>
+        )}
+      </div>
+
+      <Tabs defaultValue="script">
+        <TabsList>
+          <TabsTrigger value="script">Script</TabsTrigger>
+          <TabsTrigger value="articles">
+            Articles{articleCount !== null ? ` (${articleCount})` : ""}
+          </TabsTrigger>
+          <TabsTrigger value="publications">Publications</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="script">
+          <div className="mt-4">
+            <ScriptContent
+              scriptText={episode.scriptText}
+              style={podcast.style}
+              speakerNames={podcast.speakerNames}
+            />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="articles">
+          <div className="mt-4">
+            <ArticlesTab
+              userId={selectedUser.id}
+              podcastId={params.podcastId}
+              episodeId={episode.id}
+              onCountLoaded={handleArticleCountLoaded}
+            />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="publications">
+          <div className="mt-4">
+            <PublicationsTab
+              userId={selectedUser.id}
+              podcastId={params.podcastId}
+              episodes={[episode]}
+              refreshKey={refreshKey}
+              onRepublished={handlePublished}
+            />
+          </div>
+        </TabsContent>
+      </Tabs>
+
+      {publishOpen && (
+        <PublishWizard
+          open={publishOpen}
+          onOpenChange={setPublishOpen}
+          episode={episode}
+          podcastName={podcast.name}
+          userId={selectedUser.id}
+          podcastId={params.podcastId}
+          onPublished={handlePublished}
+        />
+      )}
+    </div>
+  );
+}

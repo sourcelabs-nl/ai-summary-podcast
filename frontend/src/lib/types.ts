@@ -39,6 +39,25 @@ export interface Episode {
   recap?: string;
 }
 
+export interface ArticleSource {
+  id: string;
+  type: string;
+  url: string;
+  label: string | null;
+}
+
+export interface EpisodeArticle {
+  id: number;
+  title: string;
+  url: string;
+  author: string | null;
+  publishedAt: string | null;
+  relevanceScore: number | null;
+  summary: string | null;
+  body: string | null;
+  source: ArticleSource;
+}
+
 export interface EpisodePublication {
   id: number;
   episodeId: number;
