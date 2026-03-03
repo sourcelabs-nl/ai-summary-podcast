@@ -1,7 +1,10 @@
 .env
 data/
 .DS_Store
-.claude/
+.claude/*
+!.claude/skills/
+!.claude/agents/
+!.claude/settings.json
 .app.pid
 app.log
 soudmaijer-sources.txt

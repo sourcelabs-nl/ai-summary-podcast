@@ -1,0 +1,94 @@
+---
+name: flyway-migration
+description: Use when creating, renaming, or modifying Flyway database migration files (db/migration/V*__*.sql). Covers versioning rules, naming conventions, and common pitfalls.
+user-invocable: false
+---
+
+# Flyway Database Migrations
+
+## Overview
+
+This project uses Flyway for database schema versioning with Spring Boot auto-configuration. Migration files live in `src/main/resources/db/migration/` and follow Flyway's versioned migration naming convention.
+
+## When This Applies
+
+- Creating a new database migration file
+- Renaming or renumbering a migration
+- Troubleshooting Flyway startup errors
+- Adding columns, tables, or indexes to the schema
+
+## Naming Convention
+
+```
+V<version>__<description>.sql
+```
+
+- **Version**: Integer, monotonically increasing (e.g., `V34`)
+- **Separator**: Exactly two underscores (`__`)
+- **Description**: snake_case summary of the change (e.g., `add_sponsor_to_podcasts`)
+
+Examples:
+```
+V34__add_sponsor_to_podcasts.sql
+V35__add_user_preferences_table.sql
+```
+
+## Critical Rule: Unique Version Numbers
+
+Each migration **must** have a unique version number. Flyway will refuse to start if two files share the same version:
+
+```
+FlywayException: Found more than one migration with version 10
+Offenders:
+-> V10__add_cost_tracking.sql
+-> V10__add_sponsor_to_podcasts.sql
+```
+
+### Before creating a new migration
+
+1. List existing migrations to find the highest version number:
+   ```
+   ls src/main/resources/db/migration/ | sort -V | tail -1
+   ```
+2. Use the **next** integer after the highest existing version.
+
+### If you encounter a duplicate version error
+
+Rename the newer migration file to the next available version number. Never rename a migration that has already been applied to a database (its checksum is recorded in `flyway_schema_history`).
+
+## Migration Content Guidelines
+
+### SQLite dialect
+
+This project uses SQLite. Keep these SQLite-specific rules in mind:
+
+- `ALTER TABLE` only supports `ADD COLUMN` and `RENAME COLUMN` (no `DROP COLUMN` before SQLite 3.35.0)
+- No `ALTER TABLE ... ALTER COLUMN` — to change a column type, create a new table, copy data, drop the old one, and rename
+- Use `TEXT` for strings, `INTEGER` for booleans and ints, `REAL` for floats
+- Foreign keys require `PRAGMA foreign_keys = ON` (handled by Spring Boot config)
+
+### Keep migrations small and focused
+
+- One logical change per migration (e.g., one new column or one new table)
+- Name should clearly describe the change
+
+### Never modify an applied migration
+
+Once a migration has been applied (exists in `flyway_schema_history`), never change its content. Flyway validates checksums on startup and will fail if they don't match.
+
+If you need to fix a mistake in an applied migration, create a **new** migration with the corrective DDL.
+
+## Stale `target/` Copies
+
+When running from a packaged JAR (`./start.sh`), Flyway reads migrations from the JAR's `BOOT-INF/classes/`. If `target/classes/db/migration/` has stale copies from a previous build, a rebuild (`./mvnw package`) is needed to pick up renamed or new migrations.
+
+## Quick Decision Guide
+
+| Situation | Action |
+|---|---|
+| Adding a new column | Create `V<next>__add_<column>_to_<table>.sql` with `ALTER TABLE ... ADD COLUMN` |
+| Adding a new table | Create `V<next>__add_<table>_table.sql` with `CREATE TABLE` |
+| Adding an index | Create `V<next>__add_<name>_index.sql` with `CREATE INDEX` |
+| Fixing a bad migration | Create a new corrective migration, never edit the old one |
+| Duplicate version error | Rename the newer file to the next available version |
+| Checksum mismatch | If safe, run `./mvnw flyway:repair` to update the stored checksum |
