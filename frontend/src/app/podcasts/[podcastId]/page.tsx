@@ -305,6 +305,7 @@ export default function EpisodesPage() {
                         {episode.status === "GENERATED" && !publishedEpisodeIds.has(episode.id) && (
                           <Button
                             size="sm"
+                            className="w-24"
                             onClick={() => setPublishEpisode(episode)}
                           >
                             <Upload className="size-4" />
@@ -313,11 +314,11 @@ export default function EpisodesPage() {
                         )}
                         <Button
                           size="sm"
-                          variant="outline"
+                          className="w-24"
                           onClick={() => router.push(`/podcasts/${params.podcastId}/episodes/${episode.id}`)}
                         >
-                          View
                           <ChevronRight className="size-4" />
+                          Details
                         </Button>
                       </div>
                     </TableCell>

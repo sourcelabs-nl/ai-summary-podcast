@@ -171,19 +171,36 @@ export function SourcesTab({ userId, podcastId }: SourcesTabProps) {
           </TableHeader>
           <TableBody>
             {sources.map((source) => (
-              <TableRow key={source.id}>
+              <TableRow key={source.id} className="cursor-pointer" onClick={() => openEditDialog(source)}>
                 <TableCell className="text-sm whitespace-nowrap">
-                  <a
-                    href={source.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-primary underline"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    {source.label ?? source.url}
-                  </a>
-                  {source.label && (
-                    <span className="ml-2 text-muted-foreground text-xs">{source.url}</span>
+                  {source.label ? (
+                    <>
+                      <span
+                        className="cursor-pointer hover:underline"
+                        onClick={() => openEditDialog(source)}
+                      >
+                        {source.label}
+                      </span>
+                      <a
+                        href={source.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="ml-2 text-primary underline text-xs"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {source.url}
+                      </a>
+                    </>
+                  ) : (
+                    <a
+                      href={source.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary underline"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {source.url}
+                    </a>
                   )}
                 </TableCell>
                 <TableCell>
@@ -202,7 +219,7 @@ export function SourcesTab({ userId, podcastId }: SourcesTabProps) {
                   )}
                 </TableCell>
                 <TableCell className="text-right">
-                  <div className="flex items-center justify-end gap-2">
+                  <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
                     <Button
                       size="sm"
                       className="w-20"
