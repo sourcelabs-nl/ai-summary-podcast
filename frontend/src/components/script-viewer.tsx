@@ -50,7 +50,7 @@ function MonologueScript({ scriptText }: { scriptText: string }) {
           key={i}
           className="rounded-2xl border border-border bg-muted px-4 py-3"
         >
-          <p className="leading-relaxed">{paragraph}</p>
+          <p className="text-sm leading-relaxed">{paragraph}</p>
         </div>
       ))}
     </div>
@@ -93,7 +93,7 @@ function MultiSpeakerScript({
                   alignRight ? "rounded-tr-sm" : "rounded-tl-sm"
                 }`}
               >
-                <p className="leading-relaxed">{block.text}</p>
+                <p className="text-sm leading-relaxed">{block.text}</p>
               </div>
             </div>
           </div>
