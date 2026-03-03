@@ -4,18 +4,17 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import cronstrue from "cronstrue";
-import { Check, ChevronRight, Settings, Upload, X } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Settings, Upload, X } from "lucide-react";
 import { useUser } from "@/lib/user-context";
 import type { Podcast, Episode, EpisodePublication, EpisodeArticle } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Table,
   TableBody,
@@ -203,22 +202,6 @@ export default function EpisodesPage() {
         </TabsList>
 
         <TabsContent value="episodes">
-          <div className="mb-4 mt-4">
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-48">
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All statuses</SelectItem>
-                {STATUSES.map((status) => (
-                  <SelectItem key={status} value={status}>
-                    {status.replace("_", " ")}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
           {episodes.length === 0 ? (
             <p className="text-muted-foreground">No episodes found.</p>
           ) : (
@@ -228,7 +211,31 @@ export default function EpisodesPage() {
                   <TableHead className="w-12">#</TableHead>
                   <TableHead className="w-24">Date</TableHead>
                   <TableHead className="w-12">Day</TableHead>
-                  <TableHead className="w-32">Status</TableHead>
+                  <TableHead className="w-32">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger className="flex items-center gap-1 hover:text-foreground transition-colors">
+                        Status
+                        <ChevronDown className="size-3.5" />
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start">
+                        <DropdownMenuCheckboxItem
+                          checked={statusFilter === "all"}
+                          onCheckedChange={() => setStatusFilter("all")}
+                        >
+                          All statuses
+                        </DropdownMenuCheckboxItem>
+                        {STATUSES.map((status) => (
+                          <DropdownMenuCheckboxItem
+                            key={status}
+                            checked={statusFilter === status}
+                            onCheckedChange={() => setStatusFilter(status)}
+                          >
+                            {status.replace("_", " ").toLowerCase()}
+                          </DropdownMenuCheckboxItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableHead>
                   <TableHead className="w-0">Script Model</TableHead>
                   <TableHead className="w-0">TTS Model</TableHead>
                   <TableHead className="w-20 text-right">Cost</TableHead>
