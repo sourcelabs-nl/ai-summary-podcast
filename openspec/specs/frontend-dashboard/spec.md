@@ -35,7 +35,7 @@ The system SHALL display a vertical list of all podcasts for the selected user a
 - **THEN** an empty state message is displayed
 
 ### Requirement: Episode list page
-The system SHALL display a list of episodes for a podcast at `/podcasts/{podcastId}` within a tabbed layout, fetched from `GET /users/{userId}/podcasts/{podcastId}/episodes`. Each episode row SHALL be a clickable link that navigates to `/podcasts/{podcastId}/episodes/{episodeId}`. Each episode row SHALL show the episode ID, generated date, day of week (short format), status badge, and action buttons. The episodes list SHALL be displayed under the "Episodes" tab, which is the default active tab. A "Publications" tab SHALL be displayed alongside it. The Date column SHALL have a fixed width. All badge text SHALL be consistently lowercased. The podcast detail header SHALL display the podcast name with the style badge inline next to it, and a "Settings" button right-aligned. The podcast detail header SHALL display the cron schedule in human-readable form below the topic, prefixed with "Generates" (e.g., "Generates at 03:00 PM, Monday through Friday"), at the same text size as the topic description.
+The system SHALL display a list of episodes for a podcast at `/podcasts/{podcastId}` within a tabbed layout, fetched from `GET /users/{userId}/podcasts/{podcastId}/episodes`. Each episode row SHALL be a clickable link that navigates to `/podcasts/{podcastId}/episodes/{episodeId}`. Each episode row SHALL show the episode ID, generated date, day of week (short format), status badge, and action buttons. The episodes list SHALL be displayed under the "Episodes" tab, which is the default active tab. A "Publications" tab SHALL be displayed alongside it. The Date column SHALL have a fixed width. All badge text SHALL be consistently lowercased. The podcast detail header SHALL display the podcast name with the style badge inline next to it, and a "Settings" button right-aligned. The podcast detail header SHALL display the cron schedule in human-readable form below the topic, prefixed with "Generates" (e.g., "Generates at 03:00 PM, Monday through Friday"), at the same text size as the topic description. The status filter SHALL be integrated into the Status column header as a dropdown menu, rather than as a standalone select component above the table.
 
 #### Scenario: Click episode row navigates to detail page
 - **WHEN** user clicks on an episode row
@@ -69,13 +69,21 @@ The system SHALL display a list of episodes for a podcast at `/podcasts/{podcast
 - **WHEN** an episode has been published (has at least one publication with status PUBLISHED)
 - **THEN** a "Published" badge with the `default` variant (orange) is displayed next to the status badge
 
-#### Scenario: Filter episodes by status
-- **WHEN** user selects a status from the filter dropdown
+#### Scenario: Filter episodes by status via header dropdown
+- **WHEN** user clicks the Status column header and selects a status from the dropdown menu
 - **THEN** only episodes matching that status are displayed (using `?status=` query param)
 
-#### Scenario: Show all episodes
-- **WHEN** user clears the status filter
+#### Scenario: Show all episodes via header dropdown
+- **WHEN** user clicks the Status column header and selects "All statuses" from the dropdown menu
 - **THEN** all episodes for the podcast are displayed
+
+#### Scenario: Status header dropdown shows active filter
+- **WHEN** the status filter dropdown is opened
+- **THEN** the currently active filter option is shown with a check mark
+
+#### Scenario: Status header indicates interactivity
+- **WHEN** the episode list page loads
+- **THEN** the Status column header displays a chevron icon indicating it is clickable for filtering
 
 #### Scenario: Tabbed layout with Episodes and Publications
 - **WHEN** user navigates to `/podcasts/{podcastId}`
@@ -158,6 +166,21 @@ The podcast detail page SHALL display a highlighted bar below the header descrip
 #### Scenario: No articles available
 - **WHEN** the podcast detail page loads and there are no relevant unprocessed articles
 - **THEN** the upcoming episode bar is not displayed
+
+### Requirement: Script viewer dialog
+The system SHALL provide a "View Script" button on each episode row that opens a wide shadcn Dialog (90vw, max 5xl) displaying the episode's `scriptText` in a chat-bubble style.
+
+#### Scenario: View monologue script
+- **WHEN** user opens the script dialog for an episode from a podcast with style `news-briefing`, `casual`, `deep-dive`, or `executive-summary`
+- **THEN** each paragraph is rendered in a rounded card bubble with a subtle primary-colored border and background
+
+#### Scenario: View dialogue script
+- **WHEN** user opens the script dialog for an episode from a podcast with style `dialogue` or `interview`
+- **THEN** the script is parsed for XML speaker tags and rendered as alternating chat bubbles — the first speaker's bubbles align left (primary color), the second speaker's bubbles align right (emerald color), with speaker name labels above each bubble
+
+#### Scenario: Fallback on parse failure
+- **WHEN** a multi-speaker script fails to parse (malformed XML tags)
+- **THEN** the script SHALL fall back to monologue bubble rendering
 
 ### Requirement: Orange theme
 The frontend SHALL use the shadcn/ui orange color theme with oklch color variables following the official shadcn theming documentation. All badges, buttons (default variant), and focus rings SHALL use the primary orange color for consistent branding.

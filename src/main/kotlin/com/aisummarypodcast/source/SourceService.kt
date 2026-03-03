@@ -20,7 +20,7 @@ class SourceService(
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    fun create(podcastId: String, type: SourceType, url: String, pollIntervalMinutes: Int = 30, enabled: Boolean = true, aggregate: Boolean? = null, maxFailures: Int? = null, maxBackoffHours: Int? = null, pollDelaySeconds: Int? = null, categoryFilter: String? = null): Source {
+    fun create(podcastId: String, type: SourceType, url: String, pollIntervalMinutes: Int = 30, enabled: Boolean = true, aggregate: Boolean? = null, maxFailures: Int? = null, maxBackoffHours: Int? = null, pollDelaySeconds: Int? = null, categoryFilter: String? = null, label: String? = null): Source {
         val source = Source(
             id = UUID.randomUUID().toString(),
             podcastId = podcastId,
@@ -33,6 +33,7 @@ class SourceService(
             maxBackoffHours = maxBackoffHours,
             pollDelaySeconds = pollDelaySeconds,
             categoryFilter = categoryFilter,
+            label = label,
             createdAt = Instant.now().toString()
         )
         return sourceRepository.save(source)
@@ -42,10 +43,10 @@ class SourceService(
 
     fun findById(sourceId: String): Source? = sourceRepository.findById(sourceId).orElse(null)
 
-    fun update(sourceId: String, type: SourceType, url: String, pollIntervalMinutes: Int, enabled: Boolean, aggregate: Boolean? = null, maxFailures: Int? = null, maxBackoffHours: Int? = null, pollDelaySeconds: Int? = null, categoryFilter: String? = null): Source? {
+    fun update(sourceId: String, type: SourceType, url: String, pollIntervalMinutes: Int, enabled: Boolean, aggregate: Boolean? = null, maxFailures: Int? = null, maxBackoffHours: Int? = null, pollDelaySeconds: Int? = null, categoryFilter: String? = null, label: String? = null): Source? {
         val source = findById(sourceId) ?: return null
         val reEnabling = enabled && !source.enabled
-        var updated = source.copy(type = type, url = url, pollIntervalMinutes = pollIntervalMinutes, enabled = enabled, aggregate = aggregate, maxFailures = maxFailures, maxBackoffHours = maxBackoffHours, pollDelaySeconds = pollDelaySeconds, categoryFilter = categoryFilter)
+        var updated = source.copy(type = type, url = url, pollIntervalMinutes = pollIntervalMinutes, enabled = enabled, aggregate = aggregate, maxFailures = maxFailures, maxBackoffHours = maxBackoffHours, pollDelaySeconds = pollDelaySeconds, categoryFilter = categoryFilter, label = label)
         if (reEnabling) {
             updated = updated.copy(consecutiveFailures = 0, lastFailureType = null, disabledReason = null)
         }

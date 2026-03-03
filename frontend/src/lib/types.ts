@@ -43,6 +43,17 @@ export interface Episode {
   recap?: string;
 }
 
+export interface Source {
+  id: string;
+  podcastId: string;
+  type: string;
+  url: string;
+  pollIntervalMinutes: number;
+  enabled: boolean;
+  label: string | null;
+  createdAt: string;
+}
+
 export interface ArticleSource {
   id: string;
   type: string;

@@ -4,7 +4,7 @@
 
 Three-stage LLM pipeline for processing articles (relevance scoring, conditional summarization, briefing script composition) using Spring AI and OpenRouter.
 
-## MODIFIED Requirements
+## Requirements
 
 ### Requirement: Two-step LLM pipeline
 The system SHALL process articles through a two-stage sequential LLM pipeline: (1) score, summarize, and filter, (2) briefing script composition. The pipeline SHALL be triggered by the `BriefingGenerationScheduler` on a configurable cron schedule.
@@ -154,7 +154,7 @@ The prompt SHALL include the current date (human-readable format), the podcast n
 
 The prompt SHALL include a grounding instruction requiring the LLM to ONLY discuss topics, facts, and claims that are directly present in the provided article summaries. The LLM SHALL NOT introduce information from its own training knowledge. When few articles are provided, the LLM SHALL produce a proportionally shorter script rather than padding with external knowledge.
 
-The prompt SHALL instruct the LLM to include a sponsor message immediately after the introduction: "This podcast is brought to you by source-labs — experts in agentic software development." The spelling "source-labs" (hyphenated) SHALL be used in the script text because most TTS voices cannot articulate "Sourcelabs" as a single word correctly. The prompt SHALL also instruct the LLM to mention the sponsor (source-labs) in the sign-off/outro.
+When the podcast has a non-null `sponsor` field, the prompt SHALL instruct the LLM to include a sponsor message immediately after the introduction using the configured sponsor name and message (e.g., "This podcast is brought to you by {sponsor.name} — {sponsor.message}."). The prompt SHALL also instruct the LLM to mention the sponsor name in the sign-off/outro. When the podcast has no sponsor configured (null), the prompt SHALL NOT include any sponsor-related instructions.
 
 The full-body threshold behavior SHALL be applied to all three composer variants: `BriefingComposer`, `DialogueComposer`, and `InterviewComposer`.
 
@@ -202,14 +202,18 @@ The full-body threshold behavior SHALL be applied to all three composer variants
 - **WHEN** the composer receives only 2 articles
 - **THEN** the generated script is proportionally shorter than when receiving 10 articles, rather than padded with external content
 
-#### Scenario: Sponsor message included after introduction
-- **WHEN** any composer (briefing, dialogue, or interview) generates a script
-- **THEN** the prompt instructs the LLM to include the sponsor message "This podcast is brought to you by source-labs — experts in agentic software development" immediately after the introduction
+#### Scenario: Sponsor message included when configured
+- **WHEN** a podcast has `sponsor: {"name": "source-labs", "message": "experts in agentic software development"}` and any composer generates a script
+- **THEN** the prompt instructs the LLM to include "This podcast is brought to you by source-labs — experts in agentic software development" after the introduction
 
-#### Scenario: Sponsor mentioned in sign-off
-- **WHEN** any composer generates a script
-- **THEN** the prompt instructs the LLM to mention the sponsor (source-labs) in the sign-off/outro
+#### Scenario: Sponsor mentioned in sign-off when configured
+- **WHEN** a podcast has a non-null sponsor and any composer generates a script
+- **THEN** the prompt instructs the LLM to mention the sponsor name in the sign-off/outro
 
-#### Scenario: Sponsor name uses TTS-friendly spelling
-- **WHEN** the sponsor message is included in the prompt
-- **THEN** the name is spelled "source-labs" (hyphenated) rather than "Sourcelabs" to ensure correct TTS pronunciation
+#### Scenario: No sponsor instructions when not configured
+- **WHEN** a podcast has `sponsor` set to null and any composer generates a script
+- **THEN** the prompt does not include any sponsor-related instructions
+
+#### Scenario: Sponsor name used as-is from configuration
+- **WHEN** a podcast has `sponsor: {"name": "Acme Corp", "message": "innovating tomorrow"}`
+- **THEN** the prompt uses "Acme Corp" as the sponsor name (no hardcoded name)

@@ -26,6 +26,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PublishWizard } from "@/components/publish-wizard";
 import { PublicationsTab } from "@/components/publications-tab";
+import { SourcesTab } from "@/components/sources-tab";
 
 const STATUSES = [
   "GENERATED",
@@ -168,12 +169,12 @@ export default function EpisodesPage() {
             <h2 className="text-2xl font-bold">{podcast.name}</h2>
             <Badge>{podcast.style}</Badge>
           </div>
-          {podcast.cron && cronDescription && (
-            <p className="text-sm text-muted-foreground italic">
-              Generates {cronDescription.toLowerCase()}
-            </p>
-          )}
-          <p className="text-sm text-muted-foreground">{podcast.topic}</p>
+          <p className="text-sm text-muted-foreground">
+            {podcast.topic}
+            {podcast.cron && cronDescription && (
+              <span> &middot; {cronDescription.toLowerCase()}</span>
+            )}
+          </p>
         </div>
         <Link href={`/podcasts/${params.podcastId}/settings`}>
           <Button size="sm">
@@ -199,6 +200,7 @@ export default function EpisodesPage() {
         <TabsList>
           <TabsTrigger value="episodes">Episodes</TabsTrigger>
           <TabsTrigger value="publications">Publications</TabsTrigger>
+          <TabsTrigger value="sources">Sources</TabsTrigger>
         </TabsList>
 
         <TabsContent value="episodes">
@@ -335,6 +337,12 @@ export default function EpisodesPage() {
               refreshKey={refreshKey}
               onRepublished={handlePublished}
             />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="sources">
+          <div className="mt-4">
+            <SourcesTab userId={selectedUser.id} podcastId={params.podcastId} />
           </div>
         </TabsContent>
       </Tabs>

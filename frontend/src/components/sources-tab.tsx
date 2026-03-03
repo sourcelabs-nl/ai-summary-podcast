@@ -1,0 +1,319 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import type { Source } from "@/lib/types";
+import { Check, Pencil, Plus, Trash2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+
+const SOURCE_TYPES = ["rss", "website", "twitter", "youtube"] as const;
+
+interface SourcesTabProps {
+  userId: string;
+  podcastId: string;
+}
+
+interface SourceFormData {
+  type: string;
+  url: string;
+  label: string;
+  pollIntervalMinutes: number;
+  enabled: boolean;
+}
+
+const defaultFormData: SourceFormData = {
+  type: "rss",
+  url: "",
+  label: "",
+  pollIntervalMinutes: 30,
+  enabled: true,
+};
+
+export function SourcesTab({ userId, podcastId }: SourcesTabProps) {
+  const [sources, setSources] = useState<Source[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingSource, setEditingSource] = useState<Source | null>(null);
+  const [formData, setFormData] = useState<SourceFormData>(defaultFormData);
+  const [deleteSource, setDeleteSource] = useState<Source | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  function fetchSources() {
+    fetch(`/api/users/${userId}/podcasts/${podcastId}/sources`)
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => setSources(data))
+      .catch(() => setSources([]))
+      .finally(() => setLoading(false));
+  }
+
+  useEffect(() => {
+    fetchSources();
+  }, [userId, podcastId]);
+
+  function openAddDialog() {
+    setEditingSource(null);
+    setFormData(defaultFormData);
+    setDialogOpen(true);
+  }
+
+  function openEditDialog(source: Source) {
+    setEditingSource(source);
+    setFormData({
+      type: source.type,
+      url: source.url,
+      label: source.label ?? "",
+      pollIntervalMinutes: source.pollIntervalMinutes,
+      enabled: source.enabled,
+    });
+    setDialogOpen(true);
+  }
+
+  async function handleSubmit() {
+    setSaving(true);
+    const body = {
+      type: formData.type,
+      url: formData.url,
+      label: formData.label || null,
+      pollIntervalMinutes: formData.pollIntervalMinutes,
+      enabled: formData.enabled,
+    };
+
+    try {
+      if (editingSource) {
+        await fetch(
+          `/api/users/${userId}/podcasts/${podcastId}/sources/${editingSource.id}`,
+          { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }
+        );
+      } else {
+        await fetch(
+          `/api/users/${userId}/podcasts/${podcastId}/sources`,
+          { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }
+        );
+      }
+      setDialogOpen(false);
+      fetchSources();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!deleteSource) return;
+    await fetch(
+      `/api/users/${userId}/podcasts/${podcastId}/sources/${deleteSource.id}`,
+      { method: "DELETE" }
+    );
+    setDeleteSource(null);
+    fetchSources();
+  }
+
+  if (loading) {
+    return <p className="text-muted-foreground">Loading sources...</p>;
+  }
+
+  return (
+    <>
+      <div className="flex justify-end mb-4">
+        <Button size="sm" onClick={openAddDialog}>
+          <Plus className="size-4" />
+          Add Source
+        </Button>
+      </div>
+
+      {sources.length === 0 ? (
+        <p className="text-muted-foreground">No sources configured.</p>
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-0">Label</TableHead>
+              <TableHead className="w-0">Type</TableHead>
+              <TableHead className="w-0">Interval</TableHead>
+              <TableHead className="w-0">Enabled</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {sources.map((source) => (
+              <TableRow key={source.id}>
+                <TableCell className="text-sm whitespace-nowrap">
+                  <a
+                    href={source.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary underline"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {source.label ?? source.url}
+                  </a>
+                  {source.label && (
+                    <span className="ml-2 text-muted-foreground text-xs">{source.url}</span>
+                  )}
+                </TableCell>
+                <TableCell>
+                  <Badge variant="outline" className="text-[11px] px-1.5 py-px">
+                    {source.type}
+                  </Badge>
+                </TableCell>
+                <TableCell className="text-sm text-muted-foreground">
+                  {source.pollIntervalMinutes}m
+                </TableCell>
+                <TableCell>
+                  {source.enabled ? (
+                    <Check className="size-4 text-primary" />
+                  ) : (
+                    <span className="text-sm text-muted-foreground">—</span>
+                  )}
+                </TableCell>
+                <TableCell className="text-right">
+                  <div className="flex items-center justify-end gap-2">
+                    <Button
+                      size="sm"
+                      className="w-20"
+                      onClick={() => openEditDialog(source)}
+                    >
+                      <Pencil className="size-4" />
+                      Edit
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      className="w-20"
+                      onClick={() => setDeleteSource(source)}
+                    >
+                      <Trash2 className="size-4" />
+                      Delete
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
+
+      <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) setDialogOpen(false); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{editingSource ? "Edit Source" : "Add Source"}</DialogTitle>
+            <DialogDescription>
+              {editingSource
+                ? "Update the source configuration."
+                : "Add a new content source for this podcast."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="source-type">Type</Label>
+              <Select value={formData.type} onValueChange={(v) => setFormData({ ...formData, type: v })}>
+                <SelectTrigger id="source-type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {SOURCE_TYPES.map((t) => (
+                    <SelectItem key={t} value={t}>{t}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="source-url">URL</Label>
+              <Input
+                id="source-url"
+                value={formData.url}
+                onChange={(e) => setFormData({ ...formData, url: e.target.value })}
+                placeholder="https://example.com/feed.xml"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="source-label">Label (optional)</Label>
+              <Input
+                id="source-label"
+                value={formData.label}
+                onChange={(e) => setFormData({ ...formData, label: e.target.value })}
+                placeholder="My RSS Feed"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="source-interval">Poll interval (minutes)</Label>
+              <Input
+                id="source-interval"
+                type="number"
+                min={1}
+                value={formData.pollIntervalMinutes}
+                onChange={(e) => setFormData({ ...formData, pollIntervalMinutes: parseInt(e.target.value) || 30 })}
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch
+                id="source-enabled"
+                checked={formData.enabled}
+                onCheckedChange={(checked) => setFormData({ ...formData, enabled: checked })}
+              />
+              <Label htmlFor="source-enabled">Enabled</Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSubmit} disabled={saving || !formData.url}>
+              {saving ? "Saving..." : editingSource ? "Update" : "Create"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!deleteSource} onOpenChange={(open) => { if (!open) setDeleteSource(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Source</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the source &quot;{deleteSource?.label ?? deleteSource?.url}&quot; and all its associated articles. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+}

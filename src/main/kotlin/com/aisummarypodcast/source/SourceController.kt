@@ -16,7 +16,8 @@ data class CreateSourceRequest(
     val maxFailures: Int? = null,
     val maxBackoffHours: Int? = null,
     val pollDelaySeconds: Int? = null,
-    val categoryFilter: String? = null
+    val categoryFilter: String? = null,
+    val label: String? = null
 )
 
 data class UpdateSourceRequest(
@@ -28,7 +29,8 @@ data class UpdateSourceRequest(
     val maxFailures: Int? = null,
     val maxBackoffHours: Int? = null,
     val pollDelaySeconds: Int? = null,
-    val categoryFilter: String? = null
+    val categoryFilter: String? = null,
+    val label: String? = null
 )
 
 data class SourceResponse(
@@ -72,7 +74,7 @@ class SourceController(
 
         val sourceType = SourceType.fromValue(request.type)
             ?: return ResponseEntity.badRequest().build()
-        val source = sourceService.create(podcastId, sourceType, request.url, request.pollIntervalMinutes, request.enabled, request.aggregate, request.maxFailures, request.maxBackoffHours, request.pollDelaySeconds, request.categoryFilter)
+        val source = sourceService.create(podcastId, sourceType, request.url, request.pollIntervalMinutes, request.enabled, request.aggregate, request.maxFailures, request.maxBackoffHours, request.pollDelaySeconds, request.categoryFilter, request.label)
         return ResponseEntity.created(URI.create("/users/$userId/podcasts/$podcastId/sources/${source.id}"))
             .body(source.toResponse())
     }
@@ -102,7 +104,7 @@ class SourceController(
 
         val sourceType = SourceType.fromValue(request.type)
             ?: return ResponseEntity.badRequest().build()
-        val updated = sourceService.update(sourceId, sourceType, request.url, request.pollIntervalMinutes, request.enabled, request.aggregate, request.maxFailures, request.maxBackoffHours, request.pollDelaySeconds, request.categoryFilter)
+        val updated = sourceService.update(sourceId, sourceType, request.url, request.pollIntervalMinutes, request.enabled, request.aggregate, request.maxFailures, request.maxBackoffHours, request.pollDelaySeconds, request.categoryFilter, request.label)
             ?: return ResponseEntity.notFound().build()
         return ResponseEntity.ok(updated.toResponse())
     }
