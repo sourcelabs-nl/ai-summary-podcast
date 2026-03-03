@@ -225,11 +225,11 @@ export default function EpisodesPage() {
                     className="cursor-pointer"
                     onClick={() => router.push(`/podcasts/${params.podcastId}/episodes/${episode.id}`)}
                   >
-                    <TableCell className="font-medium">{episode.id}</TableCell>
-                    <TableCell>
+                    <TableCell className="text-sm font-medium">{episode.id}</TableCell>
+                    <TableCell className="text-sm">
                       {new Date(episode.generatedAt).toLocaleDateString()}
                     </TableCell>
-                    <TableCell className="text-muted-foreground">
+                    <TableCell className="text-sm text-muted-foreground">
                       {new Date(episode.generatedAt).toLocaleDateString(undefined, { weekday: "short" })}
                     </TableCell>
                     <TableCell>
@@ -244,13 +244,13 @@ export default function EpisodesPage() {
                         )}
                       </div>
                     </TableCell>
-                    <TableCell className="text-muted-foreground whitespace-nowrap text-xs">
+                    <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
                       {episode.composeModel ?? "—"}
                     </TableCell>
-                    <TableCell className="text-muted-foreground whitespace-nowrap text-xs">
+                    <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
                       {episode.ttsModel ?? "—"}
                     </TableCell>
-                    <TableCell className="text-right text-muted-foreground">
+                    <TableCell className="text-sm text-right text-muted-foreground">
                       {((episode.llmCostCents ?? 0) + (episode.ttsCostCents ?? 0)) > 0
                         ? `$${(((episode.llmCostCents ?? 0) + (episode.ttsCostCents ?? 0)) / 100).toFixed(2)}`
                         : "—"}
