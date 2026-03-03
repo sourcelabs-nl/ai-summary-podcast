@@ -84,7 +84,7 @@ export function KeyValueEditor({
           </Button>
         </div>
       ))}
-      <Button type="button" variant="outline" size="sm" onClick={addRow}>
+      <Button type="button" size="sm" onClick={addRow}>
         <Plus className="size-4" />
         Add row
       </Button>

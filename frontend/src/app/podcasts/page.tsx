@@ -52,7 +52,6 @@ export default function PodcastsPage() {
                   {podcast.topic}
                 </CardDescription>
                 <Button
-                  variant="outline"
                   size="sm"
                   onClick={(e) => {
                     e.preventDefault();

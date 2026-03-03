@@ -75,7 +75,8 @@ The application database is at `./data/ai-summary-podcast.db`. Never query the d
 The frontend lives in `frontend/` and uses Next.js (App Router), shadcn/ui, and Tailwind CSS v4.
 
 - **Theme:** Orange primary color using oklch variables following official shadcn theming docs. All CSS variables go in `globals.css` under `:root` / `.dark` using oklch format, mapped via `@theme inline`.
-- **Consistency:** All badges and primary action buttons use the `default` variant (orange). Do not mix `secondary`/`outline` badge variants for visual differentiation — use `default` everywhere for consistent branding.
+- **Buttons:** All action buttons use the `default` variant (orange) — never `outline` or `secondary` for action buttons. Use consistent `size="sm"` across the app. Every button must have an icon (from lucide-react) alongside its label. Only use `outline` variant for cancel/close buttons in dialogs, and `destructive` for destructive actions (e.g., Discard). Use `ghost` variant only for inline icon-only buttons (e.g., delete row in key-value editors).
+- **Badges:** All badges use the `default` variant (orange) for consistent branding, except: `secondary` for muted states (e.g., DISCARDED status), `outline` for informational indicators (e.g., "Published" tag).
 - **Script rendering:** Episode scripts render in chat-bubble style. Monologue styles use paragraph bubbles; dialogue/interview styles use alternating left/right chat bubbles with speaker labels.
 - **Dialog width:** Script viewer dialog uses near-full viewport width (`w-[90vw] !max-w-7xl`). The `!important` is needed to override shadcn's default `sm:max-w-lg`.
 - **API proxy:** `next.config.ts` rewrites `/api/**` to `http://localhost:8085/**`. Update the port if the backend port changes.

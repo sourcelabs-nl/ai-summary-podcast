@@ -172,7 +172,7 @@ export default function EpisodesPage() {
           )}
         </div>
         <Link href={`/podcasts/${params.podcastId}/settings`}>
-          <Button variant="outline" size="sm">
+          <Button size="sm">
             <Settings className="size-4" />
             Settings
           </Button>

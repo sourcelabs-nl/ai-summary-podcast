@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { Episode, EpisodePublication } from "@/lib/types";
-import { Cloud } from "lucide-react";
+import { Cloud, RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -162,9 +162,9 @@ export function PublicationsTab({
               <TableCell className="text-right">
                 <Button
                   size="sm"
-                  variant="outline"
                   onClick={() => setConfirmPub(pub)}
                 >
+                  <RefreshCw className="size-4" />
                   Republish
                 </Button>
               </TableCell>
