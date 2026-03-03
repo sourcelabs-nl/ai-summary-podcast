@@ -43,7 +43,7 @@ The system SHALL display a list of episodes for a podcast at `/podcasts/{podcast
 
 #### Scenario: Display episodes with columns
 - **WHEN** the episode list page loads
-- **THEN** episodes are displayed under the "Episodes" tab with columns: #, Date (fixed width), Day (short weekday name in muted text, e.g., "Mon"), Status (badge with optional Published badge), Cost (right-aligned, combined LLM + TTS cost formatted as dollars, or em dash when unavailable), and Actions
+- **THEN** episodes are displayed under the "Episodes" tab with columns: #, Date (fixed width), Day (short weekday name in muted text, e.g., "Mon"), Status (badge with optional Published badge), Script Model (compose model in `text-xs`, min-width column), TTS Model (`text-xs`, min-width column), Cost (right-aligned, combined LLM + TTS cost formatted as dollars, or em dash when unavailable), and Actions
 
 #### Scenario: View button on episode rows
 - **WHEN** an episode row is displayed
@@ -95,7 +95,7 @@ The system SHALL display a list of episodes for a podcast at `/podcasts/{podcast
 
 #### Scenario: Podcast header layout order
 - **WHEN** the podcast detail page loads
-- **THEN** the header displays in this order: (1) podcast name + style badge inline, (2) cron schedule in italic (if available), (3) topic description in regular text
+- **THEN** the header displays in this order: (1) podcast name + style badge inline, (2) cron schedule in `text-sm` italic (if available), (3) topic description in `text-sm` regular text
 
 #### Scenario: Cron schedule display
 - **WHEN** the podcast detail page loads and the podcast has a cron schedule

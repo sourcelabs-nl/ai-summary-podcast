@@ -12,11 +12,11 @@ The system SHALL provide a page at `/podcasts/[podcastId]/episodes/[episodeId]` 
 - **THEN** a back link labeled "Back to Episodes" is displayed that navigates to `/podcasts/{podcastId}`
 
 ### Requirement: Episode detail header
-The episode detail page SHALL display a header section following this layout order: (1) episode number + status badge + Published badge (if published) on the first line, (2) generated date, day of week, and duration in italic on the second line, (3) recap text in regular style on the third line (if available). The status badge SHALL use `outline` variant for GENERATED and `default` (orange) for other active statuses. The Published badge SHALL use the `default` variant (orange).
+The episode detail page SHALL display a header section following this layout order: (1) episode number + status badge + Published badge (if published) on the first line, (2) generated date, day of week, and duration in `text-sm` italic on the second line, (3) recap text in `text-sm` regular style on the third line (if available). The status badge SHALL use `outline` variant for GENERATED and `default` (orange) for other active statuses. The Published badge SHALL use the `default` variant (orange).
 
 #### Scenario: Header with full metadata
 - **WHEN** the episode detail page loads for an episode with status GENERATED and audio
-- **THEN** the header displays episode ID with `outline` status badge, date and duration in italic, and recap below
+- **THEN** the header displays episode ID with `outline` status badge, date and duration in `text-sm` italic, and recap in `text-sm` below
 
 #### Scenario: Header with published badge
 - **WHEN** the episode has been published
@@ -24,7 +24,7 @@ The episode detail page SHALL display a header section following this layout ord
 
 #### Scenario: Header with recap
 - **WHEN** the episode has a recap field
-- **THEN** the recap text is displayed below the date line in regular (non-italic) muted text
+- **THEN** the recap text is displayed below the date line in `text-sm` regular (non-italic) muted text
 
 ### Requirement: Episode detail tabbed layout
 The episode detail page SHALL display three tabs: "Script" (default active), "Articles", and "Publications".

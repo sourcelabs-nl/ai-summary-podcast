@@ -119,14 +119,14 @@ export default function EpisodeDetailPage() {
               </Badge>
             )}
           </div>
-          <p className="text-muted-foreground italic">
+          <p className="text-sm text-muted-foreground italic">
             {generatedDate.toLocaleDateString()} ({generatedDate.toLocaleDateString(undefined, { weekday: "long" })})
             {episode.durationSeconds != null && (
               <> &middot; {Math.floor(episode.durationSeconds / 60)}:{String(episode.durationSeconds % 60).padStart(2, "0")}</>
             )}
           </p>
           {episode.recap && (
-            <p className="text-muted-foreground">{episode.recap}</p>
+            <p className="text-sm text-muted-foreground">{episode.recap}</p>
           )}
         </div>
         <div className="flex items-center gap-2">

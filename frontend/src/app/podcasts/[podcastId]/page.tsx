@@ -165,11 +165,11 @@ export default function EpisodesPage() {
             <Badge>{podcast.style}</Badge>
           </div>
           {podcast.cron && cronDescription && (
-            <p className="text-muted-foreground italic">
+            <p className="text-sm text-muted-foreground italic">
               Generates {cronDescription.toLowerCase()}
             </p>
           )}
-          <p className="text-muted-foreground">{podcast.topic}</p>
+          <p className="text-sm text-muted-foreground">{podcast.topic}</p>
         </div>
         <Link href={`/podcasts/${params.podcastId}/settings`}>
           <Button size="sm">
@@ -212,6 +212,8 @@ export default function EpisodesPage() {
                   <TableHead className="w-24">Date</TableHead>
                   <TableHead className="w-12">Day</TableHead>
                   <TableHead className="w-32">Status</TableHead>
+                  <TableHead className="w-0">Script Model</TableHead>
+                  <TableHead className="w-0">TTS Model</TableHead>
                   <TableHead className="w-20 text-right">Cost</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -241,6 +243,12 @@ export default function EpisodesPage() {
                           </Badge>
                         )}
                       </div>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground whitespace-nowrap text-xs">
+                      {episode.composeModel ?? "—"}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground whitespace-nowrap text-xs">
+                      {episode.ttsModel ?? "—"}
                     </TableCell>
                     <TableCell className="text-right text-muted-foreground">
                       {((episode.llmCostCents ?? 0) + (episode.ttsCostCents ?? 0)) > 0

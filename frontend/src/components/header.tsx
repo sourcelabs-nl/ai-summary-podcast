@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Podcast } from "lucide-react";
 import { useUser } from "@/lib/user-context";
 import {
@@ -16,10 +17,10 @@ export function Header() {
   return (
     <header className="bg-primary text-primary-foreground">
       <div className="container mx-auto flex h-14 items-center justify-between px-4">
-        <h1 className="flex items-center gap-2 text-lg font-semibold">
+        <Link href="/podcasts" className="flex items-center gap-2 text-lg font-semibold hover:opacity-80">
           <Podcast className="size-5" />
           AI Podcast Studio
-        </h1>
+        </Link>
         <div className="ml-auto w-48">
           {loading ? (
             <span className="text-sm opacity-80">Loading...</span>
