@@ -70,6 +70,12 @@ export interface PodcastDefaults {
   maxArticleAgeDays: number;
 }
 
+export interface PreviewResponse {
+  scriptText: string;
+  style: string;
+  articleIds: number[];
+}
+
 export interface EpisodePublication {
   id: number;
   episodeId: number;

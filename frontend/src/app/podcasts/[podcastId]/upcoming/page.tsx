@@ -1,0 +1,320 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
+import { ChevronDown, ChevronRight, ExternalLink, Loader2 } from "lucide-react";
+import { CronExpressionParser } from "cron-parser";
+import { useUser } from "@/lib/user-context";
+import type { EpisodeArticle, Podcast, PreviewResponse } from "@/lib/types";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ScriptContent } from "@/components/script-viewer";
+
+const WORDS_PER_MINUTE = 150;
+
+function getSourceDisplayName(source: EpisodeArticle["source"]): string {
+  if (source.label) return source.label;
+  try {
+    const url = new URL(source.url);
+    return url.hostname.replace(/^www\./, "");
+  } catch {
+    return source.url;
+  }
+}
+
+function relevanceColor(score: number | null): string {
+  if (score === null) return "bg-muted text-muted-foreground";
+  if (score >= 7) return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200";
+  if (score >= 4) return "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200";
+  return "bg-muted text-muted-foreground";
+}
+
+function ArticleCard({ article }: { article: EpisodeArticle }) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div className="rounded-lg border border-border bg-card px-4 py-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <h4 className="truncate text-sm font-medium">{article.title}</h4>
+            {article.relevanceScore !== null && (
+              <span
+                className={`inline-flex shrink-0 items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${relevanceColor(article.relevanceScore)}`}
+              >
+                {article.relevanceScore}
+              </span>
+            )}
+          </div>
+          {article.author && (
+            <p className="mt-0.5 text-xs text-muted-foreground">{article.author}</p>
+          )}
+        </div>
+        <a
+          href={article.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="shrink-0 text-muted-foreground hover:text-foreground"
+        >
+          <ExternalLink className="size-4" />
+        </a>
+      </div>
+      {(article.summary || article.body) && (
+        <div className="mt-2">
+          <p
+            className={`text-sm text-muted-foreground ${!expanded ? "line-clamp-2" : ""}`}
+            onClick={() => setExpanded(!expanded)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setExpanded(!expanded); }}
+          >
+            {article.summary || article.body}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function UpcomingPage() {
+  const params = useParams<{ podcastId: string }>();
+  const { selectedUser, loading: userLoading } = useUser();
+  const router = useRouter();
+  const [podcast, setPodcast] = useState<Podcast | null>(null);
+  const [articles, setArticles] = useState<EpisodeArticle[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const [preview, setPreview] = useState<PreviewResponse | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [generateLoading, setGenerateLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!selectedUser) return;
+    setLoading(true);
+    Promise.all([
+      fetch(`/api/users/${selectedUser.id}/podcasts/${params.podcastId}`).then((res) => res.json()),
+      fetch(`/api/users/${selectedUser.id}/podcasts/${params.podcastId}/upcoming-articles`)
+        .then((res) => (res.ok ? res.json() : []))
+        .catch(() => []),
+    ])
+      .then(([podcastData, articleData]) => {
+        setPodcast(podcastData);
+        setArticles(articleData);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [selectedUser, params.podcastId]);
+
+  async function handlePreview() {
+    if (!selectedUser) return;
+    setPreviewLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(
+        `/api/users/${selectedUser.id}/podcasts/${params.podcastId}/preview`,
+        { method: "POST" }
+      );
+      const data = await res.json();
+      if (data.scriptText) {
+        setPreview(data);
+      } else {
+        setError(data.message || "No content available for preview");
+      }
+    } catch {
+      setError("Failed to generate preview");
+    } finally {
+      setPreviewLoading(false);
+    }
+  }
+
+  async function handleGenerate() {
+    if (!selectedUser) return;
+    setGenerateLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(
+        `/api/users/${selectedUser.id}/podcasts/${params.podcastId}/generate`,
+        { method: "POST" }
+      );
+      const data = await res.json();
+      if (data.episodeId) {
+        router.push(`/podcasts/${params.podcastId}/episodes/${data.episodeId}`);
+      } else {
+        setError(data.message || data);
+      }
+    } catch {
+      setError("Failed to generate episode");
+    } finally {
+      setGenerateLoading(false);
+    }
+  }
+
+  const grouped = articles.reduce<Record<string, { displayName: string; articles: EpisodeArticle[] }>>((acc, article) => {
+    const key = article.source.id;
+    if (!acc[key]) {
+      acc[key] = { displayName: getSourceDisplayName(article.source), articles: [] };
+    }
+    acc[key].articles.push(article);
+    return acc;
+  }, {});
+
+  const sortedGroups = Object.entries(grouped).sort(
+    ([, a], [, b]) => b.articles.length - a.articles.length
+  );
+
+  const sourceCount = sortedGroups.length;
+
+  const nextGenerationDate = useMemo(() => {
+    if (!podcast?.cron) return null;
+    try {
+      const expr = CronExpressionParser.parse(podcast.cron);
+      return expr.next().toDate();
+    } catch {
+      return null;
+    }
+  }, [podcast?.cron]);
+
+  const { wordCount, estimatedMinutes } = useMemo(() => {
+    if (!preview) return { wordCount: 0, estimatedMinutes: 0 };
+    const plainText = preview.scriptText.replace(/<\/?[^>]+>/g, " ");
+    const words = plainText.split(/\s+/).filter(Boolean).length;
+    return { wordCount: words, estimatedMinutes: Math.round(words / WORDS_PER_MINUTE) };
+  }, [preview]);
+
+  function toggleGroup(sourceId: string) {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(sourceId)) next.delete(sourceId);
+      else next.add(sourceId);
+      return next;
+    });
+  }
+
+  if (userLoading || loading) {
+    return <p className="text-muted-foreground">Loading...</p>;
+  }
+
+  if (!selectedUser || !podcast) {
+    return <p className="text-muted-foreground">Podcast not found.</p>;
+  }
+
+  return (
+    <div>
+      <div className="mb-4">
+        <Link href={`/podcasts/${params.podcastId}`} className="text-sm text-muted-foreground hover:underline">
+          &larr; Back to Episodes
+        </Link>
+      </div>
+
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold">Upcoming Episode</h2>
+          <p className="text-sm text-muted-foreground">
+            {articles.length} article{articles.length !== 1 ? "s" : ""} from {sourceCount} source{sourceCount !== 1 ? "s" : ""}
+            {nextGenerationDate && (
+              <> &middot; Will be generated {nextGenerationDate.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })} at {nextGenerationDate.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}</>
+            )}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            onClick={handleGenerate}
+            disabled={previewLoading || generateLoading || articles.length === 0}
+          >
+            {generateLoading && <Loader2 className="size-4 animate-spin" />}
+            Generate Episode
+          </Button>
+        </div>
+      </div>
+
+      {error && (
+        <div className="mb-4 rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {error}
+        </div>
+      )}
+
+      <Tabs defaultValue="articles">
+        <TabsList>
+          <TabsTrigger value="articles">
+            Articles ({articles.length})
+          </TabsTrigger>
+          <TabsTrigger value="script">
+            Script {preview && `(${wordCount.toLocaleString()} words)`}
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="articles">
+          <div className="mt-4">
+            {articles.length === 0 ? (
+              <p className="text-muted-foreground">No content has been collected yet.</p>
+            ) : (
+              <div className="space-y-4">
+                {sortedGroups.map(([sourceId, group]) => {
+                  const isCollapsed = collapsedGroups.has(sourceId);
+                  return (
+                    <div key={sourceId}>
+                      <button
+                        onClick={() => toggleGroup(sourceId)}
+                        className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm font-semibold hover:bg-muted"
+                      >
+                        {isCollapsed ? (
+                          <ChevronRight className="size-4 shrink-0" />
+                        ) : (
+                          <ChevronDown className="size-4 shrink-0" />
+                        )}
+                        <span>{group.displayName}</span>
+                        <Badge variant="secondary" className="text-[10px] px-1.5 py-px">
+                          {group.articles.length}
+                        </Badge>
+                      </button>
+                      {!isCollapsed && (
+                        <div className="ml-6 mt-2 space-y-2">
+                          {group.articles.map((article) => (
+                            <ArticleCard key={article.id} article={article} />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="script">
+          <div className="mt-4">
+            {preview ? (
+              <div>
+                <p className="mb-4 text-sm text-muted-foreground">
+                  {preview.articleIds.length} article{preview.articleIds.length !== 1 ? "s" : ""} &middot; {wordCount.toLocaleString()} words &middot; ~{estimatedMinutes} min
+                </p>
+                <ScriptContent
+                  scriptText={preview.scriptText}
+                  style={preview.style}
+                  speakerNames={podcast.speakerNames}
+                />
+              </div>
+            ) : (
+              <div className="flex flex-col items-center gap-4 py-12">
+                <p className="text-muted-foreground">No script preview generated yet.</p>
+                <Button
+                  variant="outline"
+                  onClick={handlePreview}
+                  disabled={previewLoading || articles.length === 0}
+                >
+                  {previewLoading && <Loader2 className="size-4 animate-spin" />}
+                  Preview Script
+                </Button>
+              </div>
+            )}
+          </div>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}

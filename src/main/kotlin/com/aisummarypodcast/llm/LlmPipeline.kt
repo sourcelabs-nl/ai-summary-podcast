@@ -25,6 +25,11 @@ data class PipelineResult(
     val processedArticleIds: List<Long> = emptyList()
 )
 
+data class PreviewResult(
+    val script: String,
+    val articleIds: List<Long>
+)
+
 @Component
 class LlmPipeline(
     private val articleScoreSummarizer: ArticleScoreSummarizer,
@@ -141,6 +146,61 @@ class LlmPipeline(
             llmOutputTokens = compositionResult.usage.outputTokens,
             llmCostCents = costCents,
             processedArticleIds = processedArticleIds
+        )
+    }
+
+    fun preview(podcast: Podcast): PreviewResult? {
+        val sources = sourceRepository.findByPodcastId(podcast.id)
+        val sourceIds = sources.map { it.id }
+        if (sourceIds.isEmpty()) return null
+
+        val filterModelDef = modelResolver.resolve(podcast, PipelineStage.FILTER)
+        val composeModelDef = modelResolver.resolve(podcast, PipelineStage.COMPOSE)
+        val threshold = podcast.relevanceThreshold
+        val sourceLabels = sources.associate { it.id to extractDomainAndPath(it.url) }
+
+        // Step 1: Aggregate unlinked posts into articles
+        val effectiveMaxArticleAgeDays = podcast.maxArticleAgeDays ?: appProperties.source.maxArticleAgeDays
+        val cutoff = Instant.now().minus(effectiveMaxArticleAgeDays.toLong(), ChronoUnit.DAYS).toString()
+        val unlinkedPosts = postRepository.findUnlinkedBySourceIds(sourceIds, cutoff)
+
+        if (unlinkedPosts.isNotEmpty()) {
+            log.info("[LLM Preview] Aggregating {} unlinked posts for podcast '{}' ({})", unlinkedPosts.size, podcast.name, podcast.id)
+            val postsBySource = unlinkedPosts.groupBy { it.sourceId }
+            for ((sourceId, posts) in postsBySource) {
+                val source = sources.first { it.id == sourceId }
+                sourceAggregator.aggregateAndPersist(posts, source)
+            }
+        }
+
+        // Step 2: Score unscored articles (persists scores)
+        val unscored = articleRepository.findUnscoredBySourceIds(sourceIds)
+        if (unscored.isNotEmpty()) {
+            log.info("[LLM Preview] Scoring {} articles for podcast '{}' ({})", unscored.size, podcast.name, podcast.id)
+            articleScoreSummarizer.scoreSummarize(unscored, podcast, filterModelDef, sourceLabels)
+        }
+
+        // Step 3: Compose script from relevant unprocessed articles (NO marking as processed)
+        val toCompose = articleRepository.findRelevantUnprocessedBySourceIds(sourceIds, threshold)
+        if (toCompose.isEmpty()) {
+            log.info("[LLM Preview] No relevant unprocessed articles for podcast '{}' ({})", podcast.name, podcast.id)
+            return null
+        }
+
+        val previousRecap = episodeRepository.findMostRecentByPodcastId(podcast.id)?.recap
+        val ttsProvider = ttsProviderFactory.resolve(podcast)
+        val ttsScriptGuidelines = ttsProvider.scriptGuidelines(podcast.style, podcast.pronunciations ?: emptyMap())
+
+        val compositionResult = when (podcast.style) {
+            PodcastStyle.DIALOGUE -> dialogueComposer.compose(toCompose, podcast, composeModelDef, previousRecap, ttsScriptGuidelines)
+            PodcastStyle.INTERVIEW -> interviewComposer.compose(toCompose, podcast, composeModelDef, previousRecap, ttsScriptGuidelines)
+            else -> briefingComposer.compose(toCompose, podcast, composeModelDef, previousRecap, ttsScriptGuidelines)
+        }
+
+        log.info("[LLM Preview] Preview complete for podcast '{}' ({}): {} articles composed", podcast.name, podcast.id, toCompose.size)
+        return PreviewResult(
+            script = compositionResult.script,
+            articleIds = toCompose.mapNotNull { it.id }
         )
     }
 }

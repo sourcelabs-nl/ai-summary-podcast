@@ -6,7 +6,7 @@ import Link from "next/link";
 import cronstrue from "cronstrue";
 import { Check, ChevronRight, Settings, Upload, X } from "lucide-react";
 import { useUser } from "@/lib/user-context";
-import type { Podcast, Episode, EpisodePublication } from "@/lib/types";
+import type { Podcast, Episode, EpisodePublication, EpisodeArticle } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -55,6 +55,7 @@ export default function EpisodesPage() {
   const router = useRouter();
   const [publishedEpisodeIds, setPublishedEpisodeIds] = useState<Set<number>>(new Set());
   const [refreshKey, setRefreshKey] = useState(0);
+  const [upcomingCount, setUpcomingCount] = useState<number>(0);
 
   const fetchPublications = useCallback(
     (episodeList: Episode[]) => {
@@ -110,10 +111,14 @@ export default function EpisodesPage() {
           statusFilter !== "all" ? `?status=${statusFilter}` : ""
         }`
       ).then((res) => res.json()),
+      fetch(`/api/users/${selectedUser.id}/podcasts/${params.podcastId}/upcoming-articles`)
+        .then((res) => (res.ok ? res.json() : []))
+        .catch(() => []),
     ])
-      .then(([podcastData, episodeData]) => {
+      .then(([podcastData, episodeData, upcomingArticles]) => {
         setPodcast(podcastData);
         setEpisodes(episodeData);
+        setUpcomingCount((upcomingArticles as EpisodeArticle[]).length);
         fetchPublications(episodeData);
       })
       .catch(() => {})
@@ -178,6 +183,18 @@ export default function EpisodesPage() {
           </Button>
         </Link>
       </div>
+
+      {upcomingCount > 0 && (
+        <Link
+          href={`/podcasts/${params.podcastId}/upcoming`}
+          className="mb-6 flex items-center justify-between rounded-lg border border-border bg-muted/50 px-4 py-3 hover:bg-muted transition-colors"
+        >
+          <span className="text-sm font-medium">
+            Next Episode &middot; {upcomingCount} article{upcomingCount !== 1 ? "s" : ""} ready
+          </span>
+          <ChevronRight className="size-4 text-muted-foreground" />
+        </Link>
+      )}
 
       <Tabs defaultValue="episodes">
         <TabsList>

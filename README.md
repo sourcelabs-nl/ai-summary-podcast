@@ -156,6 +156,7 @@ The dashboard provides:
 - **Podcast settings** — edit all podcast configuration (general, LLM, TTS, content) via a tabbed settings page with key-value editors for JSON map fields
 - **Episode management** — view episodes with status filtering, approve/discard pending reviews. Click any episode row to open the detail page. Shows the generation schedule in human-readable form
 - **Episode detail page** — dedicated page per episode with tabs for Script (chat-bubble rendering), Articles (grouped by source with relevance scores and collapsible sections), and Publications. Shows episode metadata, recap, and contextual action buttons
+- **Upcoming episode preview** — see collected articles for the next episode, preview the script (dry-run without generating), and trigger episode generation on demand. Shows next scheduled generation time
 - **Publish wizard** — publish generated episodes to SoundCloud via a step-by-step wizard
 - **Publications tab** — view all publications with track/playlist links, republish with confirmation
 

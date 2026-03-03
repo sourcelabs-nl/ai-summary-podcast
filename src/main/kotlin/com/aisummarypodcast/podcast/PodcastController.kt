@@ -1,7 +1,9 @@
 package com.aisummarypodcast.podcast
 
+import com.aisummarypodcast.store.ArticleRepository
 import com.aisummarypodcast.store.Podcast
 import com.aisummarypodcast.store.PodcastStyle
+import com.aisummarypodcast.store.SourceRepository
 import com.aisummarypodcast.store.TtsProviderType
 import com.aisummarypodcast.user.UserService
 import com.fasterxml.jackson.annotation.JsonProperty
@@ -83,7 +85,9 @@ data class PodcastResponse(
 @RequestMapping("/users/{userId}/podcasts")
 class PodcastController(
     private val podcastService: PodcastService,
-    private val userService: UserService
+    private val userService: UserService,
+    private val sourceRepository: SourceRepository,
+    private val articleRepository: ArticleRepository
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -252,8 +256,61 @@ class PodcastController(
         return if (podcast.requireReview) {
             ResponseEntity.ok(mapOf("message" to "Script ready for review", "episodeId" to episode.id))
         } else {
-            ResponseEntity.ok(mapOf("message" to "Episode generated: ${episode.id} (${episode.durationSeconds}s)"))
+            ResponseEntity.ok(mapOf("message" to "Episode generated: ${episode.id} (${episode.durationSeconds}s)", "episodeId" to episode.id))
         }
+    }
+
+    @GetMapping("/{podcastId}/upcoming-articles")
+    fun upcomingArticles(@PathVariable userId: String, @PathVariable podcastId: String): ResponseEntity<Any> {
+        userService.findById(userId) ?: return ResponseEntity.notFound().build()
+        val podcast = podcastService.findById(podcastId) ?: return ResponseEntity.notFound().build()
+        if (podcast.userId != userId) return ResponseEntity.notFound().build()
+
+        val sources = sourceRepository.findByPodcastId(podcastId)
+        val sourceIds = sources.map { it.id }
+        if (sourceIds.isEmpty()) return ResponseEntity.ok(emptyList<EpisodeArticleResponse>())
+
+        val articles = articleRepository.findRelevantUnprocessedBySourceIds(sourceIds, podcast.relevanceThreshold)
+        val sourceMap = sources.associateBy { it.id }
+
+        val response = articles.map { article ->
+            val source = sourceMap[article.sourceId]
+            EpisodeArticleResponse(
+                id = article.id!!,
+                title = article.title,
+                url = article.url,
+                author = article.author,
+                publishedAt = article.publishedAt,
+                relevanceScore = article.relevanceScore,
+                summary = article.summary,
+                body = article.body,
+                source = ArticleSourceResponse(
+                    id = source?.id ?: article.sourceId,
+                    type = source?.type?.name ?: "UNKNOWN",
+                    url = source?.url ?: "",
+                    label = source?.label
+                )
+            )
+        }.sortedByDescending { it.relevanceScore }
+
+        return ResponseEntity.ok(response)
+    }
+
+    @PostMapping("/{podcastId}/preview")
+    fun preview(@PathVariable userId: String, @PathVariable podcastId: String): ResponseEntity<Any> {
+        userService.findById(userId) ?: return ResponseEntity.notFound().build()
+        val podcast = podcastService.findById(podcastId) ?: return ResponseEntity.notFound().build()
+        if (podcast.userId != userId) return ResponseEntity.notFound().build()
+
+        log.info("Preview requested for podcast {}", podcastId)
+        val result = podcastService.previewBriefing(podcast)
+            ?: return ResponseEntity.ok(mapOf("message" to "No relevant articles available for preview"))
+
+        return ResponseEntity.ok(mapOf(
+            "scriptText" to result.script,
+            "style" to podcast.style.value,
+            "articleIds" to result.articleIds
+        ))
     }
 
     private fun Podcast.toResponse() = PodcastResponse(

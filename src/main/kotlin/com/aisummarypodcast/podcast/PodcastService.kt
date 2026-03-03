@@ -2,6 +2,7 @@ package com.aisummarypodcast.podcast
 
 import com.aisummarypodcast.config.AppProperties
 import com.aisummarypodcast.llm.LlmPipeline
+import com.aisummarypodcast.llm.PreviewResult
 import com.aisummarypodcast.store.PodcastStyle
 import com.aisummarypodcast.store.TtsProviderType
 import com.aisummarypodcast.store.*
@@ -81,6 +82,10 @@ class PodcastService(
             pronunciations = updates.pronunciations
         )
         return podcastRepository.save(updated)
+    }
+
+    fun previewBriefing(podcast: Podcast): PreviewResult? {
+        return llmPipeline.preview(podcast)
     }
 
     fun generateBriefing(podcast: Podcast): Episode? {
