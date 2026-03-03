@@ -1,5 +1,6 @@
 "use client";
 
+import { Podcast } from "lucide-react";
 import { useUser } from "@/lib/user-context";
 import {
   Select,
@@ -15,7 +16,10 @@ export function Header() {
   return (
     <header className="bg-primary text-primary-foreground">
       <div className="container mx-auto flex h-14 items-center justify-between px-4">
-        <h1 className="text-lg font-semibold">AI Podcast Studio</h1>
+        <h1 className="flex items-center gap-2 text-lg font-semibold">
+          <Podcast className="size-5" />
+          AI Podcast Studio
+        </h1>
         <div className="ml-auto w-48">
           {loading ? (
             <span className="text-sm opacity-80">Loading...</span>
