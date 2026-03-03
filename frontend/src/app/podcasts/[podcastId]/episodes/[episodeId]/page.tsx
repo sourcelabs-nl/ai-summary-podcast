@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { Check, Upload, X } from "lucide-react";
@@ -13,6 +13,8 @@ import { ScriptContent } from "@/components/script-viewer";
 import { ArticlesTab } from "@/components/articles-tab";
 import { PublicationsTab } from "@/components/publications-tab";
 import { PublishWizard } from "@/components/publish-wizard";
+
+const WORDS_PER_MINUTE = 150;
 
 const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
   GENERATED: "outline",
@@ -83,6 +85,14 @@ export default function EpisodeDetailPage() {
     setArticleCount(count);
   }, []);
 
+  const scriptStats = useMemo(() => {
+    if (!episode) return { wordCount: 0, estimatedMinutes: 0 };
+    const plainText = episode.scriptText.replace(/<\/?[^>]+>/g, " ");
+    const words = plainText.split(/\s+/).filter(Boolean).length;
+    const estimatedMinutes = Math.round(words / WORDS_PER_MINUTE);
+    return { wordCount: words, estimatedMinutes };
+  }, [episode]);
+
   if (userLoading || loading) {
     return <p className="text-muted-foreground">Loading...</p>;
   }
@@ -121,6 +131,7 @@ export default function EpisodeDetailPage() {
           </div>
           <p className="text-sm text-muted-foreground">
             Generated {generatedDate.toLocaleDateString()} ({generatedDate.toLocaleDateString(undefined, { weekday: "long" })})
+            {" "}&middot; {scriptStats.wordCount.toLocaleString()} words &middot; ~{scriptStats.estimatedMinutes} min estimated
             {episode.durationSeconds != null && (
               <> &middot; duration {Math.floor(episode.durationSeconds / 60)}:{String(episode.durationSeconds % 60).padStart(2, "0")}</>
             )}

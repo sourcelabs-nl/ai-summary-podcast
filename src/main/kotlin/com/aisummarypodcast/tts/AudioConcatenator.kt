@@ -13,18 +13,30 @@ class AudioConcatenator {
     fun concatenate(audioChunks: List<ByteArray>, outputPath: Path): Path {
         Files.createDirectories(outputPath.parent)
 
-        if (audioChunks.size == 1) {
-            Files.write(outputPath, audioChunks.first())
-            log.info("Single chunk written directly to {}", outputPath)
-            return outputPath
+        // Write chunks to temp files (always needed now for silence prepend)
+        val tempDir = Files.createTempDirectory("tts-chunks")
+
+        // Generate 500ms silence as the first chunk
+        val silenceFile = tempDir.resolve("silence.mp3")
+        val silenceProcess = ProcessBuilder(
+            "ffmpeg", "-y", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=mono",
+            "-t", "0.5", "-codec:a", "libmp3lame", "-b:a", "128k",
+            silenceFile.toAbsolutePath().toString()
+        )
+            .redirectErrorStream(true)
+            .start()
+        if (silenceProcess.waitFor() != 0) {
+            log.warn("Failed to generate silence, proceeding without it")
         }
 
-        // Write chunks to temp files
-        val tempDir = Files.createTempDirectory("tts-chunks")
-        val chunkFiles = audioChunks.mapIndexed { index, bytes ->
+        val chunkFiles = mutableListOf<Path>()
+        if (Files.exists(silenceFile)) {
+            chunkFiles.add(silenceFile)
+        }
+        audioChunks.forEachIndexed { index, bytes ->
             val chunkFile = tempDir.resolve("chunk_$index.mp3")
             Files.write(chunkFile, bytes)
-            chunkFile
+            chunkFiles.add(chunkFile)
         }
 
         // Create FFmpeg concat list
