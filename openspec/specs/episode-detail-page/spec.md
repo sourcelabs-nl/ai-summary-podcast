@@ -12,19 +12,23 @@ The system SHALL provide a page at `/podcasts/[podcastId]/episodes/[episodeId]` 
 - **THEN** a back link labeled "Back to Episodes" is displayed that navigates to `/podcasts/{podcastId}`
 
 ### Requirement: Episode detail header
-The episode detail page SHALL display a header section following this layout order: (1) episode number + status badge + Published badge (if published) on the first line, (2) generated date, day of week, and duration in `text-sm` italic on the second line, (3) recap text in `text-sm` regular style on the third line (if available). The status badge SHALL use `outline` variant for GENERATED and `default` (orange) for other active statuses. The Published badge SHALL use the `default` variant (orange).
+The episode detail page SHALL display a header section following this layout order: (1) episode number + status badge + Published badge (if published) on the first line, (2) a single `text-sm` muted line containing: "Generated {date} ({weekday})" followed by word count and estimated TTS duration (at 150 words per minute), actual audio duration (if available), and recap (if available), all separated by `·`. The status badge SHALL use `outline` variant for GENERATED and `default` (orange) for other active statuses. The Published badge SHALL use the `default` variant (orange).
 
 #### Scenario: Header with full metadata
-- **WHEN** the episode detail page loads for an episode with status GENERATED and audio
-- **THEN** the header displays episode ID with `outline` status badge, date and duration in `text-sm` italic, and recap in `text-sm` below
+- **WHEN** the episode detail page loads for an episode with script text and audio
+- **THEN** the header displays: "Generated {date} ({weekday}) · {N} words · ~{M} min estimated · duration {H}:{MM}" in `text-sm` muted text, followed by recap if available (separated by `·`)
 
 #### Scenario: Header with published badge
 - **WHEN** the episode has been published
 - **THEN** an orange "Published" badge (default variant) is displayed next to the status badge
 
+#### Scenario: Header word count and estimated duration
+- **WHEN** the episode has script text
+- **THEN** the word count is computed from the plain text (HTML tags stripped) and the estimated TTS duration is calculated at 150 words per minute
+
 #### Scenario: Header with recap
 - **WHEN** the episode has a recap field
-- **THEN** the recap text is displayed below the date line in `text-sm` regular (non-italic) muted text
+- **THEN** the recap text is displayed inline after the duration, separated by `·`
 
 ### Requirement: Episode detail tabbed layout
 The episode detail page SHALL display three tabs: "Script" (default active), "Articles", and "Publications".

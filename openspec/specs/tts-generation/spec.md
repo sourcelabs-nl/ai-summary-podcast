@@ -1,4 +1,4 @@
-## MODIFIED Requirements
+## Requirements
 
 ### Requirement: Text chunking at sentence boundaries
 The system SHALL split the briefing script into chunks that respect a configurable maximum chunk size. The `TextChunker.chunk()` method SHALL accept a `maxChunkSize: Int` parameter (defaulting to 4096 for backward compatibility). Chunks SHALL be split at sentence boundaries (period, exclamation mark, question mark followed by whitespace) to avoid mid-sentence audio cuts.
@@ -22,3 +22,14 @@ The system SHALL split the briefing script into chunks that respect a configurab
 #### Scenario: Default chunk size for backward compatibility
 - **WHEN** `TextChunker.chunk(text)` is called without a `maxChunkSize` parameter
 - **THEN** the default max chunk size of 4096 is used
+
+### Requirement: Silence prepended to audio output
+The `AudioConcatenator` SHALL prepend 500ms of silence before the first audio chunk when concatenating TTS output. This prevents podcast players from clipping the first word of the episode.
+
+#### Scenario: Silence added to concatenated audio
+- **WHEN** audio chunks are concatenated into the final MP3 file
+- **THEN** a 500ms silent MP3 segment is generated via ffmpeg and prepended before the first audio chunk
+
+#### Scenario: Silence generation failure
+- **WHEN** ffmpeg fails to generate the silence segment
+- **THEN** the concatenation proceeds without silence and a warning is logged
