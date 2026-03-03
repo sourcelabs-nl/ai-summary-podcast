@@ -30,6 +30,7 @@ class SourcePoller(
         log.info("[Polling] Polling source: {} ({})", source.url, source.type)
 
         try {
+            var resolvedXUserId: String? = null
             val rawPosts = when (source.type) {
                 SourceType.RSS -> rssFeedFetcher.fetch(source.url, source.id, source.lastSeenId, source.categoryFilter)
                 SourceType.WEBSITE -> listOfNotNull(websiteFetcher.fetch(source.url, source.id))
@@ -38,7 +39,9 @@ class SourcePoller(
                         log.warn("[Polling] Twitter source {} requires user context for OAuth — skipping", source.url)
                         emptyList()
                     } else {
-                        twitterFetcher.fetch(source.url, source.id, source.lastSeenId, userId)
+                        val result = twitterFetcher.fetchWithUserId(source.url, source.id, source.lastSeenId, userId)
+                        resolvedXUserId = result.resolvedXUserId
+                        result.posts
                     }
                 }
                 SourceType.YOUTUBE -> rssFeedFetcher.fetch(source.url, source.id, source.lastSeenId, source.categoryFilter)
@@ -84,7 +87,7 @@ class SourcePoller(
             }
 
             val newLastSeenId = if (source.type == SourceType.TWITTER && userId != null) {
-                twitterFetcher.buildLastSeenId(source.lastSeenId, rawPosts, source.url, userId)
+                twitterFetcher.buildLastSeenId(source.lastSeenId, rawPosts, source.url, userId, resolvedXUserId)
             } else {
                 latestTimestamp
             }

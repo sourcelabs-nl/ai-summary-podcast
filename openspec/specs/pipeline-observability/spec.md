@@ -31,7 +31,7 @@ The system SHALL log the start and completion of briefing script composition at 
 
 #### Scenario: Briefing composition lifecycle logging
 - **WHEN** the BriefingComposer, DialogueComposer, or InterviewComposer starts and completes composing a script
-- **THEN** an info log is emitted at start (e.g., `[LLM] Composing briefing from 5 articles for podcast 'AI Daily News' (6aa0af72-...)`) and at completion with elapsed time and word count
+- **THEN** an info log is emitted at start using style-specific prefixes (e.g., `[LLM] Composing briefing from 5 articles`, `[LLM] Composing dialogue from 5 articles`, `[LLM] Composing interview from 5 articles`) and at completion with elapsed time and word count
 
 ### Requirement: TTS pipeline start logging
 The system SHALL log the start of TTS audio generation at INFO level before processing begins. All TTS log messages that reference a podcast SHALL include the podcast name in the format `'Name' (uuid)`.

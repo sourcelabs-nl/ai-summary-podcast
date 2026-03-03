@@ -97,10 +97,11 @@ class LlmPipeline(
         val unscored = allUnscored
         if (unscored.isNotEmpty()) {
             log.info("[LLM] Scoring and summarizing {} articles for podcast '{}' ({})", unscored.size, podcast.name, podcast.id)
-            val (_, scoringDuration) = measureTimedValue {
+            val (scoredArticles, scoringDuration) = measureTimedValue {
                 articleScoreSummarizer.scoreSummarize(unscored, podcast, filterModelDef, sourceLabels)
             }
-            log.info("[LLM] Score+summarize complete — {} articles in {}", unscored.size, scoringDuration)
+            val relevantCount = scoredArticles.count { (it.relevanceScore ?: 0) >= threshold }
+            log.info("[LLM] Score+summarize complete — {} articles in {} ({} relevant)", unscored.size, scoringDuration, relevantCount)
         }
 
         // Step 3: Compose briefing from all relevant unprocessed articles

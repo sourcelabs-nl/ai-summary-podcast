@@ -171,14 +171,14 @@ class SourcePollerTest {
             contentHash = "",
             createdAt = ""
         )
-        every { twitterFetcher.fetch("testuser", "s2", null, "user1") } returns listOf(tweetPost)
-        every { twitterFetcher.buildLastSeenId(null, any(), "testuser", "user1") } returns "999:123"
+        every { twitterFetcher.fetchWithUserId("testuser", "s2", null, "user1") } returns TwitterFetchResult(listOf(tweetPost), "999")
+        every { twitterFetcher.buildLastSeenId(null, any(), "testuser", "user1", "999") } returns "999:123"
 
         val poller = SourcePoller(rssFeedFetcher, websiteFetcher, twitterFetcher, postRepository, sourceRepository, appProperties())
         poller.poll(twitterSource, userId = "user1")
 
         verify { postRepository.save(any()) }
-        verify { twitterFetcher.fetch("testuser", "s2", null, "user1") }
+        verify { twitterFetcher.fetchWithUserId("testuser", "s2", null, "user1") }
     }
 
     @Test

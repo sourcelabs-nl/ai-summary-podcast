@@ -97,7 +97,7 @@ The `InworldApiClient.synthesizeSpeech()` SHALL always include `applyTextNormali
 
 #### Scenario: Text normalization enabled in API request
 - **WHEN** a TTS request is sent to the Inworld API
-- **THEN** the request body includes `"applyTextNormalization": true`
+- **THEN** the request body includes `"applyTextNormalization": "ON"`
 
 ### Requirement: Inworld TTS script guidelines
 The `InworldTtsProvider` SHALL return style-aware script guidelines via `scriptGuidelines(style, pronunciations)`. The guidelines SHALL instruct the LLM to use Inworld-specific markup:

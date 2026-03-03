@@ -7,6 +7,8 @@ import org.springframework.web.client.HttpClientErrorException
 import java.time.Instant
 import java.time.format.DateTimeFormatter
 
+data class TwitterFetchResult(val posts: List<Post>, val resolvedXUserId: String?)
+
 @Component
 class TwitterFetcher(
     private val xTokenManager: XTokenManager,
@@ -16,6 +18,10 @@ class TwitterFetcher(
     private val log = LoggerFactory.getLogger(javaClass)
 
     fun fetch(url: String, sourceId: String, lastSeenId: String?, userId: String): List<Post> {
+        return fetchWithUserId(url, sourceId, lastSeenId, userId).posts
+    }
+
+    fun fetchWithUserId(url: String, sourceId: String, lastSeenId: String?, userId: String): TwitterFetchResult {
         return try {
             val username = extractUsername(url)
             val accessToken = xTokenManager.getValidAccessToken(userId)
@@ -24,21 +30,28 @@ class TwitterFetcher(
             val xUserId = cachedUserId ?: resolveUserId(accessToken, username)
             val tweets = xClient.getUserTimeline(accessToken, xUserId, sinceId)
 
-            tweets.map { tweet -> mapTweetToPost(tweet, username, sourceId) }
+            TwitterFetchResult(
+                posts = tweets.map { tweet -> mapTweetToPost(tweet, username, sourceId) },
+                resolvedXUserId = xUserId
+            )
         } catch (e: HttpClientErrorException) {
             handleApiError(e, sourceId)
-            emptyList()
+            TwitterFetchResult(emptyList(), null)
         } catch (e: Exception) {
             log.error("[Twitter] Error fetching source {}: {}", sourceId, e.message)
-            emptyList()
+            TwitterFetchResult(emptyList(), null)
         }
     }
 
-    fun buildLastSeenId(currentLastSeenId: String?, posts: List<Post>, url: String, userId: String): String? {
-        if (posts.isEmpty() && currentLastSeenId != null) return currentLastSeenId
+    fun buildLastSeenId(currentLastSeenId: String?, posts: List<Post>, url: String, userId: String, resolvedXUserId: String? = null): String? {
+        val (cachedUserId, currentSinceId) = parseLastSeenId(currentLastSeenId)
+        val xUserId = cachedUserId ?: resolvedXUserId
 
-        val (cachedUserId, _) = parseLastSeenId(currentLastSeenId)
-        val xUserId = cachedUserId ?: return currentLastSeenId
+        if (xUserId == null) return currentLastSeenId
+
+        if (posts.isEmpty()) {
+            return "$xUserId:${currentSinceId ?: ""}"
+        }
 
         val latestTweetId = posts.mapNotNull { post ->
             post.url.substringAfterLast("/").toLongOrNull()
@@ -47,7 +60,7 @@ class TwitterFetcher(
         return if (latestTweetId != null) {
             "$xUserId:$latestTweetId"
         } else {
-            currentLastSeenId
+            "$xUserId:${currentSinceId ?: ""}"
         }
     }
 
@@ -67,7 +80,7 @@ class TwitterFetcher(
         if (lastSeenId == null) return Pair(null, null)
         val parts = lastSeenId.split(":", limit = 2)
         return if (parts.size == 2) {
-            Pair(parts[0], parts[1])
+            Pair(parts[0], parts[1].ifEmpty { null })
         } else {
             Pair(null, null)
         }

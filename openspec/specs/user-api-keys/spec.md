@@ -22,7 +22,7 @@ The system SHALL encrypt API keys before storing them in the database using AES-
 - **THEN** each stored value uses a different random IV, producing different ciphertext even if the API keys happen to be identical
 
 ### Requirement: Provider default base URLs
-The system SHALL maintain a map of known provider names to default base URLs. When a user configures a provider without an explicit `base_url`, the system SHALL use the default for that provider. Known defaults SHALL be: `openrouter` → `https://openrouter.ai/api`, `openai` → `https://api.openai.com`, `ollama` → `http://localhost:11434/v1`, `elevenlabs` → `https://api.elevenlabs.io`. If the provider is not in the known list and no `base_url` is provided, the system SHALL reject the request with HTTP 400.
+The system SHALL maintain a map of known provider names to default base URLs. When a user configures a provider without an explicit `base_url`, the system SHALL use the default for that provider. Known defaults SHALL be: `openrouter` → `https://openrouter.ai/api`, `openai` → `https://api.openai.com`, `ollama` → `http://localhost:11434/v1`, `elevenlabs` → `https://api.elevenlabs.io`, `inworld` → `https://api.inworld.ai`. If the provider is not in the known list and no `base_url` is provided, the system SHALL reject the request with HTTP 400.
 
 #### Scenario: Known provider without explicit base URL
 - **WHEN** a `PUT /users/{userId}/api-keys/{category}` request is received with provider `"ollama"` and no `baseUrl`

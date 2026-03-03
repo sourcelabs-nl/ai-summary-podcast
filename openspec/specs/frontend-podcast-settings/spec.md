@@ -16,7 +16,7 @@ The system SHALL provide a settings page at `/podcasts/[podcastId]/settings` tha
 - **THEN** the page displays "Podcast not found."
 
 ### Requirement: Settings sub-tabs
-The settings form SHALL be organized into five sub-tabs: General, LLM, TTS, Content, and Integrations. The General tab SHALL be the default active tab.
+The settings form SHALL be organized into four sub-tabs: General, LLM, TTS, and Content. The General tab SHALL be the default active tab.
 
 #### Scenario: General tab fields
 - **WHEN** the General tab is active
@@ -33,10 +33,6 @@ The settings form SHALL be organized into five sub-tabs: General, LLM, TTS, Cont
 #### Scenario: Content tab fields
 - **WHEN** the Content tab is active
 - **THEN** the form displays editable fields for: sponsor (key-value editor), pronunciations (key-value editor)
-
-#### Scenario: Integrations tab fields
-- **WHEN** the Integrations tab is active
-- **THEN** the form displays editable fields for: soundcloudPlaylistId (text)
 
 ### Requirement: Key-value editor
 JSON map fields SHALL be edited using a structured key-value row editor. Each row SHALL display a text input for the key, a text input for the value, and a remove button. An "Add row" button SHALL allow adding new entries.

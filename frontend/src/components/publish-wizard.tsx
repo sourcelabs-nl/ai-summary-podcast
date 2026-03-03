@@ -72,6 +72,10 @@ export function PublishWizard({
         const data: EpisodePublication = await res.json();
         setResult(data);
         setStep("result");
+      } else if (res.status === 409) {
+        const label = TARGETS.find((t) => t.value === target)?.label ?? target;
+        setError(`This episode has already been published to ${label}.`);
+        setStep("result");
       } else {
         const body = await res.json().catch(() => ({ error: "Publishing failed" }));
         setError(body.error || "Publishing failed");

@@ -7,11 +7,11 @@ Persistent caching layer for LLM responses to eliminate redundant API calls when
 ## Requirements
 
 ### Requirement: Persistent LLM response cache
-The system SHALL maintain a persistent cache of LLM responses in SQLite. The cache table `llm_cache` SHALL have columns: `prompt_hash` (TEXT, part of composite PK), `model` (TEXT, part of composite PK), `response` (TEXT), `created_at` (TEXT, ISO-8601), `input_tokens` (INTEGER, nullable), and `output_tokens` (INTEGER, nullable). The cache SHALL be created via a Flyway migration (V5), with token columns added in a subsequent migration (V11).
+The system SHALL maintain a persistent cache of LLM responses in SQLite. The cache table `llm_cache` SHALL have columns: `id` (INTEGER PRIMARY KEY AUTOINCREMENT), `prompt_hash` (TEXT, NOT NULL), `model` (TEXT, NOT NULL), `response` (TEXT), `created_at` (TEXT, ISO-8601), `input_tokens` (INTEGER, nullable), and `output_tokens` (INTEGER, nullable). A unique constraint SHALL exist on `(prompt_hash, model)`. The cache SHALL be created via a Flyway migration (V5), with token columns added in a subsequent migration (V11).
 
 #### Scenario: Cache table exists after migration
 - **WHEN** the application starts with the Flyway migrations applied
-- **THEN** the `llm_cache` table exists with columns `prompt_hash`, `model`, `response`, `created_at`, `input_tokens`, and `output_tokens`
+- **THEN** the `llm_cache` table exists with columns `id`, `prompt_hash`, `model`, `response`, `created_at`, `input_tokens`, and `output_tokens`, with a unique constraint on `(prompt_hash, model)`
 
 ### Requirement: Cache key derivation
 The cache key SHALL be the SHA-256 hash of the string `"{model}:{promptText}"` where `model` is the LLM model identifier and `promptText` is the full user message text sent to the model. The composite key `(prompt_hash, model)` SHALL uniquely identify a cache entry.

@@ -87,7 +87,8 @@ class PodcastController(
     private val podcastService: PodcastService,
     private val userService: UserService,
     private val sourceRepository: SourceRepository,
-    private val articleRepository: ArticleRepository
+    private val articleRepository: ArticleRepository,
+    private val episodeService: EpisodeService
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -250,8 +251,13 @@ class PodcastController(
         if (podcast.userId != userId) return ResponseEntity.notFound().build()
 
         log.info("Manual briefing generation triggered for podcast {}", podcastId)
+
+        if (podcast.requireReview && episodeService.hasPendingOrApprovedEpisode(podcastId)) {
+            return ResponseEntity.status(409).body(mapOf("error" to "A pending or approved episode already exists — approve or discard it first"))
+        }
+
         val episode = podcastService.generateBriefing(podcast)
-            ?: return ResponseEntity.ok("No relevant articles to process or a pending/approved episode exists")
+            ?: return ResponseEntity.ok(mapOf("message" to "No relevant articles to process"))
 
         return if (podcast.requireReview) {
             ResponseEntity.ok(mapOf("message" to "Script ready for review", "episodeId" to episode.id))

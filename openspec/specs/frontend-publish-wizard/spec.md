@@ -32,7 +32,7 @@ The system SHALL provide a multi-step wizard dialog for publishing an episode to
 - **THEN** the episodes list and publications data SHALL be refreshed
 
 ### Requirement: Publish button on episodes table
-The system SHALL display a "Publish" button on each episode row that has status `GENERATED` and has NOT already been published. The system SHALL fetch publication status for all episodes on page load to determine which episodes are already published. The "Publish" and "Script" buttons SHALL have equal fixed width (`w-20`).
+The system SHALL display a "Publish" button on each episode row that has status `GENERATED` and has NOT already been published. The system SHALL fetch publication status for all episodes on page load to determine which episodes are already published. Action buttons SHALL have consistent fixed width (`w-24`).
 
 #### Scenario: Publish button visible for unpublished GENERATED episodes
 - **WHEN** an episode has status `GENERATED` and no publication with status `PUBLISHED` exists

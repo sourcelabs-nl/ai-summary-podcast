@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import java.util.concurrent.atomic.AtomicInteger
 import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.chat.client.ResponseEntity
 import org.springframework.ai.chat.messages.AssistantMessage
@@ -269,12 +270,12 @@ class ArticleScoreSummarizerTest {
         val failCallSpec = mockk<ChatClient.CallResponseSpec>()
         every { failCallSpec.responseEntity(ScoreSummarizeResult::class.java) } throws RuntimeException("LLM unavailable")
 
-        var callCount = 0
+        val callCount = AtomicInteger(0)
         val requestSpec = mockk<ChatClient.ChatClientRequestSpec>()
         every { requestSpec.user(any<String>()) } returns requestSpec
         every { requestSpec.options(any()) } returns requestSpec
         every { requestSpec.call() } answers {
-            val current = callCount++
+            val current = callCount.getAndIncrement()
             if (current == 1) failCallSpec else successCallSpec
         }
 

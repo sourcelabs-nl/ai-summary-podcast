@@ -68,14 +68,14 @@ The system SHALL apply exponential backoff when deciding when to next poll a sou
 - **THEN** the scheduler polls it 60 minutes after `lastPolled` (normal interval, no backoff)
 
 ### Requirement: Auto-disable after permanent failures
-The system SHALL auto-disable a source after `app.source.max-failures` (default: 5) consecutive **permanent** failures. When the threshold is reached, the source's `enabled` field SHALL be set to `false` and `disabledReason` SHALL be set to a human-readable message including the error type (e.g. `"Auto-disabled after 5 consecutive 404 errors"`). Transient failures SHALL NOT count toward the auto-disable threshold — only permanent failures trigger auto-disable.
+The system SHALL auto-disable a source after `app.source.max-failures` (default: 15) consecutive **permanent** failures. When the threshold is reached, the source's `enabled` field SHALL be set to `false` and `disabledReason` SHALL be set to a human-readable message including the error type (e.g. `"Auto-disabled after 15 consecutive 404 errors"`). Transient failures SHALL NOT count toward the auto-disable threshold — only permanent failures trigger auto-disable.
 
-#### Scenario: Source disabled after 5 permanent failures
-- **WHEN** a source reaches 5 consecutive permanent failures (e.g. HTTP 404)
-- **THEN** the source is set to `enabled = false` with `disabledReason = "Auto-disabled after 5 consecutive 404 errors"`
+#### Scenario: Source disabled after 15 permanent failures
+- **WHEN** a source reaches 15 consecutive permanent failures (e.g. HTTP 404)
+- **THEN** the source is set to `enabled = false` with `disabledReason = "Auto-disabled after 15 consecutive 404 errors"`
 
 #### Scenario: Transient failures do not trigger auto-disable
-- **WHEN** a source has 10 consecutive transient failures (e.g. timeouts)
+- **WHEN** a source has 20 consecutive transient failures (e.g. timeouts)
 - **THEN** the source remains `enabled = true` (only permanent failures count toward auto-disable)
 
 #### Scenario: Mixed failures — permanent counter resets on transient
@@ -91,7 +91,7 @@ The system SHALL reset all failure tracking fields when a source is re-enabled v
 
 ### Requirement: Configurable failure thresholds
 The system SHALL support the following configuration properties:
-- `app.source.max-failures` (default: 5) — number of consecutive permanent failures before auto-disable
+- `app.source.max-failures` (default: 15) — number of consecutive permanent failures before auto-disable
 - `app.source.max-backoff-hours` (default: 24) — maximum backoff interval cap in hours
 
 #### Scenario: Custom max-failures threshold
