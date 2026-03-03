@@ -36,6 +36,8 @@ export interface Episode {
   status: string;
   audioFilePath?: string;
   durationSeconds?: number;
+  composeModel?: string;
+  ttsModel?: string;
   llmCostCents?: number;
   ttsCostCents?: number;
   recap?: string;
@@ -58,6 +60,14 @@ export interface EpisodeArticle {
   summary: string | null;
   body: string | null;
   source: ArticleSource;
+}
+
+export interface PodcastDefaults {
+  llmModels: Record<string, string>;
+  maxLlmCostCents: number;
+  targetWords: number;
+  fullBodyThreshold: number;
+  maxArticleAgeDays: number;
 }
 
 export interface EpisodePublication {

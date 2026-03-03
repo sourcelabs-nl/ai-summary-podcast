@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useUser } from "@/lib/user-context";
-import type { Podcast } from "@/lib/types";
+import type { Podcast, PodcastDefaults } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -55,20 +55,24 @@ export default function PodcastSettingsPage() {
   const [podcast, setPodcast] = useState<Podcast | null>(null);
   const [form, setForm] = useState<Podcast | null>(null);
   const [loading, setLoading] = useState(true);
+  const [defaults, setDefaults] = useState<PodcastDefaults | null>(null);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   useEffect(() => {
     if (!selectedUser) return;
     setLoading(true);
-    fetch(`/api/users/${selectedUser.id}/podcasts/${params.podcastId}`)
-      .then((res) => {
-        if (!res.ok) throw new Error("Not found");
-        return res.json();
-      })
-      .then((data: Podcast) => {
-        setPodcast(data);
-        setForm(data);
+    Promise.all([
+      fetch(`/api/users/${selectedUser.id}/podcasts/${params.podcastId}`)
+        .then((res) => { if (!res.ok) throw new Error("Not found"); return res.json(); }),
+      fetch("/api/config/defaults")
+        .then((res) => (res.ok ? res.json() : null))
+        .catch(() => null),
+    ])
+      .then(([podcastData, defaultsData]: [Podcast, PodcastDefaults | null]) => {
+        setPodcast(podcastData);
+        setForm(podcastData);
+        setDefaults(defaultsData);
       })
       .catch(() => setPodcast(null))
       .finally(() => setLoading(false));
@@ -247,6 +251,11 @@ export default function PodcastSettingsPage() {
                   keyPlaceholder="Stage (e.g. filter, compose)"
                   valuePlaceholder="Model name"
                 />
+                {defaults?.llmModels && (
+                  <p className="text-xs text-muted-foreground">
+                    System defaults: {Object.entries(defaults.llmModels).map(([k, v]) => `${k} = ${v}`).join(", ")}
+                  </p>
+                )}
               </FieldGroup>
               <FieldGroup label="Relevance Threshold">
                 <input
@@ -261,6 +270,7 @@ export default function PodcastSettingsPage() {
                   type="number"
                   value={form.maxLlmCostCents ?? ""}
                   onChange={(e) => updateNumber("maxLlmCostCents", e.target.value)}
+                  placeholder={defaults ? `${defaults.maxLlmCostCents} (system default)` : ""}
                   className={inputClass}
                 />
               </FieldGroup>
@@ -269,6 +279,7 @@ export default function PodcastSettingsPage() {
                   type="number"
                   value={form.fullBodyThreshold ?? ""}
                   onChange={(e) => updateNumber("fullBodyThreshold", e.target.value)}
+                  placeholder={defaults ? `${defaults.fullBodyThreshold} (system default)` : ""}
                   className={inputClass}
                 />
               </FieldGroup>
@@ -277,6 +288,7 @@ export default function PodcastSettingsPage() {
                   type="number"
                   value={form.maxArticleAgeDays ?? ""}
                   onChange={(e) => updateNumber("maxArticleAgeDays", e.target.value)}
+                  placeholder={defaults ? `${defaults.maxArticleAgeDays} (system default)` : ""}
                   className={inputClass}
                 />
               </FieldGroup>
@@ -285,6 +297,7 @@ export default function PodcastSettingsPage() {
                   type="number"
                   value={form.targetWords ?? ""}
                   onChange={(e) => updateNumber("targetWords", e.target.value)}
+                  placeholder={defaults ? `${defaults.targetWords} (system default)` : ""}
                   className={inputClass}
                 />
               </FieldGroup>
