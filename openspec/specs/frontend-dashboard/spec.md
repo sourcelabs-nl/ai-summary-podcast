@@ -43,7 +43,11 @@ The system SHALL display a list of episodes for a podcast at `/podcasts/{podcast
 
 #### Scenario: Display episodes with columns
 - **WHEN** the episode list page loads
-- **THEN** episodes are displayed under the "Episodes" tab with columns: #, Date (fixed width), Day (short weekday name in muted text, e.g., "Mon"), Status (badge), and Actions
+- **THEN** episodes are displayed under the "Episodes" tab with columns: #, Date (fixed width), Day (short weekday name in muted text, e.g., "Mon"), Status (badge with optional Published badge), Cost (right-aligned, combined LLM + TTS cost formatted as dollars, or em dash when unavailable), and Actions
+
+#### Scenario: View button on episode rows
+- **WHEN** an episode row is displayed
+- **THEN** a "View" button with `outline` variant and a ChevronRight icon is displayed in the Actions column, navigating to the episode detail page
 
 #### Scenario: Day column shows weekday
 - **WHEN** episodes are displayed
@@ -54,8 +58,16 @@ The system SHALL display a list of episodes for a podcast at `/podcasts/{podcast
 - **THEN** the status badge uses the `secondary` variant (muted grey) instead of the `default` variant
 
 #### Scenario: Status badge for active statuses
-- **WHEN** an episode has status `GENERATED`, `PENDING_REVIEW`, `APPROVED`, or `FAILED`
+- **WHEN** an episode has status `PENDING_REVIEW`, `APPROVED`, or `FAILED`
 - **THEN** the status badge uses the `default` variant (orange)
+
+#### Scenario: Status badge for generated episodes
+- **WHEN** an episode has status `GENERATED`
+- **THEN** the status badge uses the `outline` variant (white) to distinguish it from post-review statuses
+
+#### Scenario: Published badge on episode row
+- **WHEN** an episode has been published (has at least one publication with status PUBLISHED)
+- **THEN** a "Published" badge with the `default` variant (orange) is displayed next to the status badge
 
 #### Scenario: Filter episodes by status
 - **WHEN** user selects a status from the filter dropdown
@@ -79,11 +91,15 @@ The system SHALL display a list of episodes for a podcast at `/podcasts/{podcast
 
 #### Scenario: Settings button in podcast header
 - **WHEN** the podcast detail page loads
-- **THEN** the header area displays the podcast name with the style badge inline next to it, and a "Settings" outline button right-aligned that navigates to `/podcasts/{podcastId}/settings`
+- **THEN** the header area displays the podcast name with the style badge inline next to it, and a "Settings" button (default variant, sm size, with Settings icon) right-aligned that navigates to `/podcasts/{podcastId}/settings`
+
+#### Scenario: Podcast header layout order
+- **WHEN** the podcast detail page loads
+- **THEN** the header displays in this order: (1) podcast name + style badge inline, (2) cron schedule in italic (if available), (3) topic description in regular text
 
 #### Scenario: Cron schedule display
 - **WHEN** the podcast detail page loads and the podcast has a cron schedule
-- **THEN** the header area displays the cron expression converted to human-readable text below the topic, prefixed with "Generates" (e.g., "Generates at 03:00 PM, Monday through Friday"), at the same text size as the topic description, using the `cronstrue` library
+- **THEN** the header area displays the cron expression converted to human-readable text in italic below the podcast name, prefixed with "Generates" (e.g., "Generates at 03:00 PM, Monday through Friday"), using the `cronstrue` library
 
 ### Requirement: Approve episode
 The system SHALL display an "Approve" button on episodes with status `PENDING_REVIEW`. Clicking the button SHALL call `POST /users/{userId}/podcasts/{podcastId}/episodes/{episodeId}/approve`.
@@ -117,9 +133,9 @@ All badges across the frontend SHALL render text in consistent lowercase using t
 ### Requirement: Application title
 The frontend SHALL display "AI Podcast Studio" as the application name in the header and page metadata (title and description).
 
-#### Scenario: Header displays application name
+#### Scenario: Header displays application name with icon
 - **WHEN** any page is loaded
-- **THEN** the header displays "AI Podcast Studio"
+- **THEN** the header displays a Podcast icon (from lucide-react) followed by "AI Podcast Studio"
 
 #### Scenario: Page metadata
 - **WHEN** any page is loaded

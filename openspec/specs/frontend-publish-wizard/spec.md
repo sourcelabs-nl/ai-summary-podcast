@@ -47,11 +47,11 @@ The system SHALL display a "Publish" button on each episode row that has status 
 - **THEN** the "Publish" button SHALL NOT be displayed
 
 ### Requirement: Published badge on episodes table
-The system SHALL display a "Published" badge (outline variant) next to the status badge for episodes that have been published to any target.
+The system SHALL display a "Published" badge (default variant, orange) next to the status badge for episodes that have been published to any target.
 
 #### Scenario: Published badge displayed
 - **WHEN** an episode has a publication with status `PUBLISHED`
-- **THEN** an outline badge with text "Published" is displayed next to the status badge
+- **THEN** a default (orange) badge with text "Published" is displayed next to the status badge
 
 #### Scenario: Published badge not displayed
 - **WHEN** an episode has no publications or only non-PUBLISHED publications

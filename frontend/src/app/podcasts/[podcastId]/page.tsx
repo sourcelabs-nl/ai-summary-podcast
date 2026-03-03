@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import cronstrue from "cronstrue";
-import { Check, Settings, Upload, X } from "lucide-react";
+import { Check, ChevronRight, Settings, Upload, X } from "lucide-react";
 import { useUser } from "@/lib/user-context";
 import type { Podcast, Episode, EpisodePublication } from "@/lib/types";
 import { Button } from "@/components/ui/button";
@@ -37,7 +37,7 @@ const STATUSES = [
 ] as const;
 
 const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-  GENERATED: "default",
+  GENERATED: "outline",
   PENDING_REVIEW: "default",
   APPROVED: "default",
   FAILED: "default",
@@ -164,12 +164,12 @@ export default function EpisodesPage() {
             <h2 className="text-2xl font-bold">{podcast.name}</h2>
             <Badge>{podcast.style}</Badge>
           </div>
-          <p className="text-muted-foreground">{podcast.topic}</p>
           {podcast.cron && cronDescription && (
-            <p className="text-muted-foreground">
+            <p className="text-muted-foreground italic">
               Generates {cronDescription.toLowerCase()}
             </p>
           )}
+          <p className="text-muted-foreground">{podcast.topic}</p>
         </div>
         <Link href={`/podcasts/${params.podcastId}/settings`}>
           <Button size="sm">
@@ -212,6 +212,7 @@ export default function EpisodesPage() {
                   <TableHead className="w-24">Date</TableHead>
                   <TableHead className="w-12">Day</TableHead>
                   <TableHead className="w-32">Status</TableHead>
+                  <TableHead className="w-20 text-right">Cost</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -235,11 +236,16 @@ export default function EpisodesPage() {
                           {episode.status.replace("_", " ")}
                         </Badge>
                         {publishedEpisodeIds.has(episode.id) && (
-                          <Badge variant="outline" className="text-[11px] px-1.5 py-px">
+                          <Badge variant="default" className="text-[11px] px-1.5 py-px">
                             Published
                           </Badge>
                         )}
                       </div>
+                    </TableCell>
+                    <TableCell className="text-right text-muted-foreground">
+                      {((episode.llmCostCents ?? 0) + (episode.ttsCostCents ?? 0)) > 0
+                        ? `$${(((episode.llmCostCents ?? 0) + (episode.ttsCostCents ?? 0)) / 100).toFixed(2)}`
+                        : "—"}
                     </TableCell>
                     <TableCell className="text-right h-12">
                       <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
@@ -271,6 +277,14 @@ export default function EpisodesPage() {
                             Publish
                           </Button>
                         )}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => router.push(`/podcasts/${params.podcastId}/episodes/${episode.id}`)}
+                        >
+                          View
+                          <ChevronRight className="size-4" />
+                        </Button>
                       </div>
                     </TableCell>
                   </TableRow>

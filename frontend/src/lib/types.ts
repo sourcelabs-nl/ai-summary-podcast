@@ -36,6 +36,8 @@ export interface Episode {
   status: string;
   audioFilePath?: string;
   durationSeconds?: number;
+  llmCostCents?: number;
+  ttsCostCents?: number;
   recap?: string;
 }
 

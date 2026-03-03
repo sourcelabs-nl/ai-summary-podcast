@@ -12,15 +12,19 @@ The system SHALL provide a page at `/podcasts/[podcastId]/episodes/[episodeId]` 
 - **THEN** a back link labeled "Back to Episodes" is displayed that navigates to `/podcasts/{podcastId}`
 
 ### Requirement: Episode detail header
-The episode detail page SHALL display a header section with the episode number (ID), generated date, day of week, status badge, duration (if available), and recap text (if available).
+The episode detail page SHALL display a header section following this layout order: (1) episode number + status badge + Published badge (if published) on the first line, (2) generated date, day of week, and duration in italic on the second line, (3) recap text in regular style on the third line (if available). The status badge SHALL use `outline` variant for GENERATED and `default` (orange) for other active statuses. The Published badge SHALL use the `default` variant (orange).
 
 #### Scenario: Header with full metadata
 - **WHEN** the episode detail page loads for an episode with status GENERATED and audio
-- **THEN** the header displays episode ID, formatted date, day of week, status badge, and duration
+- **THEN** the header displays episode ID with `outline` status badge, date and duration in italic, and recap below
+
+#### Scenario: Header with published badge
+- **WHEN** the episode has been published
+- **THEN** an orange "Published" badge (default variant) is displayed next to the status badge
 
 #### Scenario: Header with recap
 - **WHEN** the episode has a recap field
-- **THEN** the recap text is displayed in the header section
+- **THEN** the recap text is displayed below the date line in regular (non-italic) muted text
 
 ### Requirement: Episode detail tabbed layout
 The episode detail page SHALL display three tabs: "Script" (default active), "Articles", and "Publications".
@@ -42,11 +46,11 @@ The Script tab SHALL render the episode's `scriptText` using the same chat-bubbl
 
 #### Scenario: Monologue script rendering
 - **WHEN** the Script tab is active for a podcast with style `news-briefing`, `casual`, `deep-dive`, or `executive-summary`
-- **THEN** each paragraph is rendered in a rounded card bubble with `bg-muted` background
+- **THEN** each paragraph is rendered in a rounded card bubble with `bg-muted` background, using `text-sm` for body text
 
 #### Scenario: Dialogue script rendering
 - **WHEN** the Script tab is active for a podcast with style `dialogue` or `interview`
-- **THEN** the script is parsed for speaker tags and rendered as alternating left/right chat bubbles
+- **THEN** the script is parsed for speaker tags and rendered as alternating left/right chat bubbles, using `text-sm` for body text
 
 ### Requirement: Articles tab with grouped display
 The Articles tab SHALL fetch articles from the episode articles API endpoint and display them grouped by source. Each source group SHALL be collapsible. Articles within each group SHALL be sorted by relevance score descending.

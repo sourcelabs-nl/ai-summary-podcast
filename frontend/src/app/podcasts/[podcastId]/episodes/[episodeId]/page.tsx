@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { Check, Upload, X } from "lucide-react";
 import { useUser } from "@/lib/user-context";
-import type { Podcast, Episode } from "@/lib/types";
+import type { Podcast, Episode, EpisodePublication } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -15,7 +15,7 @@ import { PublicationsTab } from "@/components/publications-tab";
 import { PublishWizard } from "@/components/publish-wizard";
 
 const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-  GENERATED: "default",
+  GENERATED: "outline",
   PENDING_REVIEW: "default",
   APPROVED: "default",
   FAILED: "default",
@@ -29,8 +29,16 @@ export default function EpisodeDetailPage() {
   const [episode, setEpisode] = useState<Episode | null>(null);
   const [loading, setLoading] = useState(true);
   const [articleCount, setArticleCount] = useState<number | null>(null);
+  const [published, setPublished] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+
+  const fetchPublished = useCallback((userId: string, podcastId: string, episodeId: string) => {
+    fetch(`/api/users/${userId}/podcasts/${podcastId}/episodes/${episodeId}/publications`)
+      .then((res) => (res.ok ? res.json() : []))
+      .then((pubs: EpisodePublication[]) => setPublished(pubs.some((p) => p.status === "PUBLISHED")))
+      .catch(() => setPublished(false));
+  }, []);
 
   const fetchEpisode = useCallback(() => {
     if (!selectedUser) return;
@@ -38,7 +46,8 @@ export default function EpisodeDetailPage() {
       .then((res) => (res.ok ? res.json() : null))
       .then(setEpisode)
       .catch(() => setEpisode(null));
-  }, [selectedUser, params.podcastId, params.episodeId]);
+    fetchPublished(selectedUser.id, params.podcastId, params.episodeId);
+  }, [selectedUser, params.podcastId, params.episodeId, fetchPublished]);
 
   useEffect(() => {
     if (!selectedUser) return;
@@ -50,10 +59,11 @@ export default function EpisodeDetailPage() {
       .then(([podcastData, episodeData]) => {
         setPodcast(podcastData);
         setEpisode(episodeData);
+        fetchPublished(selectedUser.id, params.podcastId, params.episodeId);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [selectedUser, params.podcastId, params.episodeId]);
+  }, [selectedUser, params.podcastId, params.episodeId, fetchPublished]);
 
   async function handleAction(action: "approve" | "discard") {
     if (!selectedUser || !episode) return;
@@ -94,8 +104,8 @@ export default function EpisodeDetailPage() {
         </Link>
       </div>
 
-      <div className="mb-6">
-        <div className="flex items-center justify-between">
+      <div className="mb-6 flex items-center justify-between">
+        <div>
           <div className="flex items-center gap-3">
             <h2 className="text-2xl font-bold">
               Episode #{episode.id}
@@ -103,47 +113,46 @@ export default function EpisodeDetailPage() {
             <Badge variant={STATUS_VARIANT[episode.status] ?? "secondary"}>
               {episode.status.replace("_", " ")}
             </Badge>
-          </div>
-          <div className="flex items-center gap-2">
-            {episode.status === "PENDING_REVIEW" && (
-              <>
-                <Button size="sm" onClick={() => handleAction("approve")}>
-                  <Check className="size-4" />
-                  Approve
-                </Button>
-                <Button
-                  size="sm"
-                  variant="destructive"
-                  onClick={() => handleAction("discard")}
-                >
-                  <X className="size-4" />
-                  Discard
-                </Button>
-              </>
-            )}
-            {episode.status === "GENERATED" && (
-              <Button size="sm" onClick={() => setPublishOpen(true)}>
-                <Upload className="size-4" />
-                Publish
-              </Button>
+            {published && (
+              <Badge variant="default">
+                Published
+              </Badge>
             )}
           </div>
-        </div>
-
-        <div className="mt-2 flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
-          <span>
+          <p className="text-muted-foreground italic">
             {generatedDate.toLocaleDateString()} ({generatedDate.toLocaleDateString(undefined, { weekday: "long" })})
-          </span>
-          {episode.durationSeconds != null && (
-            <span>
-              {Math.floor(episode.durationSeconds / 60)}:{String(episode.durationSeconds % 60).padStart(2, "0")}
-            </span>
+            {episode.durationSeconds != null && (
+              <> &middot; {Math.floor(episode.durationSeconds / 60)}:{String(episode.durationSeconds % 60).padStart(2, "0")}</>
+            )}
+          </p>
+          {episode.recap && (
+            <p className="text-muted-foreground">{episode.recap}</p>
           )}
         </div>
-
-        {episode.recap && (
-          <p className="mt-3 text-sm text-muted-foreground italic">{episode.recap}</p>
-        )}
+        <div className="flex items-center gap-2">
+          {episode.status === "PENDING_REVIEW" && (
+            <>
+              <Button size="sm" onClick={() => handleAction("approve")}>
+                <Check className="size-4" />
+                Approve
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={() => handleAction("discard")}
+              >
+                <X className="size-4" />
+                Discard
+              </Button>
+            </>
+          )}
+          {episode.status === "GENERATED" && !published && (
+            <Button size="sm" onClick={() => setPublishOpen(true)}>
+              <Upload className="size-4" />
+              Publish
+            </Button>
+          )}
+        </div>
       </div>
 
       <Tabs defaultValue="script">
