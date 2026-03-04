@@ -7,7 +7,9 @@ data/
 !.claude/commands/
 !.claude/settings.json
 .app.pid
+.frontend.pid
 app.log
+frontend.log
 soudmaijer-sources.txt
 
 HELP.md
