@@ -3,8 +3,6 @@ package com.aisummarypodcast.podcast
 import com.aisummarypodcast.config.AppProperties
 import com.aisummarypodcast.llm.LlmPipeline
 import com.aisummarypodcast.llm.PreviewResult
-import com.aisummarypodcast.store.PodcastStyle
-import com.aisummarypodcast.store.TtsProviderType
 import com.aisummarypodcast.store.*
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
@@ -12,13 +10,21 @@ import org.springframework.transaction.annotation.Transactional
 import java.nio.file.Files
 import java.nio.file.Path
 import java.time.Instant
+import java.time.temporal.ChronoUnit
 import java.util.UUID
+
+data class UpcomingContent(
+    val articles: List<Article>,
+    val unlinkedPosts: List<Post>,
+    val sources: List<Source>
+)
 
 @Service
 class PodcastService(
     private val podcastRepository: PodcastRepository,
     private val sourceRepository: SourceRepository,
     private val articleRepository: ArticleRepository,
+    private val postRepository: PostRepository,
     private val episodeRepository: EpisodeRepository,
     private val appProperties: AppProperties,
     private val llmPipeline: LlmPipeline,
@@ -100,6 +106,20 @@ class PodcastService(
         }
 
         return episodeService.createEpisodeFromPipelineResult(podcast, result)
+    }
+
+    fun getUpcomingContent(podcast: Podcast): UpcomingContent {
+        val sources = sourceRepository.findByPodcastId(podcast.id)
+        val sourceIds = sources.map { it.id }
+        if (sourceIds.isEmpty()) return UpcomingContent(emptyList(), emptyList(), sources)
+
+        val since = podcast.lastGeneratedAt ?: Instant.now().minus(
+            (podcast.maxArticleAgeDays ?: appProperties.source.maxArticleAgeDays).toLong(), ChronoUnit.DAYS
+        ).toString()
+
+        val articles = articleRepository.findAllSince(sourceIds, since)
+        val unlinkedPosts = postRepository.findUnlinkedSince(sourceIds, since)
+        return UpcomingContent(articles, unlinkedPosts, sources)
     }
 
     @Transactional

@@ -184,17 +184,17 @@ export default function EpisodesPage() {
         </Link>
       </div>
 
-      {upcomingCount > 0 && (
-        <Link
-          href={`/podcasts/${params.podcastId}/upcoming`}
-          className="mb-6 flex items-center justify-between rounded-lg border border-border bg-muted/50 px-4 py-3 hover:bg-muted transition-colors"
-        >
-          <span className="text-sm font-medium">
-            Next Episode &middot; {upcomingCount} article{upcomingCount !== 1 ? "s" : ""} ready
-          </span>
-          <ChevronRight className="size-4 text-muted-foreground" />
-        </Link>
-      )}
+      <Link
+        href={`/podcasts/${params.podcastId}/upcoming`}
+        className="mb-6 flex items-center justify-between rounded-lg border border-border bg-muted/50 px-4 py-3 hover:bg-muted transition-colors"
+      >
+        <span className="text-sm font-medium">
+          Next Episode {upcomingCount > 0
+            ? <>&middot; {upcomingCount} article{upcomingCount !== 1 ? "s" : ""} ready</>
+            : <>&middot; no articles yet</>}
+        </span>
+        <ChevronRight className="size-4 text-muted-foreground" />
+      </Link>
 
       <Tabs defaultValue="episodes">
         <TabsList>

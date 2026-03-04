@@ -1,9 +1,7 @@
 package com.aisummarypodcast.podcast
 
-import com.aisummarypodcast.store.ArticleRepository
 import com.aisummarypodcast.store.Podcast
 import com.aisummarypodcast.store.PodcastStyle
-import com.aisummarypodcast.store.SourceRepository
 import com.aisummarypodcast.store.TtsProviderType
 import com.aisummarypodcast.user.UserService
 import com.fasterxml.jackson.annotation.JsonProperty
@@ -86,8 +84,6 @@ data class PodcastResponse(
 class PodcastController(
     private val podcastService: PodcastService,
     private val userService: UserService,
-    private val sourceRepository: SourceRepository,
-    private val articleRepository: ArticleRepository,
     private val episodeService: EpisodeService
 ) {
 
@@ -272,14 +268,10 @@ class PodcastController(
         val podcast = podcastService.findById(podcastId) ?: return ResponseEntity.notFound().build()
         if (podcast.userId != userId) return ResponseEntity.notFound().build()
 
-        val sources = sourceRepository.findByPodcastId(podcastId)
-        val sourceIds = sources.map { it.id }
-        if (sourceIds.isEmpty()) return ResponseEntity.ok(emptyList<EpisodeArticleResponse>())
+        val content = podcastService.getUpcomingContent(podcast)
+        val sourceMap = content.sources.associateBy { it.id }
 
-        val articles = articleRepository.findRelevantUnprocessedBySourceIds(sourceIds, podcast.relevanceThreshold)
-        val sourceMap = sources.associateBy { it.id }
-
-        val response = articles.map { article ->
+        val articleResponses = content.articles.map { article ->
             val source = sourceMap[article.sourceId]
             EpisodeArticleResponse(
                 id = article.id!!,
@@ -297,8 +289,29 @@ class PodcastController(
                     label = source?.label
                 )
             )
-        }.sortedByDescending { it.relevanceScore }
+        }
 
+        val postResponses = content.unlinkedPosts.map { post ->
+            val source = sourceMap[post.sourceId]
+            EpisodeArticleResponse(
+                id = post.id!!,
+                title = post.title,
+                url = post.url,
+                author = post.author,
+                publishedAt = post.publishedAt,
+                relevanceScore = null,
+                summary = null,
+                body = post.body,
+                source = ArticleSourceResponse(
+                    id = source?.id ?: post.sourceId,
+                    type = source?.type?.name ?: "UNKNOWN",
+                    url = source?.url ?: "",
+                    label = source?.label
+                )
+            )
+        }
+
+        val response = (articleResponses + postResponses).sortedByDescending { it.relevanceScore }
         return ResponseEntity.ok(response)
     }
 

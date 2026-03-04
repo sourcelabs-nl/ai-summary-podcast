@@ -22,6 +22,16 @@ interface PostRepository : CrudRepository<Post, Long> {
     """)
     fun findUnlinkedBySourceIds(sourceIds: List<String>, cutoff: String): List<Post>
 
+    @Query("""
+        SELECT p.* FROM posts p
+        LEFT JOIN post_articles pa ON p.id = pa.post_id
+        WHERE pa.id IS NULL
+          AND p.source_id IN (:sourceIds)
+          AND p.created_at >= :since
+        ORDER BY p.created_at ASC
+    """)
+    fun findUnlinkedSince(sourceIds: List<String>, since: String): List<Post>
+
     @Modifying
     @Query("""
         DELETE FROM posts

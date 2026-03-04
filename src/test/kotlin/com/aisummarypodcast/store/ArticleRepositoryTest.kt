@@ -82,6 +82,20 @@ class ArticleRepositoryTest {
     }
 
     @Test
+    fun `findAllSince returns articles published after cutoff`() {
+        val oldDate = Instant.now().minus(10, ChronoUnit.DAYS).toString()
+        val recentDate = Instant.now().minus(1, ChronoUnit.DAYS).toString()
+        articleRepository.save(Article(sourceId = "s1", title = "Old", body = "body", url = "https://example.com/1", publishedAt = oldDate, contentHash = "hash1", relevanceScore = 3))
+        articleRepository.save(Article(sourceId = "s1", title = "Recent", body = "body", url = "https://example.com/2", publishedAt = recentDate, contentHash = "hash2", relevanceScore = null))
+
+        val since = Instant.now().minus(3, ChronoUnit.DAYS).toString()
+        val result = articleRepository.findAllSince(listOf("s1"), since)
+
+        assertEquals(1, result.size)
+        assertEquals("Recent", result[0].title)
+    }
+
+    @Test
     fun `deleteOldUnprocessedArticles retains articles with null publishedAt`() {
         articleRepository.save(Article(sourceId = "s1", title = "No Date", body = "body", url = "https://example.com/1", publishedAt = null, contentHash = "hash1", isProcessed = false))
 
