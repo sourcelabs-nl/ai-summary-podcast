@@ -1,11 +1,11 @@
 ## ADDED Requirements
 
 ### Requirement: Show notes generation
-The system SHALL generate show notes for each episode after the episode-article links are saved. Show notes SHALL consist of the episode recap followed by a "Sources:" section listing each linked article's title and URL.
+The system SHALL generate show notes for each episode after the episode-article links are saved. Show notes SHALL consist of the episode recap followed by a "Sources:" section listing each linked article's title and URL. Articles SHALL be sorted by relevance score descending. Article titles longer than 100 characters SHALL be truncated with "...".
 
 #### Scenario: Show notes with recap and articles
 - **WHEN** an episode is created with a recap and 3 linked articles
-- **THEN** the show_notes field contains the recap text, a blank line, "Sources:", and one line per article with "- {title}" followed by "  {url}"
+- **THEN** the show_notes field contains the recap text, a blank line, "Sources:", and one line per article with "- {title}" followed by "  {url}", sorted by relevance score descending, with titles truncated to 100 characters
 
 #### Scenario: Show notes without recap
 - **WHEN** an episode is created but recap generation fails
