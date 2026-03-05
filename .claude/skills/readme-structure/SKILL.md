@@ -11,7 +11,7 @@ When updating `README.md`, maintain the following section order and structure. D
 1. **Title + description** — `# AI Summary Podcast` followed by a one-paragraph project summary.
 2. **How It Works** — Mermaid flowchart of the pipeline stages, followed by a numbered list explaining each stage. Ends with a note on per-user podcast customization.
 3. **Prerequisites** — Bulleted list of required tools and services (Java version, FFmpeg, LLM provider options, TTS API key).
-4. **Setup** — Step-by-step instructions: `.env` file creation with required variables, key generation command, explanation of fallback vs per-user provider config.
+4. **Setup** — Step-by-step instructions: direnv installation, `.envrc` file creation with required variables, key generation command, explanation of fallback vs per-user provider config. Includes a note for users without direnv.
    - **Using Ollama instead of OpenRouter** — Subsection with Ollama-specific setup (pull model, configure user provider via API).
    - **Using ElevenLabs instead of OpenAI for TTS** — Subsection with ElevenLabs-specific setup.
    - Start/stop commands (`./start.sh`, `./stop.sh`) and direct run command (`./mvnw spring-boot:run`).

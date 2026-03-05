@@ -38,30 +38,36 @@ Each user can create multiple podcasts, each with its own sources, topic, langua
 
 ## Setup
 
-1. Create a `.env` file in the project root:
+1. Install [direnv](https://direnv.net/) and hook it into your shell (e.g. `eval "$(direnv hook zsh)"` in `~/.zshrc`).
 
-```
-APP_ENCRYPTION_MASTER_KEY=<base64-encoded 256-bit AES key>
+2. Create a `.envrc` file in the project root:
+
+```bash
+export APP_ENCRYPTION_MASTER_KEY=<base64-encoded 256-bit AES key>
 
 # LLM provider (global fallback)
-OPENROUTER_API_KEY=<your-openrouter-key>
+export OPENROUTER_API_KEY=<your-openrouter-key>
 
 # TTS providers (global fallbacks — at least one)
-OPENAI_API_KEY=<your-openai-key>
-ELEVENLABS_API_KEY=<your-elevenlabs-key>
+export OPENAI_API_KEY=<your-openai-key>
+export ELEVENLABS_API_KEY=<your-elevenlabs-key>
 
 # SoundCloud publishing (optional)
-APP_SOUNDCLOUD_CLIENT_ID=<your-soundcloud-client-id>
-APP_SOUNDCLOUD_CLIENT_SECRET=<your-soundcloud-client-secret>
+export APP_SOUNDCLOUD_CLIENT_ID=<your-soundcloud-client-id>
+export APP_SOUNDCLOUD_CLIENT_SECRET=<your-soundcloud-client-secret>
 
 # X/Twitter polling (optional — requires X Developer Basic tier)
-APP_X_CLIENT_ID=<your-x-client-id>
-APP_X_CLIENT_SECRET=<your-x-client-secret>
+export APP_X_CLIENT_ID=<your-x-client-id>
+export APP_X_CLIENT_SECRET=<your-x-client-secret>
 ```
+
+3. Allow the file: `direnv allow`
 
 Generate an encryption key: `openssl rand -base64 32`
 
 `APP_ENCRYPTION_MASTER_KEY` is required. `OPENROUTER_API_KEY`, `OPENAI_API_KEY`, and `ELEVENLABS_API_KEY` serve as global fallbacks for their respective providers — they are used when a user has not configured their own provider keys via the API. Users can override these by setting per-user provider configs. `APP_SOUNDCLOUD_CLIENT_ID` and `APP_SOUNDCLOUD_CLIENT_SECRET` are optional — only needed if you want to publish episodes to SoundCloud. `APP_X_CLIENT_ID` and `APP_X_CLIENT_SECRET` are optional — only needed if you want to poll X (Twitter) accounts as content sources (requires an [X Developer](https://developer.x.com/) Basic tier account).
+
+> **Without direnv?** You can alternatively export the variables in your shell profile (e.g. `~/.zshenv`) or source a `.env` file manually before running the app.
 
 ### Using Ollama instead of OpenRouter
 
@@ -79,7 +85,7 @@ curl -X PUT http://localhost:8085/users/{userId}/api-keys/LLM \
   -d '{"provider": "ollama"}'
 ```
 
-This uses the default Ollama base URL (`http://localhost:11434/v1`). You can omit `OPENROUTER_API_KEY` from `.env` if all users are configured with Ollama.
+This uses the default Ollama base URL (`http://localhost:11434/v1`). You can omit `OPENROUTER_API_KEY` from `.envrc` if all users are configured with Ollama.
 
 ### Using ElevenLabs instead of OpenAI for TTS
 
@@ -135,10 +141,10 @@ Long dialogue scripts (over 5000 characters) are automatically split into batche
 ./stop.sh          # graceful stop with 10s timeout
 ```
 
-Or run directly:
+Or run directly (environment variables are loaded automatically by direnv):
 
 ```bash
-source .env && ./mvnw spring-boot:run
+./mvnw spring-boot:run
 ```
 
 The app starts on `http://localhost:8085`. Data is stored in `./data/` (SQLite DB + episode audio files).
@@ -311,12 +317,14 @@ Episodes can be published to SoundCloud after generation. This requires a SoundC
 
    The redirect URI must exactly match the `app.feed.base-url` configured in `application.yaml` followed by `/oauth/soundcloud/callback`. If these don't match, you'll get a `redirect_uri_mismatch` error during authorization.
 
-2. **Add credentials** to your `.env` file:
+2. **Add credentials** to your `.envrc` file:
 
+```bash
+export APP_SOUNDCLOUD_CLIENT_ID=<your-soundcloud-client-id>
+export APP_SOUNDCLOUD_CLIENT_SECRET=<your-soundcloud-client-secret>
 ```
-APP_SOUNDCLOUD_CLIENT_ID=<your-soundcloud-client-id>
-APP_SOUNDCLOUD_CLIENT_SECRET=<your-soundcloud-client-secret>
-```
+
+   Then run `direnv allow` to reload.
 
 3. **Restart the app** so it picks up the new environment variables.
 
@@ -352,12 +360,14 @@ X accounts can be added as content sources so their posts are included in podcas
 
 1. **Register an X app** at https://developer.x.com/en/portal/dashboard. Enable OAuth 2.0 with type "Web App" and set the redirect URI to `http://localhost:8085/oauth/x/callback`. Requires at least the Basic tier ($100/month).
 
-2. **Add credentials** to your `.env` file:
+2. **Add credentials** to your `.envrc` file:
 
+```bash
+export APP_X_CLIENT_ID=<your-x-client-id>
+export APP_X_CLIENT_SECRET=<your-x-client-secret>
 ```
-APP_X_CLIENT_ID=<your-x-client-id>
-APP_X_CLIENT_SECRET=<your-x-client-secret>
-```
+
+   Then run `direnv allow` to reload.
 
 3. **Restart the app** so it picks up the new environment variables.
 

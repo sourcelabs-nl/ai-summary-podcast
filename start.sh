@@ -16,12 +16,6 @@ echo "Building ai-summary-podcast..."
 cd "$SCRIPT_DIR"
 ./mvnw -q package -DskipTests
 
-if [ -f .env ]; then
-  set -a
-  source .env
-  set +a
-fi
-
 echo "Starting ai-summary-podcast..."
 java --enable-native-access=ALL-UNNAMED -jar "$JAR_FILE" > app.log 2>&1 &
 APP_PID=$!
