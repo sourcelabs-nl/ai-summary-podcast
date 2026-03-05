@@ -166,6 +166,7 @@ export function SourcesTab({ userId, podcastId }: SourcesTabProps) {
               <TableHead className="w-0">Type</TableHead>
               <TableHead className="w-0">Interval</TableHead>
               <TableHead className="w-0">Enabled</TableHead>
+              <TableHead className="w-0">Articles</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -217,6 +218,11 @@ export function SourcesTab({ userId, podcastId }: SourcesTabProps) {
                   ) : (
                     <span className="text-sm text-muted-foreground">—</span>
                   )}
+                </TableCell>
+                <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                  {source.articleCount > 0
+                    ? `${source.articleCount} (${Math.round((source.relevantArticleCount / source.articleCount) * 100)}% relevant)`
+                    : "0"}
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>

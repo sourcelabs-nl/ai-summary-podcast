@@ -51,7 +51,9 @@ data class SourceResponse(
     val lastSeenId: String?,
     val consecutiveFailures: Int,
     val lastFailureType: String?,
-    val disabledReason: String?
+    val disabledReason: String?,
+    val articleCount: Int = 0,
+    val relevantArticleCount: Int = 0
 )
 
 @RestController
@@ -85,7 +87,17 @@ class SourceController(
         val podcast = podcastService.findById(podcastId) ?: return ResponseEntity.notFound().build()
         if (podcast.userId != userId) return ResponseEntity.notFound().build()
 
-        return ResponseEntity.ok(sourceService.findByPodcastId(podcastId).map { it.toResponse() })
+        val sources = sourceService.findByPodcastId(podcastId)
+        val sourceIds = sources.map { it.id }
+        val counts = sourceService.getArticleCounts(sourceIds, podcast.relevanceThreshold)
+
+        return ResponseEntity.ok(sources.map { source ->
+            val c = counts[source.id]
+            source.toResponse().copy(
+                articleCount = c?.total ?: 0,
+                relevantArticleCount = c?.relevant ?: 0
+            )
+        })
     }
 
     @PutMapping("/{sourceId}")

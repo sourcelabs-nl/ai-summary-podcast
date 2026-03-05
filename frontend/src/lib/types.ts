@@ -52,6 +52,8 @@ export interface Source {
   enabled: boolean;
   label: string | null;
   createdAt: string;
+  articleCount: number;
+  relevantArticleCount: number;
 }
 
 export interface ArticleSource {
