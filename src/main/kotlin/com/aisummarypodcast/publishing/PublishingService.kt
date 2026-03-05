@@ -34,8 +34,9 @@ class PublishingService(
         }
 
         val existing = publicationRepository.findByEpisodeIdAndTarget(episode.id!!, target)
-        if (existing?.status == PublicationStatus.PUBLISHED) {
-            throw IllegalStateException("Episode is already published to $target")
+
+        if (existing?.status == PublicationStatus.PUBLISHED && existing.externalId != null) {
+            return updateExisting(publisher, episode, podcast, userId, existing)
         }
 
         val now = Instant.now().toString()
@@ -70,6 +71,37 @@ class PublishingService(
                     status = PublicationStatus.FAILED,
                     errorMessage = e.message
                 )
+            )
+            throw e
+        }
+    }
+
+    private fun updateExisting(
+        publisher: EpisodePublisher,
+        episode: Episode,
+        podcast: Podcast,
+        userId: String,
+        existing: EpisodePublication
+    ): EpisodePublication {
+        return try {
+            log.info("Updating episode {} on {} (externalId={})", episode.id, existing.target, existing.externalId)
+            val result = publisher.update(episode, podcast, userId, existing.externalId!!)
+            val updated = publicationRepository.save(
+                existing.copy(
+                    externalUrl = result.externalUrl,
+                    publishedAt = Instant.now().toString(),
+                    errorMessage = null
+                )
+            )
+            log.info("Episode {} updated on {} (externalId={})", episode.id, existing.target, existing.externalId)
+            updated
+        } catch (e: UnsupportedOperationException) {
+            log.warn("Publisher {} does not support updates: {}", existing.target, e.message)
+            throw e
+        } catch (e: Exception) {
+            log.error("Failed to update episode {} on {}: {}", episode.id, existing.target, e.message, e)
+            publicationRepository.save(
+                existing.copy(errorMessage = e.message)
             )
             throw e
         }

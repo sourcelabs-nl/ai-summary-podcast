@@ -71,17 +71,40 @@ class PublishingServiceTest {
     }
 
     @Test
-    fun `publish throws when already published`() {
+    fun `publish updates existing publication when already published`() {
         val existing = EpisodePublication(
             id = 5L,
             episodeId = 1L,
             target = "soundcloud",
             status = PublicationStatus.PUBLISHED,
+            externalId = "sc-123",
+            externalUrl = "https://soundcloud.com/old",
             createdAt = "2026-02-13T10:00:00Z"
         )
         every { publicationRepository.findByEpisodeIdAndTarget(1L, "soundcloud") } returns existing
+        every { publisher.update(episode, podcast, "user1", "sc-123") } returns PublishResult("sc-123", "https://soundcloud.com/updated")
+        every { publicationRepository.save(any()) } answers { firstArg() }
 
-        assertThrows<IllegalStateException> {
+        val result = service.publish(episode, podcast, "user1", "soundcloud")
+
+        assertEquals(PublicationStatus.PUBLISHED, result.status)
+        assertEquals("https://soundcloud.com/updated", result.externalUrl)
+    }
+
+    @Test
+    fun `publish throws when update not supported`() {
+        val existing = EpisodePublication(
+            id = 5L,
+            episodeId = 1L,
+            target = "soundcloud",
+            status = PublicationStatus.PUBLISHED,
+            externalId = "sc-123",
+            createdAt = "2026-02-13T10:00:00Z"
+        )
+        every { publicationRepository.findByEpisodeIdAndTarget(1L, "soundcloud") } returns existing
+        every { publisher.update(episode, podcast, "user1", "sc-123") } throws UnsupportedOperationException("not supported")
+
+        assertThrows<UnsupportedOperationException> {
             service.publish(episode, podcast, "user1", "soundcloud")
         }
     }

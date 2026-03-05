@@ -48,6 +48,8 @@ class PublishingController(
         return try {
             val publication = publishingService.publish(episode, podcast, userId, target)
             ResponseEntity.ok(publication.toResponse())
+        } catch (e: UnsupportedOperationException) {
+            ResponseEntity.badRequest().body(mapOf("error" to e.message))
         } catch (e: IllegalArgumentException) {
             ResponseEntity.badRequest().body(mapOf("error" to e.message))
         } catch (e: IllegalStateException) {
