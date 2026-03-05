@@ -90,8 +90,8 @@ class PodcastService(
         return podcastRepository.save(updated)
     }
 
-    fun previewBriefing(podcast: Podcast): PreviewResult? {
-        return llmPipeline.preview(podcast)
+    fun previewBriefing(podcast: Podcast, onProgress: (stage: String, detail: Map<String, Any>) -> Unit = { _, _ -> }): PreviewResult? {
+        return llmPipeline.preview(podcast, onProgress)
     }
 
     fun generateBriefing(podcast: Podcast): Episode? {

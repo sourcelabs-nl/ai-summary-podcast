@@ -27,7 +27,7 @@ The Articles tab (default) SHALL display all articles collected for the next epi
 - **THEN** articles are fetched from `GET /api/users/{userId}/podcasts/{podcastId}/upcoming-articles` and displayed using the same grouped-by-source pattern as the episode detail Articles tab
 
 ### Requirement: Script tab with inline preview
-The Script tab SHALL allow the user to generate a dry-run script preview inline, displaying word count and estimated audio duration.
+The Script tab SHALL allow the user to generate a dry-run script preview inline via SSE, displaying real-time progress stages, word count, and estimated audio duration.
 
 #### Scenario: No preview generated yet
 - **WHEN** the Script tab is selected and no preview has been generated
@@ -35,15 +35,19 @@ The Script tab SHALL allow the user to generate a dry-run script preview inline,
 
 #### Scenario: Preview Script clicked
 - **WHEN** user clicks "Preview Script"
-- **THEN** a POST request is made to `/api/users/{userId}/podcasts/{podcastId}/preview`, a loading spinner is shown on the button, and on success the script is rendered inline using the ScriptContent component with word count and estimated duration (~150 words/minute) shown above the script
+- **THEN** a GET SSE connection is opened to `/api/users/{userId}/podcasts/{podcastId}/preview`, a loading state is shown with the current pipeline stage (e.g., "Scoring 5 articles...", "Composing script..."), and on receiving the `result` event the script is rendered inline using the ScriptContent component with word count and estimated duration (~150 words/minute) shown above the script
 
 #### Scenario: Script tab label with word count
 - **WHEN** a preview has been generated
 - **THEN** the Script tab label shows the word count (e.g., "Script (2,450 words)")
 
 #### Scenario: Preview with no content
-- **WHEN** user clicks "Preview Script" but there are no relevant articles
-- **THEN** the response message is displayed to the user as an error banner
+- **WHEN** user clicks "Preview Script" but the `result` event contains a message instead of scriptText
+- **THEN** the message is displayed to the user as an error banner
+
+#### Scenario: Preview connection error
+- **WHEN** the SSE connection fails or emits an error event
+- **THEN** the loading state is cleared and an error message is displayed
 
 ### Requirement: Generate Episode action
 The page header SHALL display a "Generate Episode" button visible from any tab.

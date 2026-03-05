@@ -90,6 +90,7 @@ export default function UpcomingPage() {
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [preview, setPreview] = useState<PreviewResponse | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewStage, setPreviewStage] = useState<string | null>(null);
   const [generateLoading, setGenerateLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [currentTab, setTab] = useTabParam("articles", TABS);
@@ -114,22 +115,76 @@ export default function UpcomingPage() {
   async function handlePreview() {
     if (!selectedUser) return;
     setPreviewLoading(true);
+    setPreviewStage(null);
     setError(null);
     try {
       const res = await fetch(
         `/api/users/${selectedUser.id}/podcasts/${params.podcastId}/preview`,
-        { method: "POST" }
+        { headers: { Accept: "text/event-stream" } }
       );
-      const data = await res.json();
-      if (data.scriptText) {
-        setPreview(data);
-      } else {
-        setError(data.message || "No content available for preview");
+      if (!res.ok) {
+        setError("Failed to generate preview");
+        setPreviewLoading(false);
+        return;
       }
+      const reader = res.body?.getReader();
+      if (!reader) {
+        setError("Failed to read preview stream");
+        setPreviewLoading(false);
+        return;
+      }
+      const decoder = new TextDecoder();
+      let buffer = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+        let eventName = "";
+        for (const line of lines) {
+          if (line.startsWith("event:")) {
+            eventName = line.slice(6).trim();
+          } else if (line.startsWith("data:")) {
+            const dataStr = line.slice(5).trim();
+            if (!dataStr) continue;
+            try {
+              const data = JSON.parse(dataStr);
+              if (eventName === "progress") {
+                const { stage, articleCount, postCount } = data;
+                if (stage === "aggregating") {
+                  setPreviewStage(`Aggregating ${postCount ?? ""} posts...`);
+                } else if (stage === "scoring") {
+                  setPreviewStage(`Scoring ${articleCount ?? ""} articles...`);
+                } else if (stage === "composing") {
+                  setPreviewStage(`Composing script from ${articleCount ?? ""} articles...`);
+                }
+              } else if (eventName === "result") {
+                if (data.scriptText) {
+                  setPreview(data);
+                } else {
+                  setError(data.message || "No content available for preview");
+                }
+                setPreviewLoading(false);
+                setPreviewStage(null);
+              } else if (eventName === "error") {
+                setError(data.message || "Preview generation failed");
+                setPreviewLoading(false);
+                setPreviewStage(null);
+              }
+            } catch {
+              // ignore non-JSON data lines
+            }
+            eventName = "";
+          }
+        }
+      }
+      setPreviewLoading(false);
+      setPreviewStage(null);
     } catch {
       setError("Failed to generate preview");
-    } finally {
       setPreviewLoading(false);
+      setPreviewStage(null);
     }
   }
 
@@ -304,7 +359,11 @@ export default function UpcomingPage() {
               </div>
             ) : (
               <div className="flex flex-col items-center gap-4 py-12">
-                <p className="text-muted-foreground">No script preview generated yet.</p>
+                {previewLoading && previewStage ? (
+                  <p className="text-sm text-muted-foreground">{previewStage}</p>
+                ) : (
+                  <p className="text-muted-foreground">No script preview generated yet.</p>
+                )}
                 <Button
                   variant="outline"
                   onClick={handlePreview}

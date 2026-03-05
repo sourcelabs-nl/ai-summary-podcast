@@ -5,9 +5,15 @@ import com.aisummarypodcast.store.PodcastStyle
 import com.aisummarypodcast.store.TtsProviderType
 import com.aisummarypodcast.user.UserService
 import com.fasterxml.jackson.annotation.JsonProperty
+import tools.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
+import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.net.URI
 
 data class CreatePodcastRequest(
@@ -84,11 +90,13 @@ data class PodcastResponse(
 class PodcastController(
     private val podcastService: PodcastService,
     private val userService: UserService,
-    private val episodeService: EpisodeService
+    private val episodeService: EpisodeService,
+    private val objectMapper: ObjectMapper
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
+    private val previewScope = CoroutineScope(Dispatchers.IO)
     private val dialogueProviders = setOf(TtsProviderType.ELEVENLABS, TtsProviderType.INWORLD)
 
     private fun validateTtsConfig(ttsProvider: TtsProviderType, style: PodcastStyle, ttsVoices: Map<String, String>?): String? {
@@ -315,21 +323,72 @@ class PodcastController(
         return ResponseEntity.ok(response)
     }
 
-    @PostMapping("/{podcastId}/preview")
-    fun preview(@PathVariable userId: String, @PathVariable podcastId: String): ResponseEntity<Any> {
-        userService.findById(userId) ?: return ResponseEntity.notFound().build()
-        val podcast = podcastService.findById(podcastId) ?: return ResponseEntity.notFound().build()
-        if (podcast.userId != userId) return ResponseEntity.notFound().build()
+    @GetMapping("/{podcastId}/preview", produces = [MediaType.TEXT_EVENT_STREAM_VALUE])
+    fun preview(@PathVariable userId: String, @PathVariable podcastId: String): Any {
+        userService.findById(userId) ?: return ResponseEntity.notFound().build<Any>()
+        val podcast = podcastService.findById(podcastId) ?: return ResponseEntity.notFound().build<Any>()
+        if (podcast.userId != userId) return ResponseEntity.notFound().build<Any>()
 
-        log.info("Preview requested for podcast {}", podcastId)
-        val result = podcastService.previewBriefing(podcast)
-            ?: return ResponseEntity.ok(mapOf("message" to "No relevant articles available for preview"))
+        val emitter = SseEmitter(300_000L)
 
-        return ResponseEntity.ok(mapOf(
-            "scriptText" to result.script,
-            "style" to podcast.style.value,
-            "articleIds" to result.articleIds
-        ))
+        emitter.onCompletion { log.debug("Preview SSE completed for podcast {}", podcastId) }
+        emitter.onTimeout { log.warn("Preview SSE timed out for podcast {}", podcastId) }
+        emitter.onError { e -> log.error("Preview SSE error for podcast {}: {}", podcastId, e.message) }
+
+        log.info("Preview SSE requested for podcast {}", podcastId)
+
+        previewScope.launch {
+            try {
+                val result = podcastService.previewBriefing(podcast) { stage, detail ->
+                    try {
+                        emitter.send(
+                            SseEmitter.event()
+                                .name("progress")
+                                .data(objectMapper.writeValueAsString(mapOf("stage" to stage) + detail))
+                        )
+                    } catch (e: Exception) {
+                        log.debug("Failed to send progress event: {}", e.message)
+                    }
+                }
+
+                if (result != null) {
+                    emitter.send(
+                        SseEmitter.event()
+                            .name("result")
+                            .data(objectMapper.writeValueAsString(mapOf(
+                                "scriptText" to result.script,
+                                "style" to podcast.style.value,
+                                "articleIds" to result.articleIds
+                            )))
+                    )
+                } else {
+                    emitter.send(
+                        SseEmitter.event()
+                            .name("result")
+                            .data(objectMapper.writeValueAsString(mapOf(
+                                "message" to "No relevant articles available for preview"
+                            )))
+                    )
+                }
+
+                emitter.send(SseEmitter.event().name("complete").data(""))
+                emitter.complete()
+            } catch (e: Exception) {
+                log.error("Preview pipeline failed for podcast {}: {}", podcastId, e.message, e)
+                try {
+                    emitter.send(
+                        SseEmitter.event()
+                            .name("error")
+                            .data(objectMapper.writeValueAsString(mapOf("message" to (e.message ?: "Preview generation failed"))))
+                    )
+                    emitter.complete()
+                } catch (sendError: Exception) {
+                    emitter.completeWithError(e)
+                }
+            }
+        }
+
+        return emitter
     }
 
     private fun Podcast.toResponse() = PodcastResponse(

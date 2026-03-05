@@ -150,7 +150,7 @@ class LlmPipeline(
         )
     }
 
-    fun preview(podcast: Podcast): PreviewResult? {
+    fun preview(podcast: Podcast, onProgress: (stage: String, detail: Map<String, Any>) -> Unit = { _, _ -> }): PreviewResult? {
         val sources = sourceRepository.findByPodcastId(podcast.id)
         val sourceIds = sources.map { it.id }
         if (sourceIds.isEmpty()) return null
@@ -166,6 +166,7 @@ class LlmPipeline(
         val unlinkedPosts = postRepository.findUnlinkedBySourceIds(sourceIds, cutoff)
 
         if (unlinkedPosts.isNotEmpty()) {
+            onProgress("aggregating", mapOf("postCount" to unlinkedPosts.size))
             log.info("[LLM Preview] Aggregating {} unlinked posts for podcast '{}' ({})", unlinkedPosts.size, podcast.name, podcast.id)
             val postsBySource = unlinkedPosts.groupBy { it.sourceId }
             for ((sourceId, posts) in postsBySource) {
@@ -177,6 +178,7 @@ class LlmPipeline(
         // Step 2: Score unscored articles (persists scores)
         val unscored = articleRepository.findUnscoredBySourceIds(sourceIds)
         if (unscored.isNotEmpty()) {
+            onProgress("scoring", mapOf("articleCount" to unscored.size))
             log.info("[LLM Preview] Scoring {} articles for podcast '{}' ({})", unscored.size, podcast.name, podcast.id)
             articleScoreSummarizer.scoreSummarize(unscored, podcast, filterModelDef, sourceLabels)
         }
@@ -187,6 +189,8 @@ class LlmPipeline(
             log.info("[LLM Preview] No relevant unprocessed articles for podcast '{}' ({})", podcast.name, podcast.id)
             return null
         }
+
+        onProgress("composing", mapOf("articleCount" to toCompose.size))
 
         val previousRecap = episodeRepository.findMostRecentByPodcastId(podcast.id)?.recap
         val ttsProvider = ttsProviderFactory.resolve(podcast)
