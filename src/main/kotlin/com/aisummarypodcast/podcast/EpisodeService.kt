@@ -80,6 +80,7 @@ class EpisodeService(
     private fun generateAndStoreShowNotes(episode: Episode): Episode {
         val links = episodeArticleRepository.findByEpisodeId(episode.id!!)
         val articles = links.mapNotNull { link -> articleRepository.findById(link.articleId).orElse(null) }
+            .sortedByDescending { it.relevanceScore ?: 0 }
         val showNotes = buildShowNotes(episode.recap, articles)
         if (showNotes == null) return episode
         val updated = episodeRepository.save(episode.copy(showNotes = showNotes))

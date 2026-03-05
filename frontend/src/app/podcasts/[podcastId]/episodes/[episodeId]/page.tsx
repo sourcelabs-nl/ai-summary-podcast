@@ -177,7 +177,7 @@ export default function EpisodeDetailPage() {
             {sources && (
               <details className="mt-3">
                 <summary className="cursor-pointer text-sm font-medium text-foreground">Sources</summary>
-                <pre className="mt-2 whitespace-pre-wrap" style={{ wordBreak: "break-all" }}>{sources.replace(/^Sources:\n/, "")}</pre>
+                <div className="mt-2 text-xs whitespace-pre-wrap" style={{ wordBreak: "break-all" }}>{sources.replace(/^Sources:\n/, "")}</div>
               </details>
             )}
           </div>
