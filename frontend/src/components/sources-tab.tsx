@@ -150,9 +150,8 @@ export function SourcesTab({ userId, podcastId }: SourcesTabProps) {
   return (
     <>
       <div className="flex justify-end mb-4">
-        <Button size="sm" onClick={openAddDialog}>
+        <Button size="icon-lg" title="Add source" onClick={openAddDialog}>
           <Plus className="size-4" />
-          Add Source
         </Button>
       </div>
 
@@ -227,21 +226,19 @@ export function SourcesTab({ userId, podcastId }: SourcesTabProps) {
                 <TableCell className="text-right">
                   <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
                     <Button
-                      size="sm"
-                      className="w-20"
+                      size="icon-lg"
+                      title="Edit source"
                       onClick={() => openEditDialog(source)}
                     >
                       <Pencil className="size-4" />
-                      Edit
                     </Button>
                     <Button
-                      size="sm"
+                      size="icon-lg"
                       variant="destructive"
-                      className="w-20"
+                      title="Delete source"
                       onClick={() => setDeleteSource(source)}
                     >
                       <Trash2 className="size-4" />
-                      Delete
                     </Button>
                   </div>
                 </TableCell>

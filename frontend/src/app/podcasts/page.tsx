@@ -52,7 +52,8 @@ export default function PodcastsPage() {
                   {podcast.topic}
                 </CardDescription>
                 <Button
-                  size="sm"
+                  size="icon-lg"
+                  title="Settings"
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
@@ -60,7 +61,6 @@ export default function PodcastsPage() {
                   }}
                 >
                   <Settings className="size-4" />
-                  Settings
                 </Button>
               </CardHeader>
             </Card>

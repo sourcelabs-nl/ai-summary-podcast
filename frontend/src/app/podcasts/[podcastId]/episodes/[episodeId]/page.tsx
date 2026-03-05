@@ -143,24 +143,22 @@ export default function EpisodeDetailPage() {
         <div className="flex items-center gap-2">
           {episode.status === "PENDING_REVIEW" && (
             <>
-              <Button size="sm" onClick={() => handleAction("approve")}>
+              <Button size="icon-lg" title="Approve episode" onClick={() => handleAction("approve")}>
                 <Check className="size-4" />
-                Approve
               </Button>
               <Button
-                size="sm"
+                size="icon-lg"
                 variant="destructive"
+                title="Discard episode"
                 onClick={() => handleAction("discard")}
               >
                 <X className="size-4" />
-                Discard
               </Button>
             </>
           )}
           {episode.status === "GENERATED" && !published && (
-            <Button size="sm" onClick={() => setPublishOpen(true)}>
+            <Button size="icon-lg" title="Publish episode" onClick={() => setPublishOpen(true)}>
               <Upload className="size-4" />
-              Publish
             </Button>
           )}
         </div>

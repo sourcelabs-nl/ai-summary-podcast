@@ -161,11 +161,11 @@ export function PublicationsTab({
               </TableCell>
               <TableCell className="text-right">
                 <Button
-                  size="sm"
+                  size="icon-lg"
+                  title="Republish"
                   onClick={() => setConfirmPub(pub)}
                 >
                   <RefreshCw className="size-4" />
-                  Republish
                 </Button>
               </TableCell>
             </TableRow>

@@ -177,9 +177,8 @@ export default function EpisodesPage() {
           </p>
         </div>
         <Link href={`/podcasts/${params.podcastId}/settings`}>
-          <Button size="sm">
+          <Button size="icon-lg" title="Settings">
             <Settings className="size-4" />
-            Settings
           </Button>
         </Link>
       </div>
@@ -286,39 +285,37 @@ export default function EpisodesPage() {
                         {episode.status === "PENDING_REVIEW" && (
                           <>
                             <Button
-                              size="sm"
+                              size="icon-lg"
+                              title="Approve episode"
                               onClick={() => handleAction(episode.id, "approve")}
                             >
                               <Check className="size-4" />
-                              Approve
                             </Button>
                             <Button
-                              size="sm"
+                              size="icon-lg"
                               variant="destructive"
+                              title="Discard episode"
                               onClick={() => handleAction(episode.id, "discard")}
                             >
                               <X className="size-4" />
-                              Discard
                             </Button>
                           </>
                         )}
                         {episode.status === "GENERATED" && !publishedEpisodeIds.has(episode.id) && (
                           <Button
-                            size="sm"
-                            className="w-24"
+                            size="icon-lg"
+                            title="Publish episode"
                             onClick={() => setPublishEpisode(episode)}
                           >
                             <Upload className="size-4" />
-                            Publish
                           </Button>
                         )}
                         <Button
-                          size="sm"
-                          className="w-24"
+                          size="icon-lg"
+                          title="View details"
                           onClick={() => router.push(`/podcasts/${params.podcastId}/episodes/${episode.id}`)}
                         >
                           <ChevronRight className="size-4" />
-                          Details
                         </Button>
                       </div>
                     </TableCell>
