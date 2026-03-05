@@ -8,6 +8,7 @@ import type { Podcast, PodcastDefaults } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useTabParam } from "@/hooks/use-tab-param";
 import {
   Select,
   SelectContent,
@@ -27,6 +28,8 @@ const STYLES = [
 ];
 
 const TTS_PROVIDERS = ["openai", "elevenlabs", "inworld"];
+
+const TABS = ["general", "llm", "tts", "content"] as const;
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
   return (
@@ -58,6 +61,7 @@ export default function PodcastSettingsPage() {
   const [defaults, setDefaults] = useState<PodcastDefaults | null>(null);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [currentTab, setTab] = useTabParam("general", TABS);
 
   useEffect(() => {
     if (!selectedUser) return;
@@ -155,7 +159,7 @@ export default function PodcastSettingsPage() {
       </div>
       <h2 className="mb-6 text-2xl font-bold">Settings: {podcast.name}</h2>
 
-      <Tabs defaultValue="general">
+      <Tabs value={currentTab} onValueChange={(v) => setTab(v as typeof TABS[number])}>
         <TabsList>
           <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="llm">LLM</TabsTrigger>

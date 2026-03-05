@@ -13,8 +13,10 @@ import { ScriptContent } from "@/components/script-viewer";
 import { ArticlesTab } from "@/components/articles-tab";
 import { PublicationsTab } from "@/components/publications-tab";
 import { PublishWizard } from "@/components/publish-wizard";
+import { useTabParam } from "@/hooks/use-tab-param";
 
 const WORDS_PER_MINUTE = 150;
+const TABS = ["script", "articles", "publications"] as const;
 
 const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
   GENERATED: "outline",
@@ -34,6 +36,7 @@ export default function EpisodeDetailPage() {
   const [published, setPublished] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [currentTab, setTab] = useTabParam("script", TABS);
 
   const fetchPublished = useCallback((userId: string, podcastId: string, episodeId: string) => {
     fetch(`/api/users/${userId}/podcasts/${podcastId}/episodes/${episodeId}/publications`)
@@ -164,7 +167,7 @@ export default function EpisodeDetailPage() {
         </div>
       </div>
 
-      <Tabs defaultValue="script">
+      <Tabs value={currentTab} onValueChange={(v) => setTab(v as typeof TABS[number])}>
         <TabsList>
           <TabsTrigger value="script">Script</TabsTrigger>
           <TabsTrigger value="articles">

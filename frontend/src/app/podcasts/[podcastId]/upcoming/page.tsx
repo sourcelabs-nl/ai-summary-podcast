@@ -11,8 +11,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScriptContent } from "@/components/script-viewer";
+import { useTabParam } from "@/hooks/use-tab-param";
 
 const WORDS_PER_MINUTE = 150;
+const TABS = ["articles", "script"] as const;
 
 function getSourceDisplayName(source: EpisodeArticle["source"]): string {
   if (source.label) return source.label;
@@ -90,6 +92,7 @@ export default function UpcomingPage() {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [generateLoading, setGenerateLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [currentTab, setTab] = useTabParam("articles", TABS);
 
   useEffect(() => {
     if (!selectedUser) return;
@@ -237,7 +240,7 @@ export default function UpcomingPage() {
         </div>
       )}
 
-      <Tabs defaultValue="articles">
+      <Tabs value={currentTab} onValueChange={(v) => setTab(v as typeof TABS[number])}>
         <TabsList>
           <TabsTrigger value="articles">
             Articles ({articles.length})

@@ -27,6 +27,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PublishWizard } from "@/components/publish-wizard";
 import { PublicationsTab } from "@/components/publications-tab";
 import { SourcesTab } from "@/components/sources-tab";
+import { useTabParam } from "@/hooks/use-tab-param";
+
+const TABS = ["episodes", "publications", "sources"] as const;
 
 const STATUSES = [
   "GENERATED",
@@ -56,6 +59,7 @@ export default function EpisodesPage() {
   const [publishedEpisodeIds, setPublishedEpisodeIds] = useState<Set<number>>(new Set());
   const [refreshKey, setRefreshKey] = useState(0);
   const [upcomingCount, setUpcomingCount] = useState<number>(0);
+  const [currentTab, setTab] = useTabParam("episodes", TABS);
 
   const fetchPublications = useCallback(
     (episodeList: Episode[]) => {
@@ -195,7 +199,7 @@ export default function EpisodesPage() {
         <ChevronRight className="size-4 text-muted-foreground" />
       </Link>
 
-      <Tabs defaultValue="episodes">
+      <Tabs value={currentTab} onValueChange={(v) => setTab(v as typeof TABS[number])}>
         <TabsList>
           <TabsTrigger value="episodes">Episodes</TabsTrigger>
           <TabsTrigger value="publications">Publications</TabsTrigger>
