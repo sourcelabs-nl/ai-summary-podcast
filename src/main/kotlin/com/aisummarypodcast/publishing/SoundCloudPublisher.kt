@@ -31,7 +31,7 @@ class SoundCloudPublisher(
         )
         val title = "${podcast.name} - $episodeDate"
         val permalink = buildPermalink(podcast.name, episodeDate)
-        val description = episode.recap ?: episode.scriptText.take(500)
+        val description = episode.showNotes ?: episode.recap ?: episode.scriptText.take(500)
         val tagList = buildTagList(podcast.topic)
 
         val response = soundCloudClient.uploadTrack(
@@ -49,6 +49,18 @@ class SoundCloudPublisher(
 
         return PublishResult(
             externalId = response.id.toString(),
+            externalUrl = response.permalinkUrl
+        )
+    }
+
+    override fun update(episode: Episode, podcast: Podcast, userId: String, externalId: String): PublishResult {
+        val accessToken = tokenManager.getValidAccessToken(userId)
+        val trackId = externalId.toLong()
+        val description = episode.showNotes ?: episode.recap ?: episode.scriptText.take(500)
+        val response = soundCloudClient.updateTrack(accessToken, trackId, description = description)
+        log.info("Updated SoundCloud track {} description for episode {}", trackId, episode.id)
+        return PublishResult(
+            externalId = externalId,
             externalUrl = response.permalinkUrl
         )
     }
@@ -90,7 +102,7 @@ class SoundCloudPublisher(
                 DateTimeFormatter.ISO_INSTANT.withZone(ZoneOffset.UTC)
             )
             val permalink = buildPermalink(podcast.name, episodeDate)
-            val description = episode.recap ?: episode.scriptText.take(500)
+            val description = episode.showNotes ?: episode.recap ?: episode.scriptText.take(500)
             soundCloudClient.updateTrack(accessToken, trackId, permalink = permalink, description = description)
         }
     }

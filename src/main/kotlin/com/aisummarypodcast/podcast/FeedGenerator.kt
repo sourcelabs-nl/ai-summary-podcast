@@ -50,7 +50,7 @@ class FeedGenerator(
                 publishedDate = Date.from(generatedInstant)
                 description = SyndContentImpl().apply {
                     type = "text/plain"
-                    value = episode.scriptText.take(500) + "..."
+                    value = episode.showNotes ?: (episode.scriptText.take(500) + "...")
                 }
                 enclosures = listOf(SyndEnclosureImpl().apply {
                     url = "$effectiveBaseUrl/episodes/${podcast.id}/${Path.of(audioPath).fileName}"

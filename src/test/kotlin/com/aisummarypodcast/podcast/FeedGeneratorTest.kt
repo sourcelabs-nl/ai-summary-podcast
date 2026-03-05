@@ -59,8 +59,28 @@ class FeedGeneratorTest {
         every { episodeRepository.findByPodcastIdAndStatus("p1", "GENERATED") } returns listOf(generatedEpisode)
 
         val xml = feedGenerator.generate(podcast, user)
-        assertTrue(xml.contains("Generated episode script..."), "Expected generated episode in feed")
+        assertTrue(xml.contains("Generated episode script..."), "Expected script fallback in feed when no show notes")
         assertTrue(xml.contains("briefing-20250101-000000.mp3"), "Expected audio file reference in feed")
+    }
+
+    @Test
+    fun `feed uses show notes when available`() {
+        val podcast = Podcast(id = "p1", userId = "u1", name = "Tech", topic = "tech")
+        val user = User(id = "u1", name = "Test User")
+
+        val episodeWithNotes = Episode(
+            id = 1L, podcastId = "p1", generatedAt = "2025-01-01T00:00:00Z",
+            scriptText = "Full script text here", status = EpisodeStatus.GENERATED,
+            audioFilePath = "/data/episodes/p1/briefing-20250101-000000.mp3", durationSeconds = 120,
+            showNotes = "Recap summary.\n\nSources:\n- Article One\n  https://example.com/1"
+        )
+
+        every { episodeRepository.findByPodcastIdAndStatus("p1", "GENERATED") } returns listOf(episodeWithNotes)
+
+        val xml = feedGenerator.generate(podcast, user)
+        assertTrue(xml.contains("Recap summary."), "Expected show notes in feed description")
+        assertTrue(xml.contains("Sources:"), "Expected sources section in feed description")
+        assertFalse(xml.contains("Full script text here"), "Expected script text NOT in feed when show notes present")
     }
 
     @Test

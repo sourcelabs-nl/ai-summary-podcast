@@ -24,7 +24,8 @@ data class EpisodeResponse(
     val ttsCharacters: Int?,
     val ttsCostCents: Int?,
     val ttsModel: String?,
-    val recap: String?
+    val recap: String?,
+    val showNotes: String?
 )
 
 data class UpdateScriptRequest(
@@ -229,6 +230,7 @@ class EpisodeController(
         ttsCharacters = ttsCharacters,
         ttsCostCents = ttsCostCents,
         ttsModel = ttsModel,
-        recap = recap
+        recap = recap,
+        showNotes = showNotes
     )
 }

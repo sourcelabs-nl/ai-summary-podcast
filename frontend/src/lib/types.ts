@@ -41,6 +41,7 @@ export interface Episode {
   llmCostCents?: number;
   ttsCostCents?: number;
   recap?: string;
+  showNotes?: string;
 }
 
 export interface Source {

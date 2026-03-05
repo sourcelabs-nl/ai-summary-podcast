@@ -22,5 +22,6 @@ data class Episode(
     val ttsCostCents: Int? = null,
     val ttsModel: String? = null,
     val recap: String? = null,
+    val showNotes: String? = null,
     @Version val version: Long? = null
 )

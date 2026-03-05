@@ -88,6 +88,36 @@ class SoundCloudPublisherTest {
     }
 
     @Test
+    fun `publish uses show notes for description when available`() {
+        val episodeWithNotes = episode.copy(
+            showNotes = "Recap.\n\nSources:\n- Article\n  https://example.com/1"
+        )
+
+        every { tokenManager.getValidAccessToken("user1") } returns "access-token"
+        val requestSlot = slot<TrackUploadRequest>()
+        every { soundCloudClient.uploadTrack("access-token", capture(requestSlot)) } returns trackResponse
+        every { soundCloudClient.createPlaylist("access-token", "Tech News", listOf(456)) } returns playlistResponse
+
+        publisher.publish(episodeWithNotes, podcast, "user1")
+
+        assertEquals("Recap.\n\nSources:\n- Article\n  https://example.com/1", requestSlot.captured.description)
+    }
+
+    @Test
+    fun `publish uses recap when no show notes`() {
+        val episodeWithRecap = episode.copy(recap = "A short recap")
+
+        every { tokenManager.getValidAccessToken("user1") } returns "access-token"
+        val requestSlot = slot<TrackUploadRequest>()
+        every { soundCloudClient.uploadTrack("access-token", capture(requestSlot)) } returns trackResponse
+        every { soundCloudClient.createPlaylist("access-token", "Tech News", listOf(456)) } returns playlistResponse
+
+        publisher.publish(episodeWithRecap, podcast, "user1")
+
+        assertEquals("A short recap", requestSlot.captured.description)
+    }
+
+    @Test
     fun `buildTagList handles multi-word tags`() {
         val podcastWithTags = podcast.copy(topic = "AI, machine learning, Kotlin")
         every { tokenManager.getValidAccessToken("user1") } returns "access-token"
@@ -188,6 +218,32 @@ class SoundCloudPublisherTest {
 
         verify { soundCloudClient.updateTrack("access-token", 100, "tech-news-2026-02-13", expectedDescription) }
         verify { soundCloudClient.updateTrack("access-token", 200, "tech-news-2026-02-14", expectedDescription) }
+    }
+
+    @Test
+    fun `update calls updateTrack with show notes description`() {
+        val episodeWithNotes = episode.copy(
+            showNotes = "Recap.\n\nSources:\n- Article\n  https://example.com/1"
+        )
+        every { tokenManager.getValidAccessToken("user1") } returns "access-token"
+        every { soundCloudClient.updateTrack("access-token", 456, description = "Recap.\n\nSources:\n- Article\n  https://example.com/1") } returns trackResponse
+
+        val result = publisher.update(episodeWithNotes, podcast, "user1", "456")
+
+        assertEquals("456", result.externalId)
+        assertEquals("https://soundcloud.com/user/tech-news", result.externalUrl)
+        verify { soundCloudClient.updateTrack("access-token", 456, description = "Recap.\n\nSources:\n- Article\n  https://example.com/1") }
+    }
+
+    @Test
+    fun `update falls back to recap when no show notes`() {
+        val episodeWithRecap = episode.copy(recap = "Short recap")
+        every { tokenManager.getValidAccessToken("user1") } returns "access-token"
+        every { soundCloudClient.updateTrack("access-token", 456, description = "Short recap") } returns trackResponse
+
+        val result = publisher.update(episodeWithRecap, podcast, "user1", "456")
+
+        assertEquals("456", result.externalId)
     }
 
     @Test

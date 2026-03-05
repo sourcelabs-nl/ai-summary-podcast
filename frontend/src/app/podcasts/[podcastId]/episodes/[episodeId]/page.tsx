@@ -138,7 +138,7 @@ export default function EpisodeDetailPage() {
             {episode.durationSeconds != null && (
               <> &middot; duration {Math.floor(episode.durationSeconds / 60)}:{String(episode.durationSeconds % 60).padStart(2, "0")}</>
             )}
-            {episode.recap && (
+            {episode.recap && !episode.showNotes && (
               <> &middot; {episode.recap}</>
             )}
           </p>
@@ -166,6 +166,23 @@ export default function EpisodeDetailPage() {
           )}
         </div>
       </div>
+
+      {episode.showNotes && (() => {
+        const sourcesIdx = episode.showNotes.indexOf("\n\nSources:");
+        const summary = sourcesIdx >= 0 ? episode.showNotes.slice(0, sourcesIdx) : episode.showNotes;
+        const sources = sourcesIdx >= 0 ? episode.showNotes.slice(sourcesIdx + 2) : null;
+        return (
+          <div className="mb-6 text-sm text-muted-foreground bg-muted rounded-md p-4 overflow-hidden" style={{ wordBreak: "break-word" }}>
+            <p>{summary}</p>
+            {sources && (
+              <details className="mt-3">
+                <summary className="cursor-pointer text-sm font-medium text-foreground">Sources</summary>
+                <pre className="mt-2 whitespace-pre-wrap" style={{ wordBreak: "break-all" }}>{sources.replace(/^Sources:\n/, "")}</pre>
+              </details>
+            )}
+          </div>
+        );
+      })()}
 
       <Tabs value={currentTab} onValueChange={(v) => setTab(v as typeof TABS[number])}>
         <TabsList>
