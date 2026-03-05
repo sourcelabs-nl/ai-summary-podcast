@@ -152,6 +152,7 @@ cd frontend && npm run dev
 ```
 
 The dashboard provides:
+- **User settings** — gear icon in the header opens a settings page to edit your profile name and manage API keys (LLM and TTS provider configs) with a wizard-style dialog. All API keys are stored encrypted
 - **Podcast overview** — browse all podcasts with style badges, topics, and quick-access settings gear icon
 - **Podcast settings** — edit all podcast configuration (general, LLM, TTS, content) via a tabbed settings page with key-value editors for JSON map fields
 - **Episode management** — view episodes with status filtering, approve/discard pending reviews. Click any episode row to open the detail page. Shows the generation schedule in human-readable form
