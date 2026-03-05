@@ -54,6 +54,7 @@ export interface Source {
   createdAt: string;
   articleCount: number;
   relevantArticleCount: number;
+  postCount: number;
 }
 
 export interface ArticleSource {

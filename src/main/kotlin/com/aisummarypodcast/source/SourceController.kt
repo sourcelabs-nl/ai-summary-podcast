@@ -53,7 +53,8 @@ data class SourceResponse(
     val lastFailureType: String?,
     val disabledReason: String?,
     val articleCount: Int = 0,
-    val relevantArticleCount: Int = 0
+    val relevantArticleCount: Int = 0,
+    val postCount: Int = 0
 )
 
 @RestController
@@ -89,13 +90,15 @@ class SourceController(
 
         val sources = sourceService.findByPodcastId(podcastId)
         val sourceIds = sources.map { it.id }
-        val counts = sourceService.getArticleCounts(sourceIds, podcast.relevanceThreshold)
+        val articleCounts = sourceService.getArticleCounts(sourceIds, podcast.relevanceThreshold)
+        val postCounts = sourceService.getPostCounts(sourceIds)
 
         return ResponseEntity.ok(sources.map { source ->
-            val c = counts[source.id]
+            val c = articleCounts[source.id]
             source.toResponse().copy(
                 articleCount = c?.total ?: 0,
-                relevantArticleCount = c?.relevant ?: 0
+                relevantArticleCount = c?.relevant ?: 0,
+                postCount = postCounts[source.id] ?: 0
             )
         })
     }

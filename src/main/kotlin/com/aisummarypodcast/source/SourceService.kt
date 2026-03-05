@@ -82,6 +82,20 @@ class SourceService(
         }.associateBy { it.sourceId }
     }
 
+    fun getPostCounts(sourceIds: List<String>): Map<String, Int> {
+        if (sourceIds.isEmpty()) return emptyMap()
+        val placeholders = sourceIds.joinToString(",") { "?" }
+        val sql = """
+            SELECT source_id, COUNT(*) as total
+            FROM posts
+            WHERE source_id IN ($placeholders)
+            GROUP BY source_id
+        """.trimIndent()
+        return jdbcTemplate.query(sql, sourceIds.toTypedArray()) { rs: java.sql.ResultSet, _: Int ->
+            rs.getString("source_id") to rs.getInt("total")
+        }.toMap()
+    }
+
     @Transactional
     fun delete(sourceId: String): Boolean {
         val source = findById(sourceId) ?: return false
