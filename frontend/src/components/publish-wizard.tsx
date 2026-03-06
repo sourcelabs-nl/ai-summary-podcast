@@ -181,14 +181,33 @@ export function PublishWizard({
                 <div className="space-y-2 text-sm">
                   <p>Episode #{episode.id} has been published to {targetLabel}.</p>
                   {result.externalUrl && (
-                    <a
-                      href={result.externalUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-primary underline"
-                    >
-                      {result.externalUrl}
-                    </a>
+                    <div className="flex items-center gap-2">
+                      <a
+                        href={result.externalUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary underline"
+                      >
+                        Link
+                      </a>
+                      {result.target === "soundcloud" && (() => {
+                        const match = result.externalUrl?.match(/^https:\/\/soundcloud\.com\/([^/]+)\//);
+                        if (!match) return null;
+                        return (
+                          <>
+                            <span className="text-muted-foreground">|</span>
+                            <a
+                              href={`https://soundcloud.com/${match[1]}/sets`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-primary underline"
+                            >
+                              Playlist
+                            </a>
+                          </>
+                        );
+                      })()}
+                    </div>
                   )}
                 </div>
               ) : null}
