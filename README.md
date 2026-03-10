@@ -164,7 +164,8 @@ The dashboard provides:
 - **Episode management** — view episodes with status filtering, approve/discard pending reviews. Click any episode row to open the detail page. Shows the generation schedule in human-readable form
 - **Episode detail page** — dedicated page per episode with tabs for Script (chat-bubble rendering), Articles (grouped by source with relevance scores and collapsible sections), and Publications. Shows episode metadata, recap, and contextual action buttons
 - **Upcoming episode preview** — see collected articles for the next episode, preview the script via Server-Sent Events with real-time progress stages (aggregating, scoring, composing), and trigger episode generation on demand. Shows next scheduled generation time
-- **Publish wizard** — publish generated episodes to SoundCloud via a step-by-step wizard
+- **Source export** — download all configured sources as a markdown file from the Sources tab
+- **Publish wizard** — publish generated episodes to SoundCloud via a step-by-step wizard with automatic quota detection and recovery (re-authorize on OAuth expiry, remove oldest track on quota exceeded)
 - **Publications tab** — view all publications with track/playlist links, republish with confirmation
 
 The frontend proxies API calls to `http://localhost:8085` via Next.js rewrites.
@@ -352,6 +353,8 @@ curl -X POST http://localhost:8085/users/{userId}/podcasts/{podcastId}/episodes/
 
 The track is uploaded with the podcast name + date as title, a description from the script, and tags from the podcast topic. Episodes are automatically grouped into a SoundCloud playlist per podcast — on first publish a new playlist is created, and subsequent episodes are added to it. Publication status (PENDING, PUBLISHED, FAILED) is tracked per episode and target.
 
+Before uploading, the system checks the SoundCloud upload quota. If the quota is exceeded, the publish wizard offers to remove the oldest app-uploaded track (filtered by podcast name) to free up space. If the OAuth token has expired, the wizard shows a re-authorize button.
+
 To enable an RSS feed for your SoundCloud uploads, go to your SoundCloud **Settings > Content** tab, find your RSS feed URL, and enable **"Include in RSS feed"** under upload defaults. This lets podcast apps subscribe to your SoundCloud-hosted episodes directly.
 
 ### Monitoring X (Twitter) Accounts
@@ -494,10 +497,11 @@ GET    /users/{userId}/podcasts/{podcastId}/episodes/{episodeId}/publications   
 ### SoundCloud OAuth
 
 ```
-GET    /users/{userId}/oauth/soundcloud/authorize  — Get SoundCloud authorization URL
-GET    /oauth/soundcloud/callback                  — OAuth callback (handled automatically)
-GET    /users/{userId}/oauth/soundcloud/status      — Check connection status
-DELETE /users/{userId}/oauth/soundcloud             — Disconnect SoundCloud
+GET    /users/{userId}/oauth/soundcloud/authorize          — Get SoundCloud authorization URL
+GET    /oauth/soundcloud/callback                          — OAuth callback (handled automatically)
+GET    /users/{userId}/oauth/soundcloud/status              — Check connection status (includes quota)
+DELETE /users/{userId}/oauth/soundcloud/tracks/{trackId}    — Delete a SoundCloud track
+DELETE /users/{userId}/oauth/soundcloud                     — Disconnect SoundCloud
 ```
 
 ### X (Twitter) OAuth

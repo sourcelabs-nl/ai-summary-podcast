@@ -18,7 +18,14 @@ import org.springframework.http.HttpStatusCode
 
 class SoundCloudPublisherTest {
 
-    private val soundCloudClient = mockk<SoundCloudClient>()
+    private val soundCloudClient = mockk<SoundCloudClient> {
+        every { getMe(any()) } returns SoundCloudMeResponse(
+            id = 1L,
+            username = "testuser",
+            plan = "Free",
+            quota = SoundCloudQuota(unlimitedUploadQuota = false, uploadSecondsUsed = 1000, uploadSecondsLeft = 5000)
+        )
+    }
     private val tokenManager = mockk<SoundCloudTokenManager>()
     private val podcastRepository = mockk<PodcastRepository> {
         every { save(any()) } answers { firstArg() }
@@ -243,6 +250,34 @@ class SoundCloudPublisherTest {
 
         val result = publisher.update(episodeWithRecap, podcast, "user1", "456")
 
+        assertEquals("456", result.externalId)
+    }
+
+    @Test
+    fun `publish throws when quota exceeded`() {
+        every { tokenManager.getValidAccessToken("user1") } returns "access-token"
+        every { soundCloudClient.getMe("access-token") } returns SoundCloudMeResponse(
+            id = 1L, username = "testuser", plan = "Free",
+            quota = SoundCloudQuota(unlimitedUploadQuota = false, uploadSecondsUsed = 7000, uploadSecondsLeft = -500)
+        )
+
+        val ex = assertThrows<SoundCloudQuotaExceededException> {
+            publisher.publish(episode, podcast, "user1")
+        }
+        assertEquals(true, ex.message?.contains("quota exceeded"))
+    }
+
+    @Test
+    fun `publish skips quota check when unlimited`() {
+        every { tokenManager.getValidAccessToken("user1") } returns "access-token"
+        every { soundCloudClient.getMe("access-token") } returns SoundCloudMeResponse(
+            id = 1L, username = "testuser", plan = "Pro",
+            quota = SoundCloudQuota(unlimitedUploadQuota = true, uploadSecondsUsed = 99999, uploadSecondsLeft = -500)
+        )
+        every { soundCloudClient.uploadTrack("access-token", any()) } returns trackResponse
+        every { soundCloudClient.createPlaylist("access-token", "Tech News", listOf(456)) } returns playlistResponse
+
+        val result = publisher.publish(episode, podcast, "user1")
         assertEquals("456", result.externalId)
     }
 

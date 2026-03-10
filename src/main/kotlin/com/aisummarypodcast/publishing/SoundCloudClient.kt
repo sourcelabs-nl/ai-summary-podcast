@@ -9,6 +9,7 @@ import org.springframework.http.MediaType
 import org.springframework.stereotype.Service
 import org.springframework.util.LinkedMultiValueMap
 import org.springframework.boot.restclient.RestTemplateBuilder
+import org.springframework.web.client.HttpClientErrorException
 import org.springframework.web.client.RestTemplate
 import tools.jackson.databind.PropertyNamingStrategies
 import tools.jackson.databind.annotation.JsonNaming
@@ -28,6 +29,21 @@ data class SoundCloudTrackResponse(
     val id: Long,
     val permalinkUrl: String,
     val title: String? = null
+)
+
+@JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy::class)
+data class SoundCloudTrackListResponse(
+    val collection: List<SoundCloudTrackSummary> = emptyList(),
+    val nextHref: String? = null
+)
+
+@JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy::class)
+data class SoundCloudTrackSummary(
+    val id: Long,
+    val title: String? = null,
+    val createdAt: String? = null,
+    val duration: Long? = null,
+    val permalinkUrl: String? = null
 )
 
 @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy::class)
@@ -55,11 +71,52 @@ data class TrackUploadRequest(
     val audioFilePath: Path
 )
 
+@JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy::class)
+data class SoundCloudQuota(
+    val unlimitedUploadQuota: Boolean = false,
+    val uploadSecondsUsed: Long = 0,
+    val uploadSecondsLeft: Long = 0
+)
+
+@JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy::class)
+data class SoundCloudMeResponse(
+    val id: Long,
+    val username: String? = null,
+    val plan: String? = null,
+    val quota: SoundCloudQuota? = null
+)
+
 @Service
 class SoundCloudClient(restTemplateBuilder: RestTemplateBuilder) {
 
     private val log = LoggerFactory.getLogger(javaClass)
     private val restTemplate: RestTemplate = restTemplateBuilder.build()
+
+    fun getMe(accessToken: String): SoundCloudMeResponse {
+        val headers = HttpHeaders().apply {
+            setBearerAuth(accessToken)
+        }
+        val response = restTemplate.exchange(
+            "https://api.soundcloud.com/me",
+            HttpMethod.GET,
+            HttpEntity<Any>(headers),
+            SoundCloudMeResponse::class.java
+        )
+        return response.body ?: throw RuntimeException("Empty response from SoundCloud /me")
+    }
+
+    fun getMyTracks(accessToken: String, limit: Int = 200): SoundCloudTrackListResponse {
+        val headers = HttpHeaders().apply {
+            setBearerAuth(accessToken)
+        }
+        val response = restTemplate.exchange(
+            "https://api.soundcloud.com/me/tracks?linked_partitioning=true&limit=$limit",
+            HttpMethod.GET,
+            HttpEntity<Any>(headers),
+            SoundCloudTrackListResponse::class.java
+        )
+        return response.body ?: SoundCloudTrackListResponse()
+    }
 
     fun exchangeCodeForTokens(
         code: String,
@@ -141,6 +198,24 @@ class SoundCloudClient(restTemplateBuilder: RestTemplateBuilder) {
             SoundCloudTrackResponse::class.java
         )
         return response.body ?: throw RuntimeException("Empty response from SoundCloud track upload")
+    }
+
+    fun deleteTrack(accessToken: String, trackId: Long) {
+        val headers = HttpHeaders().apply {
+            setBearerAuth(accessToken)
+        }
+
+        log.info("Deleting SoundCloud track {}", trackId)
+        try {
+            restTemplate.exchange(
+                "https://api.soundcloud.com/tracks/$trackId",
+                HttpMethod.DELETE,
+                HttpEntity<Any>(headers),
+                Void::class.java
+            )
+        } catch (e: HttpClientErrorException.NotFound) {
+            log.info("SoundCloud track {} already deleted (404)", trackId)
+        }
     }
 
     fun updateTrack(

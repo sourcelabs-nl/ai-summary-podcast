@@ -25,6 +25,26 @@ class SoundCloudPublisher(
     override fun publish(episode: Episode, podcast: Podcast, userId: String): PublishResult {
         val accessToken = tokenManager.getValidAccessToken(userId)
 
+        val me = soundCloudClient.getMe(accessToken)
+        val quota = me.quota
+        if (quota != null && !quota.unlimitedUploadQuota && quota.uploadSecondsLeft <= 0) {
+            val oldestTrack = try {
+                soundCloudClient.getMyTracks(accessToken).collection
+                    .filter { it.title?.startsWith(podcast.name) == true }
+                    .minByOrNull { it.createdAt ?: "" }
+            } catch (e: Exception) {
+                log.warn("Failed to fetch tracks for oldest track lookup: {}", e.message)
+                null
+            }
+            throw SoundCloudQuotaExceededException(
+                message = "SoundCloud upload quota exceeded. " +
+                    "Used: ${formatDuration(quota.uploadSecondsUsed)}, " +
+                    "over by: ${formatDuration(-quota.uploadSecondsLeft)}. " +
+                    "Delete an existing track or upgrade your plan.",
+                oldestTrack = oldestTrack
+            )
+        }
+
         val episodeDate = LocalDate.parse(
             episode.generatedAt,
             DateTimeFormatter.ISO_INSTANT.withZone(ZoneOffset.UTC)
@@ -145,4 +165,15 @@ class SoundCloudPublisher(
                 if (tag.contains(" ")) "\"$tag\"" else tag
             }
     }
+
+    private fun formatDuration(totalSeconds: Long): String {
+        val hours = totalSeconds / 3600
+        val minutes = (totalSeconds % 3600) / 60
+        return if (hours > 0) "${hours}h ${minutes}m" else "${minutes}m"
+    }
 }
+
+class SoundCloudQuotaExceededException(
+    message: String,
+    val oldestTrack: SoundCloudTrackSummary? = null
+) : RuntimeException(message)

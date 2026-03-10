@@ -130,7 +130,54 @@ class SoundCloudOAuthController(
             return ResponseEntity.status(503).body(mapOf("error" to "SoundCloud integration is not configured"))
         }
         userService.findById(userId) ?: return ResponseEntity.notFound().build()
-        return ResponseEntity.ok(oauthConnectionService.getStatus(userId, "soundcloud"))
+        val status = oauthConnectionService.getStatus(userId, "soundcloud")
+        if (!status.connected) {
+            return ResponseEntity.ok(status)
+        }
+
+        val quota = try {
+            val connection = oauthConnectionService.getConnection(userId, "soundcloud")!!
+            val me = soundCloudClient.getMe(connection.accessToken)
+            me.quota
+        } catch (e: Exception) {
+            log.warn("Failed to fetch SoundCloud quota for user {}: {}", userId, e.message)
+            null
+        }
+
+        return ResponseEntity.ok(mapOf(
+            "connected" to status.connected,
+            "scopes" to status.scopes,
+            "connectedAt" to status.connectedAt,
+            "quota" to quota?.let {
+                mapOf(
+                    "unlimitedUploadQuota" to it.unlimitedUploadQuota,
+                    "uploadSecondsUsed" to it.uploadSecondsUsed,
+                    "uploadSecondsLeft" to it.uploadSecondsLeft
+                )
+            }
+        ))
+    }
+
+    @DeleteMapping("/users/{userId}/oauth/soundcloud/tracks/{trackId}")
+    fun deleteTrack(
+        @PathVariable userId: String,
+        @PathVariable trackId: Long
+    ): ResponseEntity<Any> {
+        if (!isConfigured()) {
+            return ResponseEntity.status(503).body(mapOf("error" to "SoundCloud integration is not configured"))
+        }
+        userService.findById(userId) ?: return ResponseEntity.notFound().build()
+        val connection = oauthConnectionService.getConnection(userId, "soundcloud")
+            ?: return ResponseEntity.badRequest().body(mapOf("error" to "No SoundCloud connection"))
+
+        return try {
+            soundCloudClient.deleteTrack(connection.accessToken, trackId)
+            log.info("Deleted SoundCloud track {} for user {}", trackId, userId)
+            ResponseEntity.ok(mapOf("deleted" to true, "trackId" to trackId))
+        } catch (e: Exception) {
+            log.error("Failed to delete SoundCloud track {} for user {}: {}", trackId, userId, e.message, e)
+            ResponseEntity.internalServerError().body(mapOf("error" to "Failed to delete track: ${e.message}"))
+        }
     }
 
     @DeleteMapping("/users/{userId}/oauth/soundcloud")

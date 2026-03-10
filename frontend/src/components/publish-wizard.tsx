@@ -12,12 +12,20 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { KeyRound, Trash2 } from "lucide-react";
 
 const TARGETS = [
   { value: "soundcloud", label: "SoundCloud" },
 ] as const;
 
 type Step = "select" | "confirm" | "result";
+
+interface OldestTrack {
+  id: number;
+  title: string | null;
+  createdAt: string | null;
+  duration: number | null;
+}
 
 interface PublishWizardProps {
   open: boolean;
@@ -43,6 +51,9 @@ export function PublishWizard({
   const [publishing, setPublishing] = useState(false);
   const [result, setResult] = useState<EpisodePublication | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isOAuthExpired, setIsOAuthExpired] = useState(false);
+  const [oldestTrack, setOldestTrack] = useState<OldestTrack | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   function reset() {
     setStep("select");
@@ -50,6 +61,9 @@ export function PublishWizard({
     setPublishing(false);
     setResult(null);
     setError(null);
+    setIsOAuthExpired(false);
+    setOldestTrack(null);
+    setDeleting(false);
   }
 
   function handleClose(isOpen: boolean) {
@@ -63,6 +77,7 @@ export function PublishWizard({
   async function handlePublish() {
     setPublishing(true);
     setError(null);
+    setOldestTrack(null);
     try {
       const res = await fetch(
         `/api/users/${userId}/podcasts/${podcastId}/episodes/${episode.id}/publish/${target}`,
@@ -71,6 +86,18 @@ export function PublishWizard({
       if (res.ok) {
         const data: EpisodePublication = await res.json();
         setResult(data);
+        setStep("result");
+      } else if (res.status === 401) {
+        const body = await res.json().catch(() => ({ error: "Authorization expired" }));
+        setError(body.error || "Authorization expired");
+        setIsOAuthExpired(true);
+        setStep("result");
+      } else if (res.status === 413) {
+        const body = await res.json().catch(() => ({ error: "Upload quota exceeded" }));
+        setError(body.error || "Upload quota exceeded");
+        if (body.oldestTrack) {
+          setOldestTrack(body.oldestTrack);
+        }
         setStep("result");
       } else if (res.status === 409) {
         const label = TARGETS.find((t) => t.value === target)?.label ?? target;
@@ -86,6 +113,29 @@ export function PublishWizard({
       setStep("result");
     } finally {
       setPublishing(false);
+    }
+  }
+
+  async function handleDeleteOldest() {
+    if (!oldestTrack) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(
+        `/api/users/${userId}/oauth/soundcloud/tracks/${oldestTrack.id}`,
+        { method: "DELETE" }
+      );
+      if (res.ok) {
+        setError(null);
+        setOldestTrack(null);
+        setStep("confirm");
+      } else {
+        const body = await res.json().catch(() => ({ error: "Failed to delete" }));
+        setError(body.error || "Failed to delete track from SoundCloud");
+      }
+    } catch {
+      setError("Network error — could not reach the server.");
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -176,7 +226,47 @@ export function PublishWizard({
             </DialogHeader>
             <div className="py-2">
               {error ? (
-                <p className="text-sm text-destructive">{error}</p>
+                <div className="space-y-3">
+                  <p className="text-sm text-destructive">{error}</p>
+                  {isOAuthExpired && (
+                    <Button
+                      size="sm"
+                      onClick={async () => {
+                        try {
+                          const res = await fetch(`/api/users/${userId}/oauth/soundcloud/authorize`);
+                          if (res.ok) {
+                            const data = await res.json();
+                            window.open(data.authorizationUrl, "_blank");
+                          }
+                        } catch {
+                          // ignore network errors
+                        }
+                      }}
+                    >
+                      <KeyRound className="mr-2 h-4 w-4" />
+                      Re-authorize SoundCloud
+                    </Button>
+                  )}
+                  {oldestTrack && (
+                    <div className="rounded-md border border-border bg-muted/50 p-3 text-sm">
+                      <p className="mb-2">
+                        Remove oldest track from SoundCloud to free up space?
+                      </p>
+                      <p className="mb-2 text-muted-foreground">
+                        &ldquo;{oldestTrack.title}&rdquo;
+                      </p>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={handleDeleteOldest}
+                        disabled={deleting}
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        {deleting ? "Removing..." : "Remove Track"}
+                      </Button>
+                    </div>
+                  )}
+                </div>
               ) : result ? (
                 <div className="space-y-2 text-sm">
                   <p>Episode #{episode.id} has been published to {targetLabel}.</p>
