@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { Source } from "@/lib/types";
-import { Check, Pencil, Plus, Trash2 } from "lucide-react";
+import { Check, Download, Pencil, Plus, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -143,13 +143,45 @@ export function SourcesTab({ userId, podcastId }: SourcesTabProps) {
     fetchSources();
   }
 
+  function downloadSourcesMarkdown() {
+    const typeGroups: Record<string, Source[]> = {};
+    for (const source of sources) {
+      const type = source.type;
+      if (!typeGroups[type]) typeGroups[type] = [];
+      typeGroups[type].push(source);
+    }
+
+    let md = "# Sources\n";
+    for (const [type, group] of Object.entries(typeGroups)) {
+      md += `\n## ${type.charAt(0).toUpperCase() + type.slice(1)}\n\n`;
+      for (const s of group) {
+        const label = s.label
+          ? `[${s.label}](${s.url})`
+          : s.url;
+        const disabled = s.enabled ? "" : " (disabled)";
+        md += `- ${label} - ${s.pollIntervalMinutes}m${disabled}\n`;
+      }
+    }
+
+    const blob = new Blob([md], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "sources.md";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   if (loading) {
     return <p className="text-muted-foreground">Loading sources...</p>;
   }
 
   return (
     <>
-      <div className="flex justify-end mb-4">
+      <div className="flex justify-end gap-2 mb-4">
+        <Button size="icon-lg" title="Download sources as markdown" onClick={downloadSourcesMarkdown}>
+          <Download className="size-4" />
+        </Button>
         <Button size="icon-lg" title="Add source" onClick={openAddDialog}>
           <Plus className="size-4" />
         </Button>
