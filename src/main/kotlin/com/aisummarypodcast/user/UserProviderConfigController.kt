@@ -20,7 +20,8 @@ class UserProviderConfigController(
         userService.findById(userId) ?: return ResponseEntity.notFound().build()
         val configs = providerConfigService.listConfigs(userId)
         return ResponseEntity.ok(configs.map { config ->
-            val resolvedBaseUrl = config.baseUrl ?: providerConfigService.resolveDefaultUrl(config.provider)
+            val resolvedBaseUrl = config.baseUrl
+                ?: if (config.category == ApiKeyCategory.PUBLISHING) "" else providerConfigService.resolveDefaultUrl(config.provider)
             ProviderConfigResponse(category = config.category.name, provider = config.provider, baseUrl = resolvedBaseUrl)
         })
     }
@@ -35,7 +36,7 @@ class UserProviderConfigController(
         userService.findById(userId) ?: return ResponseEntity.notFound().build<Void>()
         if (request.provider.isBlank()) return ResponseEntity.badRequest()
             .body(ErrorResponse("Provider is required"))
-        if (request.baseUrl == null && !providerConfigService.hasDefaultUrl(request.provider)) {
+        if (parsedCategory != ApiKeyCategory.PUBLISHING && request.baseUrl == null && !providerConfigService.hasDefaultUrl(request.provider)) {
             return ResponseEntity.badRequest()
                 .body(ErrorResponse("Base URL is required for provider '${request.provider}'. Known providers with defaults: ${UserProviderConfigService.PROVIDER_DEFAULT_URLS.keys.joinToString(", ")}"))
         }

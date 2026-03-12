@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { Episode, EpisodePublication } from "@/lib/types";
-import { Cloud, RefreshCw } from "lucide-react";
+import { Cloud, RefreshCw, Server } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -121,7 +121,8 @@ export function PublicationsTab({
               <TableCell>
                 <div className="flex items-center gap-1.5">
                   {pub.target === "soundcloud" && <Cloud className="size-4 text-muted-foreground" />}
-                  <span>{pub.target === "soundcloud" ? "SoundCloud" : pub.target}</span>
+                  {pub.target === "ftp" && <Server className="size-4 text-muted-foreground" />}
+                  <span>{pub.target === "soundcloud" ? "SoundCloud" : pub.target.toUpperCase()}</span>
                 </div>
               </TableCell>
               <TableCell>
@@ -149,6 +150,24 @@ export function PublicationsTab({
                               className="text-primary underline"
                             >
                               Playlist
+                            </a>
+                          </>
+                        );
+                      })()}
+                      {pub.target === "ftp" && (() => {
+                        const episodesIdx = pub.externalUrl?.lastIndexOf("/episodes/");
+                        if (episodesIdx == null || episodesIdx < 0) return null;
+                        const feedUrl = pub.externalUrl!.substring(0, episodesIdx + 1) + "feed.xml";
+                        return (
+                          <>
+                            <span className="text-muted-foreground">|</span>
+                            <a
+                              href={feedUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-primary underline"
+                            >
+                              Feed
                             </a>
                           </>
                         );

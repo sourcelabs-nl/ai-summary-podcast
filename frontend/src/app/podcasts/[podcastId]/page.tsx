@@ -29,7 +29,7 @@ import { PublicationsTab } from "@/components/publications-tab";
 import { SourcesTab } from "@/components/sources-tab";
 import { useTabParam } from "@/hooks/use-tab-param";
 
-const TABS = ["episodes", "publications", "sources"] as const;
+const TABS = ["episodes", "sources", "publications"] as const;
 
 const STATUSES = [
   "GENERATED",
@@ -202,8 +202,8 @@ export default function EpisodesPage() {
       <Tabs value={currentTab} onValueChange={(v) => setTab(v as typeof TABS[number])}>
         <TabsList>
           <TabsTrigger value="episodes">Episodes</TabsTrigger>
-          <TabsTrigger value="publications">Publications</TabsTrigger>
           <TabsTrigger value="sources">Sources</TabsTrigger>
+          <TabsTrigger value="publications">Publications</TabsTrigger>
         </TabsList>
 
         <TabsContent value="episodes">
@@ -305,7 +305,7 @@ export default function EpisodesPage() {
                             </Button>
                           </>
                         )}
-                        {episode.status === "GENERATED" && !publishedEpisodeIds.has(episode.id) && (
+                        {episode.status === "GENERATED" && (
                           <Button
                             size="icon-lg"
                             title="Publish episode"
@@ -330,6 +330,12 @@ export default function EpisodesPage() {
           )}
         </TabsContent>
 
+        <TabsContent value="sources">
+          <div className="mt-4">
+            <SourcesTab userId={selectedUser.id} podcastId={params.podcastId} />
+          </div>
+        </TabsContent>
+
         <TabsContent value="publications">
           <div className="mt-4">
             <PublicationsTab
@@ -339,12 +345,6 @@ export default function EpisodesPage() {
               refreshKey={refreshKey}
               onRepublished={handlePublished}
             />
-          </div>
-        </TabsContent>
-
-        <TabsContent value="sources">
-          <div className="mt-4">
-            <SourcesTab userId={selectedUser.id} podcastId={params.podcastId} />
           </div>
         </TabsContent>
       </Tabs>

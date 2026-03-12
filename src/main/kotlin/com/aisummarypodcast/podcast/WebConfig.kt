@@ -9,7 +9,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer
 class WebConfig(private val appProperties: AppProperties) : WebMvcConfigurer {
 
     override fun addResourceHandlers(registry: ResourceHandlerRegistry) {
-        registry.addResourceHandler("/episodes/**")
+        registry.addResourceHandler("/data/**")
             .addResourceLocations("file:${appProperties.episodes.directory}/")
     }
 }

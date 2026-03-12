@@ -34,7 +34,7 @@ app:
   briefing:
     target-words: 1500
   episodes:
-    directory: ./data/test-episodes
+    directory: ./data/test-data
     retention-days: 365
   source:
     max-article-age-days: 90

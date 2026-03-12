@@ -1,6 +1,5 @@
 package com.aisummarypodcast.publishing
 
-import com.aisummarypodcast.config.AppProperties
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import java.time.Instant
@@ -9,7 +8,7 @@ import java.time.Instant
 class SoundCloudTokenManager(
     private val oauthConnectionService: OAuthConnectionService,
     private val soundCloudClient: SoundCloudClient,
-    private val appProperties: AppProperties
+    private val credentialResolver: SoundCloudCredentialResolver
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -32,10 +31,11 @@ class SoundCloudTokenManager(
 
         return try {
             log.info("Proactively refreshing SoundCloud token for user {}", userId)
+            val credentials = credentialResolver.resolve(userId)
             val tokenResponse = soundCloudClient.refreshAccessToken(
                 refreshToken = refreshToken,
-                clientId = appProperties.soundcloud.clientId!!,
-                clientSecret = appProperties.soundcloud.clientSecret!!
+                clientId = credentials.clientId,
+                clientSecret = credentials.clientSecret
             )
 
             val newExpiresAt = tokenResponse.expiresIn?.let { Instant.now().plusSeconds(it) }

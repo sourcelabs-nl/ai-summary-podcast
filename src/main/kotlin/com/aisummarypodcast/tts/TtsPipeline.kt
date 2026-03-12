@@ -94,9 +94,9 @@ class TtsPipeline(
             .withZone(ZoneOffset.UTC)
             .format(Instant.now())
         val fileName = "briefing-$timestamp.mp3"
-        val podcastDir = Path.of(appProperties.episodes.directory, podcast.id)
-        Files.createDirectories(podcastDir)
-        val outputPath = podcastDir.resolve(fileName)
+        val episodesDir = Path.of(appProperties.episodes.directory, podcast.id, "episodes")
+        Files.createDirectories(episodesDir)
+        val outputPath = episodesDir.resolve(fileName)
 
         if (ttsResult.requiresConcatenation) {
             audioConcatenator.concatenate(ttsResult.audioChunks, outputPath)

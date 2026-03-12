@@ -5,10 +5,12 @@ import com.aisummarypodcast.store.EpisodePublication
 import com.aisummarypodcast.store.EpisodePublicationRepository
 import com.aisummarypodcast.store.EpisodeStatus
 import com.aisummarypodcast.store.Podcast
+import com.aisummarypodcast.store.PodcastPublicationTarget
 import com.aisummarypodcast.store.PublicationStatus
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 
@@ -21,7 +23,8 @@ class PublishingServiceTest {
     private val publicationRepository = mockk<EpisodePublicationRepository>(relaxed = true)
     private val episodeRepository = mockk<com.aisummarypodcast.store.EpisodeRepository>()
     private val soundCloudPublisher = mockk<SoundCloudPublisher>()
-    private val service = PublishingService(registry, publicationRepository, episodeRepository, soundCloudPublisher)
+    private val targetService = mockk<PodcastPublicationTargetService>()
+    private val service = PublishingService(registry, publicationRepository, episodeRepository, soundCloudPublisher, targetService)
 
     private val podcast = Podcast(id = "pod1", userId = "user1", name = "Test Pod", topic = "tech")
     private val episode = Episode(
@@ -33,8 +36,11 @@ class PublishingServiceTest {
         audioFilePath = "/tmp/test.mp3"
     )
 
+    private val enabledTarget = PodcastPublicationTarget(id = 1, podcastId = "pod1", target = "soundcloud", config = "{}", enabled = true)
+
     @Test
     fun `publish succeeds for valid episode`() {
+        every { targetService.get("pod1", "soundcloud") } returns enabledTarget
         every { publicationRepository.findByEpisodeIdAndTarget(1L, "soundcloud") } returns null
         every { publicationRepository.save(any()) } answers { firstArg<EpisodePublication>().copy(id = 10L) }
         every { publisher.publish(episode, podcast, "user1") } returns PublishResult("sc-123", "https://soundcloud.com/track/123")
@@ -54,6 +60,7 @@ class PublishingServiceTest {
 
     @Test
     fun `publish throws when episode not generated`() {
+        every { targetService.get("pod1", "soundcloud") } returns enabledTarget
         val pendingEpisode = episode.copy(status = EpisodeStatus.PENDING_REVIEW)
 
         assertThrows<IllegalStateException> {
@@ -63,6 +70,7 @@ class PublishingServiceTest {
 
     @Test
     fun `publish throws when episode has no audio`() {
+        every { targetService.get("pod1", "soundcloud") } returns enabledTarget
         val noAudioEpisode = episode.copy(audioFilePath = null)
 
         assertThrows<IllegalStateException> {
@@ -71,7 +79,28 @@ class PublishingServiceTest {
     }
 
     @Test
+    fun `publish throws when target not configured`() {
+        every { targetService.get("pod1", "soundcloud") } returns null
+
+        val ex = assertThrows<IllegalStateException> {
+            service.publish(episode, podcast, "user1", "soundcloud")
+        }
+        assertTrue(ex.message!!.contains("not configured or enabled"))
+    }
+
+    @Test
+    fun `publish throws when target is disabled`() {
+        every { targetService.get("pod1", "soundcloud") } returns enabledTarget.copy(enabled = false)
+
+        val ex = assertThrows<IllegalStateException> {
+            service.publish(episode, podcast, "user1", "soundcloud")
+        }
+        assertTrue(ex.message!!.contains("not configured or enabled"))
+    }
+
+    @Test
     fun `publish updates existing publication when already published`() {
+        every { targetService.get("pod1", "soundcloud") } returns enabledTarget
         val existing = EpisodePublication(
             id = 5L,
             episodeId = 1L,
@@ -93,6 +122,7 @@ class PublishingServiceTest {
 
     @Test
     fun `publish throws when update not supported`() {
+        every { targetService.get("pod1", "soundcloud") } returns enabledTarget
         val existing = EpisodePublication(
             id = 5L,
             episodeId = 1L,
@@ -111,6 +141,7 @@ class PublishingServiceTest {
 
     @Test
     fun `publish records failure when publisher throws`() {
+        every { targetService.get("pod1", "soundcloud") } returns enabledTarget
         every { publicationRepository.findByEpisodeIdAndTarget(1L, "soundcloud") } returns null
         every { publicationRepository.save(any()) } answers { firstArg<EpisodePublication>().copy(id = 10L) }
         every { publisher.publish(episode, podcast, "user1") } throws RuntimeException("API error")

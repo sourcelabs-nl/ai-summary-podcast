@@ -2,7 +2,7 @@ package com.aisummarypodcast.publishing
 
 import com.aisummarypodcast.store.Episode
 import com.aisummarypodcast.store.Podcast
-import com.aisummarypodcast.store.PodcastRepository
+import tools.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import org.springframework.web.client.HttpClientErrorException
@@ -15,7 +15,8 @@ import java.time.format.DateTimeFormatter
 class SoundCloudPublisher(
     private val soundCloudClient: SoundCloudClient,
     private val tokenManager: SoundCloudTokenManager,
-    private val podcastRepository: PodcastRepository
+    private val targetService: PodcastPublicationTargetService,
+    private val objectMapper: ObjectMapper
 ) : EpisodePublisher {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -85,8 +86,22 @@ class SoundCloudPublisher(
         )
     }
 
+    private fun getPlaylistId(podcastId: String): Long? {
+        val target = targetService.get(podcastId, "soundcloud") ?: return null
+        val config = objectMapper.readTree(target.config)
+        return config.get("playlistId")?.asText()?.toLongOrNull()
+    }
+
+    private fun savePlaylistId(podcastId: String, playlistId: Long) {
+        val target = targetService.get(podcastId, "soundcloud")
+        val config = target?.config?.let { objectMapper.readTree(it) }
+            ?.let { (it as tools.jackson.databind.node.ObjectNode).put("playlistId", playlistId.toString()) }
+            ?: objectMapper.createObjectNode().put("playlistId", playlistId.toString())
+        targetService.upsert(podcastId, "soundcloud", objectMapper.writeValueAsString(config), target?.enabled ?: true)
+    }
+
     private fun addToPlaylist(accessToken: String, podcast: Podcast, trackId: Long) {
-        val playlistId = podcast.soundcloudPlaylistId?.toLongOrNull()
+        val playlistId = getPlaylistId(podcast.id)
 
         if (playlistId == null) {
             createNewPlaylist(accessToken, podcast, trackId)
@@ -106,7 +121,7 @@ class SoundCloudPublisher(
 
     private fun createNewPlaylist(accessToken: String, podcast: Podcast, trackId: Long) {
         val playlist = soundCloudClient.createPlaylist(accessToken, podcast.name, listOf(trackId))
-        podcastRepository.save(podcast.copy(soundcloudPlaylistId = playlist.id.toString()))
+        savePlaylistId(podcast.id, playlist.id)
         log.info("Created SoundCloud playlist {} for podcast {}", playlist.id, podcast.id)
     }
 
@@ -129,11 +144,11 @@ class SoundCloudPublisher(
 
     fun rebuildPlaylist(podcast: Podcast, userId: String, trackIds: List<Long>) {
         val accessToken = tokenManager.getValidAccessToken(userId)
-        val playlistId = podcast.soundcloudPlaylistId?.toLongOrNull()
+        val playlistId = getPlaylistId(podcast.id)
 
         if (playlistId == null) {
             val playlist = soundCloudClient.createPlaylist(accessToken, podcast.name, trackIds)
-            podcastRepository.save(podcast.copy(soundcloudPlaylistId = playlist.id.toString()))
+            savePlaylistId(podcast.id, playlist.id)
             log.info("Created SoundCloud playlist {} with {} tracks for podcast {}", playlist.id, trackIds.size, podcast.id)
             return
         }
@@ -144,7 +159,7 @@ class SoundCloudPublisher(
         } catch (e: HttpClientErrorException.NotFound) {
             log.warn("SoundCloud playlist {} not found, creating new playlist", playlistId)
             val playlist = soundCloudClient.createPlaylist(accessToken, podcast.name, trackIds)
-            podcastRepository.save(podcast.copy(soundcloudPlaylistId = playlist.id.toString()))
+            savePlaylistId(podcast.id, playlist.id)
             log.info("Created SoundCloud playlist {} with {} tracks for podcast {}", playlist.id, trackIds.size, podcast.id)
         }
     }

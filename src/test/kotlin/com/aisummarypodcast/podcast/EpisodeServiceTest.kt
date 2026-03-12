@@ -38,13 +38,14 @@ class EpisodeServiceTest {
     private val episodeRecapGenerator = mockk<EpisodeRecapGenerator>()
     private val modelResolver = mockk<ModelResolver>()
     private val postArticleRepository = mockk<PostArticleRepository>()
+    private val episodeSourcesGenerator = mockk<EpisodeSourcesGenerator>(relaxed = true)
 
     private val filterModelDef = ModelDefinition(provider = "openrouter", model = "anthropic/claude-haiku-4.5")
 
     private val episodeService = EpisodeService(
         episodeRepository, podcastRepository, ttsPipeline,
         episodeArticleRepository, articleRepository, episodeRecapGenerator, modelResolver,
-        postArticleRepository
+        postArticleRepository, episodeSourcesGenerator
     )
 
     private val podcast = Podcast(id = "p1", userId = "u1", name = "Test", topic = "tech")

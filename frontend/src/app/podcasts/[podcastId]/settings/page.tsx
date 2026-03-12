@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useUser } from "@/lib/user-context";
@@ -8,6 +8,8 @@ import type { Podcast, PodcastDefaults } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
+import { Upload, Trash2, ImageIcon, Save, Settings2, Wifi, WifiOff } from "lucide-react";
 import { useTabParam } from "@/hooks/use-tab-param";
 import {
   Select,
@@ -29,7 +31,18 @@ const STYLES = [
 
 const TTS_PROVIDERS = ["openai", "elevenlabs", "inworld"];
 
-const TABS = ["general", "llm", "tts", "content"] as const;
+const TABS = ["general", "llm", "tts", "content", "publishing"] as const;
+
+interface PublicationTarget {
+  target: string;
+  config: Record<string, string>;
+  enabled: boolean;
+}
+
+interface ProviderConfig {
+  category: string;
+  provider: string;
+}
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
   return (
@@ -62,6 +75,16 @@ export default function PodcastSettingsPage() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [currentTab, setTab] = useTabParam("general", TABS);
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [imageMessage, setImageMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [imageUploading, setImageUploading] = useState(false);
+
+  // Publishing targets state
+  const [pubTargets, setPubTargets] = useState<PublicationTarget[]>([]);
+  const [pubForm, setPubForm] = useState<Record<string, { config: Record<string, string>; enabled: boolean }>>({});
+  const [pubSaving, setPubSaving] = useState<Record<string, boolean>>({});
+  const [pubMessage, setPubMessage] = useState<Record<string, { type: "success" | "error"; text: string }>>({});
+  const [configuredProviders, setConfiguredProviders] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!selectedUser) return;
@@ -81,6 +104,164 @@ export default function PodcastSettingsPage() {
       .catch(() => setPodcast(null))
       .finally(() => setLoading(false));
   }, [selectedUser, params.podcastId]);
+
+  useEffect(() => {
+    if (!selectedUser) return;
+    fetch(`/api/users/${selectedUser.id}/podcasts/${params.podcastId}/image`)
+      .then((res) => {
+        if (res.ok) {
+          setImageUrl(`/api/users/${selectedUser.id}/podcasts/${params.podcastId}/image?t=${Date.now()}`);
+        } else {
+          setImageUrl(null);
+        }
+      })
+      .catch(() => setImageUrl(null));
+  }, [selectedUser, params.podcastId]);
+
+  // Load publication targets and check which providers have credentials configured
+  const loadPubTargets = useCallback(() => {
+    if (!selectedUser) return;
+    Promise.all([
+      fetch(`/api/users/${selectedUser.id}/podcasts/${params.podcastId}/publication-targets`)
+        .then((res) => (res.ok ? res.json() : []))
+        .catch(() => []),
+      fetch(`/api/users/${selectedUser.id}/api-keys`)
+        .then((res) => (res.ok ? res.json() : []))
+        .catch(() => []),
+    ]).then(([targets, apiKeys]: [PublicationTarget[], ProviderConfig[]]) => {
+      setPubTargets(targets);
+      const formState: Record<string, { config: Record<string, string>; enabled: boolean }> = {};
+      // Initialize defaults for ftp and soundcloud
+      formState.ftp = { config: { remotePath: "", publicUrl: "" }, enabled: false };
+      formState.soundcloud = { config: { playlistId: "" }, enabled: false };
+      // Overlay with existing targets from API
+      for (const t of targets) {
+        formState[t.target] = { config: { ...formState[t.target]?.config, ...t.config }, enabled: t.enabled };
+      }
+      setPubForm(formState);
+      const providers = new Set(
+        apiKeys
+          .filter((k) => k.category === "PUBLISHING")
+          .map((k) => k.provider)
+      );
+      setConfiguredProviders(providers);
+    });
+  }, [selectedUser, params.podcastId]);
+
+  useEffect(() => {
+    loadPubTargets();
+  }, [loadPubTargets]);
+
+  async function handlePubTargetSave(target: string) {
+    if (!selectedUser) return;
+    const entry = pubForm[target];
+    if (!entry) return;
+    setPubSaving((prev) => ({ ...prev, [target]: true }));
+    setPubMessage((prev) => {
+      const next = { ...prev };
+      delete next[target];
+      return next;
+    });
+    try {
+      const res = await fetch(
+        `/api/users/${selectedUser.id}/podcasts/${params.podcastId}/publication-targets/${target}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ config: entry.config, enabled: entry.enabled }),
+        }
+      );
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error || `Save failed (${res.status})`);
+      }
+      setPubMessage((prev) => ({ ...prev, [target]: { type: "success", text: "Saved." } }));
+    } catch (err) {
+      setPubMessage((prev) => ({
+        ...prev,
+        [target]: { type: "error", text: err instanceof Error ? err.message : "Save failed" },
+      }));
+    } finally {
+      setPubSaving((prev) => ({ ...prev, [target]: false }));
+    }
+  }
+
+  function updatePubForm(target: string, field: string, value: string) {
+    setPubForm((prev) => ({
+      ...prev,
+      [target]: {
+        ...prev[target],
+        config: { ...prev[target]?.config, [field]: value },
+      },
+    }));
+  }
+
+  function togglePubTarget(target: string, enabled: boolean) {
+    setPubForm((prev) => ({
+      ...prev,
+      [target]: { ...prev[target], enabled },
+    }));
+  }
+
+  const ACCEPTED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
+  const MAX_IMAGE_SIZE = 1024 * 1024; // 1MB
+
+  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !selectedUser) return;
+    // Reset the input so the same file can be re-selected
+    e.target.value = "";
+
+    setImageMessage(null);
+
+    if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
+      setImageMessage({ type: "error", text: "Only JPEG, PNG, and WebP images are accepted." });
+      return;
+    }
+    if (file.size > MAX_IMAGE_SIZE) {
+      setImageMessage({ type: "error", text: "Image must be smaller than 1 MB." });
+      return;
+    }
+
+    setImageUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch(
+        `/api/users/${selectedUser.id}/podcasts/${params.podcastId}/image`,
+        { method: "POST", body: formData }
+      );
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error || `Upload failed (${res.status})`);
+      }
+      setImageUrl(`/api/users/${selectedUser.id}/podcasts/${params.podcastId}/image?t=${Date.now()}`);
+      setImageMessage({ type: "success", text: "Image uploaded." });
+    } catch (err) {
+      setImageMessage({ type: "error", text: err instanceof Error ? err.message : "Upload failed" });
+    } finally {
+      setImageUploading(false);
+    }
+  }
+
+  async function handleImageDelete() {
+    if (!selectedUser) return;
+    setImageMessage(null);
+    try {
+      const res = await fetch(
+        `/api/users/${selectedUser.id}/podcasts/${params.podcastId}/image`,
+        { method: "DELETE" }
+      );
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error || `Delete failed (${res.status})`);
+      }
+      setImageUrl(null);
+      setImageMessage({ type: "success", text: "Image deleted." });
+    } catch (err) {
+      setImageMessage({ type: "error", text: err instanceof Error ? err.message : "Delete failed" });
+    }
+  }
 
   async function handleSave() {
     if (!selectedUser || !form) return;
@@ -165,6 +346,7 @@ export default function PodcastSettingsPage() {
           <TabsTrigger value="llm">LLM</TabsTrigger>
           <TabsTrigger value="tts">TTS</TabsTrigger>
           <TabsTrigger value="content">Content</TabsTrigger>
+          <TabsTrigger value="publishing">Publishing</TabsTrigger>
         </TabsList>
 
         <TabsContent value="general">
@@ -237,6 +419,64 @@ export default function PodcastSettingsPage() {
                 <label htmlFor="requireReview" className="text-sm font-medium">
                   Require review before publishing
                 </label>
+              </div>
+
+              <div className="space-y-2">
+                <FieldLabel>Podcast Image</FieldLabel>
+                <div className="flex items-start gap-4">
+                  {imageUrl ? (
+                    <img
+                      src={imageUrl}
+                      alt="Podcast cover"
+                      className="size-24 rounded-md border border-input object-cover"
+                    />
+                  ) : (
+                    <div className="flex size-24 items-center justify-center rounded-md border border-dashed border-input">
+                      <ImageIcon className="size-8 text-muted-foreground" />
+                    </div>
+                  )}
+                  <div className="flex flex-col gap-2">
+                    <label>
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        onChange={handleImageUpload}
+                        className="hidden"
+                      />
+                      <Button type="button" size="sm" disabled={imageUploading} asChild>
+                        <span>
+                          <Upload className="mr-2 size-4" />
+                          {imageUploading ? "Uploading..." : "Upload Image"}
+                        </span>
+                      </Button>
+                    </label>
+                    {imageUrl && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="destructive"
+                        onClick={handleImageDelete}
+                      >
+                        <Trash2 className="mr-2 size-4" />
+                        Delete Image
+                      </Button>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      JPEG, PNG, or WebP. Max 1 MB.
+                    </p>
+                    {imageMessage && (
+                      <p
+                        className={
+                          imageMessage.type === "success"
+                            ? "text-sm text-green-600"
+                            : "text-sm text-destructive"
+                        }
+                      >
+                        {imageMessage.text}
+                      </p>
+                    )}
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -386,24 +626,191 @@ export default function PodcastSettingsPage() {
           </Card>
         </TabsContent>
 
+        <TabsContent value="publishing">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between rounded-md border border-border bg-muted/50 px-4 py-3">
+              <p className="text-sm text-muted-foreground">
+                Publication credentials are managed in your user settings.
+              </p>
+              <Link href="/settings/publishing">
+                <Button variant="outline" size="sm">
+                  <Settings2 className="mr-2 size-4" />
+                  Manage Credentials
+                </Button>
+              </Link>
+            </div>
+            {/* FTP Target */}
+            {(() => {
+              const hasCreds = configuredProviders.has("ftp");
+              const entry = pubForm.ftp ?? { config: { remotePath: "", publicUrl: "" }, enabled: false };
+              return (
+                <Card className={!hasCreds ? "opacity-50 pointer-events-none" : ""}>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        {hasCreds ? (
+                          <Wifi className="size-4 text-green-600" />
+                        ) : (
+                          <WifiOff className="size-4 text-muted-foreground" />
+                        )}
+                        <CardTitle>FTP</CardTitle>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-muted-foreground">
+                          {entry.enabled ? "Enabled" : "Disabled"}
+                        </span>
+                        <Switch
+                          checked={entry.enabled}
+                          onCheckedChange={(checked) => togglePubTarget("ftp", checked)}
+                        />
+                      </div>
+                    </div>
+                    {!hasCreds && (
+                      <p className="text-sm text-muted-foreground">
+                        Configure credentials in Settings first.
+                      </p>
+                    )}
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <FieldGroup label="Remote Path">
+                      <input
+                        type="text"
+                        value={entry.config.remotePath ?? ""}
+                        onChange={(e) => updatePubForm("ftp", "remotePath", e.target.value)}
+                        placeholder={`/${params.podcastId}/`}
+                        className={inputClass}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        FTP directory for this podcast. Defaults to /{"{podcastId}"}/ if empty.
+                      </p>
+                    </FieldGroup>
+                    <FieldGroup label="Public URL">
+                      <input
+                        type="text"
+                        value={entry.config.publicUrl ?? ""}
+                        onChange={(e) => updatePubForm("ftp", "publicUrl", e.target.value)}
+                        placeholder="https://example.com/shows/my-podcast"
+                        className={inputClass}
+                      />
+                    </FieldGroup>
+                    <div className="flex items-center gap-4">
+                      <Button
+                        size="sm"
+                        onClick={() => handlePubTargetSave("ftp")}
+                        disabled={pubSaving.ftp}
+                      >
+                        <Save className="mr-2 size-4" />
+                        {pubSaving.ftp ? "Saving..." : "Save"}
+                      </Button>
+                      {pubMessage.ftp && (
+                        <p
+                          className={
+                            pubMessage.ftp.type === "success"
+                              ? "text-sm text-green-600"
+                              : "text-sm text-destructive"
+                          }
+                        >
+                          {pubMessage.ftp.text}
+                        </p>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })()}
+
+            {/* SoundCloud Target */}
+            {(() => {
+              const hasCreds = configuredProviders.has("soundcloud");
+              const entry = pubForm.soundcloud ?? { config: { playlistId: "" }, enabled: false };
+              return (
+                <Card className={!hasCreds ? "opacity-50 pointer-events-none" : ""}>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        {hasCreds ? (
+                          <Wifi className="size-4 text-green-600" />
+                        ) : (
+                          <WifiOff className="size-4 text-muted-foreground" />
+                        )}
+                        <CardTitle>SoundCloud</CardTitle>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-muted-foreground">
+                          {entry.enabled ? "Enabled" : "Disabled"}
+                        </span>
+                        <Switch
+                          checked={entry.enabled}
+                          onCheckedChange={(checked) => togglePubTarget("soundcloud", checked)}
+                        />
+                      </div>
+                    </div>
+                    {!hasCreds && (
+                      <p className="text-sm text-muted-foreground">
+                        Configure credentials in Settings first.
+                      </p>
+                    )}
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <FieldGroup label="Playlist ID">
+                      <input
+                        type="text"
+                        value={entry.config.playlistId ?? ""}
+                        readOnly
+                        className={`${inputClass} bg-muted`}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Auto-managed during publish. Read-only.
+                      </p>
+                    </FieldGroup>
+                    <div className="flex items-center gap-4">
+                      <Button
+                        size="sm"
+                        onClick={() => handlePubTargetSave("soundcloud")}
+                        disabled={pubSaving.soundcloud}
+                      >
+                        <Save className="mr-2 size-4" />
+                        {pubSaving.soundcloud ? "Saving..." : "Save"}
+                      </Button>
+                      {pubMessage.soundcloud && (
+                        <p
+                          className={
+                            pubMessage.soundcloud.type === "success"
+                              ? "text-sm text-green-600"
+                              : "text-sm text-destructive"
+                          }
+                        >
+                          {pubMessage.soundcloud.text}
+                        </p>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })()}
+          </div>
+        </TabsContent>
+
       </Tabs>
 
-      <div className="mt-6 flex items-center gap-4">
-        <Button onClick={handleSave} disabled={saving}>
-          {saving ? "Saving..." : "Save"}
-        </Button>
-        {message && (
-          <p
-            className={
-              message.type === "success"
-                ? "text-sm text-green-600"
-                : "text-sm text-destructive"
-            }
-          >
-            {message.text}
-          </p>
-        )}
-      </div>
+      {currentTab !== "publishing" && (
+        <div className="mt-6 flex items-center gap-4">
+          <Button onClick={handleSave} disabled={saving}>
+            {saving ? "Saving..." : "Save"}
+          </Button>
+          {message && (
+            <p
+              className={
+                message.type === "success"
+                  ? "text-sm text-green-600"
+                  : "text-sm text-destructive"
+              }
+            >
+              {message.text}
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

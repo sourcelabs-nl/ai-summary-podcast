@@ -69,7 +69,9 @@ class PublishingController(
             ResponseEntity.badRequest().body(mapOf("error" to e.message))
         } catch (e: IllegalStateException) {
             val message = e.message ?: "Publishing failed"
-            if (message.contains("re-authorize", ignoreCase = true) || message.contains("refresh failed", ignoreCase = true)) {
+            if (message.contains("not configured or enabled", ignoreCase = true)) {
+                ResponseEntity.badRequest().body(mapOf("error" to message, "code" to "target_not_configured"))
+            } else if (message.contains("re-authorize", ignoreCase = true) || message.contains("refresh failed", ignoreCase = true)) {
                 log.error("OAuth authorization failed for episode {} to {}: {}", episodeId, target, e.message, e)
                 ResponseEntity.status(401).body(mapOf(
                     "error" to "SoundCloud authorization expired. Please re-authorize your account.",

@@ -16,6 +16,7 @@ import { KeyRound, Trash2 } from "lucide-react";
 
 const TARGETS = [
   { value: "soundcloud", label: "SoundCloud" },
+  { value: "ftp", label: "FTP" },
 ] as const;
 
 type Step = "select" | "confirm" | "result";

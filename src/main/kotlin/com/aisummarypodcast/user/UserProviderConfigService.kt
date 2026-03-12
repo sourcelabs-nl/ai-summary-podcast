@@ -48,7 +48,8 @@ class UserProviderConfigService(
         val config = configs.firstOrNull()
         if (config != null) {
             val apiKey = config.encryptedApiKey?.let { apiKeyEncryptor.decrypt(it) }
-            val baseUrl = config.baseUrl ?: resolveDefaultUrl(config.provider)
+            val baseUrl = config.baseUrl
+                ?: if (config.category == ApiKeyCategory.PUBLISHING) "" else resolveDefaultUrl(config.provider)
             return ProviderConfig(baseUrl = baseUrl, apiKey = apiKey)
         }
         return globalFallbackForCategory(category)
@@ -58,7 +59,8 @@ class UserProviderConfigService(
         val config = repository.findByUserIdAndCategoryAndProvider(userId, category, provider)
         if (config != null) {
             val apiKey = config.encryptedApiKey?.let { apiKeyEncryptor.decrypt(it) }
-            val baseUrl = config.baseUrl ?: resolveDefaultUrl(config.provider)
+            val baseUrl = config.baseUrl
+                ?: if (config.category == ApiKeyCategory.PUBLISHING) "" else resolveDefaultUrl(config.provider)
             return ProviderConfig(baseUrl = baseUrl, apiKey = apiKey)
         }
         return globalFallbackForProvider(category, provider)
@@ -78,6 +80,7 @@ class UserProviderConfigService(
         ApiKeyCategory.TTS -> System.getenv("OPENAI_API_KEY")?.let {
             ProviderConfig(baseUrl = "https://api.openai.com", apiKey = it)
         }
+        ApiKeyCategory.PUBLISHING -> null
     }
 
     private fun globalFallbackForProvider(category: ApiKeyCategory, provider: String): ProviderConfig? {

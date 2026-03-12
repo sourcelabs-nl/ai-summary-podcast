@@ -22,7 +22,8 @@ class SoundCloudOAuthController(
     private val appProperties: AppProperties,
     private val userService: UserService,
     private val soundCloudClient: SoundCloudClient,
-    private val oauthConnectionService: OAuthConnectionService
+    private val oauthConnectionService: OAuthConnectionService,
+    private val credentialResolver: SoundCloudCredentialResolver
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -33,19 +34,15 @@ class SoundCloudOAuthController(
         val createdAt: Instant = Instant.now()
     )
 
-    private fun isConfigured(): Boolean =
-        !appProperties.soundcloud.clientId.isNullOrBlank() &&
-            !appProperties.soundcloud.clientSecret.isNullOrBlank()
-
-    private fun redirectUri(): String =
-        "${appProperties.feed.baseUrl}/oauth/soundcloud/callback"
-
     @GetMapping("/users/{userId}/oauth/soundcloud/authorize")
     fun authorize(@PathVariable userId: String): ResponseEntity<Any> {
-        if (!isConfigured()) {
+        userService.findById(userId) ?: return ResponseEntity.notFound().build()
+
+        val credentials = try {
+            credentialResolver.resolve(userId)
+        } catch (_: IllegalStateException) {
             return ResponseEntity.status(503).body(mapOf("error" to "SoundCloud integration is not configured"))
         }
-        userService.findById(userId) ?: return ResponseEntity.notFound().build()
 
         cleanExpiredVerifiers()
 
@@ -56,8 +53,8 @@ class SoundCloudOAuthController(
         pendingVerifiers[state] = PendingOAuth(codeVerifier)
 
         val params = mapOf(
-            "client_id" to appProperties.soundcloud.clientId!!,
-            "redirect_uri" to redirectUri(),
+            "client_id" to credentials.clientId,
+            "redirect_uri" to credentials.callbackUri,
             "response_type" to "code",
             "code_challenge" to codeChallenge,
             "code_challenge_method" to "S256",
@@ -97,11 +94,12 @@ class SoundCloudOAuthController(
         }
 
         return try {
+            val credentials = credentialResolver.resolve(userId)
             val tokenResponse = soundCloudClient.exchangeCodeForTokens(
                 code = code,
-                clientId = appProperties.soundcloud.clientId!!,
-                clientSecret = appProperties.soundcloud.clientSecret!!,
-                redirectUri = redirectUri(),
+                clientId = credentials.clientId,
+                clientSecret = credentials.clientSecret,
+                redirectUri = credentials.callbackUri,
                 codeVerifier = pending.codeVerifier
             )
 
@@ -126,10 +124,10 @@ class SoundCloudOAuthController(
 
     @GetMapping("/users/{userId}/oauth/soundcloud/status")
     fun status(@PathVariable userId: String): ResponseEntity<Any> {
-        if (!isConfigured()) {
+        userService.findById(userId) ?: return ResponseEntity.notFound().build()
+        if (!credentialResolver.isConfigured(userId)) {
             return ResponseEntity.status(503).body(mapOf("error" to "SoundCloud integration is not configured"))
         }
-        userService.findById(userId) ?: return ResponseEntity.notFound().build()
         val status = oauthConnectionService.getStatus(userId, "soundcloud")
         if (!status.connected) {
             return ResponseEntity.ok(status)
@@ -163,10 +161,10 @@ class SoundCloudOAuthController(
         @PathVariable userId: String,
         @PathVariable trackId: Long
     ): ResponseEntity<Any> {
-        if (!isConfigured()) {
+        userService.findById(userId) ?: return ResponseEntity.notFound().build()
+        if (!credentialResolver.isConfigured(userId)) {
             return ResponseEntity.status(503).body(mapOf("error" to "SoundCloud integration is not configured"))
         }
-        userService.findById(userId) ?: return ResponseEntity.notFound().build()
         val connection = oauthConnectionService.getConnection(userId, "soundcloud")
             ?: return ResponseEntity.badRequest().body(mapOf("error" to "No SoundCloud connection"))
 
@@ -182,10 +180,10 @@ class SoundCloudOAuthController(
 
     @DeleteMapping("/users/{userId}/oauth/soundcloud")
     fun disconnect(@PathVariable userId: String): ResponseEntity<Any> {
-        if (!isConfigured()) {
+        userService.findById(userId) ?: return ResponseEntity.notFound().build()
+        if (!credentialResolver.isConfigured(userId)) {
             return ResponseEntity.status(503).body(mapOf("error" to "SoundCloud integration is not configured"))
         }
-        userService.findById(userId) ?: return ResponseEntity.notFound().build()
         return if (oauthConnectionService.deleteConnection(userId, "soundcloud")) {
             log.info("SoundCloud account disconnected for user {}", userId)
             ResponseEntity.noContent().build()

@@ -41,7 +41,7 @@ app:
   briefing:
     target-words: 1500
   episodes:
-    directory: ./data/episodes
+    directory: ./data
     retention-days: 365
   source:
     max-article-age-days: 90
@@ -55,6 +55,9 @@ app:
     base-url: http://localhost:8085
     title: AI Summary Podcast
     description: AI-generated audio briefings from your favourite content sources
+    owner-name: Sourcelabs
+    owner-email: podcast@sourcelabs.nl
+    author: Sourcelabs
   soundcloud:
     client-id: ${APP_SOUNDCLOUD_CLIENT_ID:}
     client-secret: ${APP_SOUNDCLOUD_CLIENT_SECRET:}

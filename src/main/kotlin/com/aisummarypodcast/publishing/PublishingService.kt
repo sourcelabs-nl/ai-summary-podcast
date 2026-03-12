@@ -16,7 +16,8 @@ class PublishingService(
     private val publisherRegistry: PublisherRegistry,
     private val publicationRepository: EpisodePublicationRepository,
     private val episodeRepository: EpisodeRepository,
-    private val soundCloudPublisher: SoundCloudPublisher
+    private val soundCloudPublisher: SoundCloudPublisher,
+    private val targetService: PodcastPublicationTargetService
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -24,6 +25,11 @@ class PublishingService(
     fun publish(episode: Episode, podcast: Podcast, userId: String, target: String): EpisodePublication {
         val publisher = publisherRegistry.getPublisher(target)
             ?: throw IllegalArgumentException("Unsupported publish target: $target")
+
+        val publicationTarget = targetService.get(podcast.id, target)
+        if (publicationTarget == null || !publicationTarget.enabled) {
+            throw IllegalStateException("Publication target '$target' is not configured or enabled for this podcast")
+        }
 
         if (episode.status != EpisodeStatus.GENERATED) {
             throw IllegalStateException("Episode must be in GENERATED status to publish (current: ${episode.status})")

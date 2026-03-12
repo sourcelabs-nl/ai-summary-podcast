@@ -44,7 +44,7 @@ data class BriefingProperties(
 )
 
 data class EpisodesProperties(
-    val directory: String = "./data/episodes",
+    val directory: String = "./data",
     val retentionDays: Int = 30
 )
 
@@ -52,7 +52,10 @@ data class FeedProperties(
     val baseUrl: String = "http://localhost:8085",
     val title: String = "AI Summary Podcast",
     val description: String = "AI-generated audio briefings from your favourite content sources",
-    val staticBaseUrl: String? = null
+    val staticBaseUrl: String? = null,
+    val ownerName: String? = null,
+    val ownerEmail: String? = null,
+    val author: String? = null
 )
 
 data class LlmCacheProperties(

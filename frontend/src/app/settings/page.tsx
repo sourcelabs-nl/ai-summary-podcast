@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
-import { Lock, Pencil, Plus, Trash2 } from "lucide-react";
+import { ArrowRight, Lock, Pencil, Plus, Trash2 } from "lucide-react";
 import { useUser } from "@/lib/user-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -143,6 +143,23 @@ export default function SettingsPage() {
                 {nameMessage.text}
               </p>
             )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Publishing</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="mb-4 text-sm text-muted-foreground">
+              Manage credentials for FTP and SoundCloud publishing
+            </p>
+            <Link href="/settings/publishing">
+              <Button size="sm">
+                <ArrowRight className="size-4" />
+                Publishing Credentials
+              </Button>
+            </Link>
           </CardContent>
         </Card>
 

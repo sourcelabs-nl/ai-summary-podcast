@@ -19,7 +19,7 @@ class AudioConcatenator {
         // Generate 500ms silence as the first chunk
         val silenceFile = tempDir.resolve("silence.mp3")
         val silenceProcess = ProcessBuilder(
-            "ffmpeg", "-y", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=mono",
+            "ffmpeg", "-y", "-f", "lavfi", "-i", "anullsrc=r=48000:cl=mono",
             "-t", "0.5", "-codec:a", "libmp3lame", "-b:a", "128k",
             silenceFile.toAbsolutePath().toString()
         )

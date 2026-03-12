@@ -4,7 +4,6 @@ import com.aisummarypodcast.llm.EpisodeRecapGenerator
 import com.aisummarypodcast.llm.ModelResolver
 import com.aisummarypodcast.llm.PipelineResult
 import com.aisummarypodcast.llm.PipelineStage
-import com.aisummarypodcast.store.Article
 import com.aisummarypodcast.store.ArticleRepository
 import com.aisummarypodcast.store.Episode
 import com.aisummarypodcast.store.EpisodeArticle
@@ -30,7 +29,8 @@ class EpisodeService(
     private val articleRepository: ArticleRepository,
     private val episodeRecapGenerator: EpisodeRecapGenerator,
     private val modelResolver: ModelResolver,
-    private val postArticleRepository: PostArticleRepository
+    private val postArticleRepository: PostArticleRepository,
+    private val episodeSourcesGenerator: EpisodeSourcesGenerator
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -66,6 +66,7 @@ class EpisodeService(
         saveEpisodeArticleLinks(episode, result)
         val recapEpisode = generateAndStoreRecap(episode, podcast)
         val finalEpisode = generateAndStoreShowNotes(recapEpisode)
+        generateSourcesFile(finalEpisode, podcast)
         podcastRepository.save(podcast.copy(lastGeneratedAt = Instant.now().toString()))
 
         return finalEpisode
@@ -78,31 +79,24 @@ class EpisodeService(
     }
 
     private fun generateAndStoreShowNotes(episode: Episode): Episode {
-        val links = episodeArticleRepository.findByEpisodeId(episode.id!!)
-        val articles = links.mapNotNull { link -> articleRepository.findById(link.articleId).orElse(null) }
-            .sortedByDescending { it.relevanceScore ?: 0 }
-        val showNotes = buildShowNotes(episode.recap, articles)
-        if (showNotes == null) return episode
+        val showNotes = buildShowNotes(episode.recap) ?: return episode
         val updated = episodeRepository.save(episode.copy(showNotes = showNotes))
         log.info("[Pipeline] Show notes generated for episode {}", episode.id)
         return updated
     }
 
-    private fun buildShowNotes(recap: String?, articles: List<Article>): String? {
-        if (recap == null && articles.isEmpty()) return null
-        return buildString {
-            if (recap != null) {
-                append(recap)
-            }
-            if (articles.isNotEmpty()) {
-                if (recap != null) append("\n\n")
-                append("Sources:")
-                for (article in articles) {
-                    val title = if (article.title.length > 100) article.title.take(100) + "..." else article.title
-                append("\n- $title")
-                    append("\n  ${article.url}")
-                }
-            }
+    private fun buildShowNotes(recap: String?): String? {
+        return recap
+    }
+
+    private fun generateSourcesFile(episode: Episode, podcast: Podcast) {
+        try {
+            val links = episodeArticleRepository.findByEpisodeId(episode.id!!)
+            val articles = links.mapNotNull { link -> articleRepository.findById(link.articleId).orElse(null) }
+                .sortedByDescending { it.relevanceScore ?: 0 }
+            episodeSourcesGenerator.generate(episode, podcast, articles)
+        } catch (e: Exception) {
+            log.warn("Failed to generate sources.md for episode {}: {}", episode.id, e.message)
         }
     }
 

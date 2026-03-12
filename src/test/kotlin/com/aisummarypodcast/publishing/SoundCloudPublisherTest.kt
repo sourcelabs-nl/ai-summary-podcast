@@ -4,8 +4,9 @@ import com.aisummarypodcast.store.Episode
 import com.aisummarypodcast.store.EpisodePublication
 import com.aisummarypodcast.store.EpisodeStatus
 import com.aisummarypodcast.store.Podcast
-import com.aisummarypodcast.store.PodcastRepository
+import com.aisummarypodcast.store.PodcastPublicationTarget
 import com.aisummarypodcast.store.PublicationStatus
+import tools.jackson.databind.json.JsonMapper
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
@@ -27,10 +28,14 @@ class SoundCloudPublisherTest {
         )
     }
     private val tokenManager = mockk<SoundCloudTokenManager>()
-    private val podcastRepository = mockk<PodcastRepository> {
-        every { save(any()) } answers { firstArg() }
+    private val targetService = mockk<PodcastPublicationTargetService>(relaxed = true) {
+        every { get("pod1", "soundcloud") } returns null
+        every { upsert(any(), any(), any(), any()) } answers {
+            PodcastPublicationTarget(id = 1, podcastId = arg(0), target = arg(1), config = arg(2), enabled = arg(3))
+        }
     }
-    private val publisher = SoundCloudPublisher(soundCloudClient, tokenManager, podcastRepository)
+    private val objectMapper = JsonMapper()
+    private val publisher = SoundCloudPublisher(soundCloudClient, tokenManager, targetService, objectMapper)
 
     private val podcast = Podcast(id = "pod1", userId = "user1", name = "Tech News", topic = "AI, machine learning")
     private val episode = Episode(
@@ -138,21 +143,20 @@ class SoundCloudPublisherTest {
     }
 
     @Test
-    fun `first publish creates playlist and stores ID`() {
+    fun `first publish creates playlist and stores ID in publication target`() {
         every { tokenManager.getValidAccessToken("user1") } returns "access-token"
         every { soundCloudClient.uploadTrack("access-token", any()) } returns trackResponse
         every { soundCloudClient.createPlaylist("access-token", "Tech News", listOf(456)) } returns playlistResponse
 
         publisher.publish(episode, podcast, "user1")
 
-        val savedPodcast = slot<Podcast>()
-        verify { podcastRepository.save(capture(savedPodcast)) }
-        assertEquals("789", savedPodcast.captured.soundcloudPlaylistId)
+        verify { targetService.upsert("pod1", "soundcloud", match { it.contains("789") }, true) }
     }
 
     @Test
     fun `subsequent publish fetches existing tracks and appends new track`() {
-        val podcastWithPlaylist = podcast.copy(soundcloudPlaylistId = "123")
+        every { targetService.get("pod1", "soundcloud") } returns
+            PodcastPublicationTarget(id = 1, podcastId = "pod1", target = "soundcloud", config = """{"playlistId":"123"}""", enabled = true)
         val existingPlaylist = SoundCloudPlaylistDetailResponse(
             id = 123,
             tracks = listOf(SoundCloudPlaylistTrack(100), SoundCloudPlaylistTrack(200))
@@ -162,7 +166,7 @@ class SoundCloudPublisherTest {
         every { soundCloudClient.getPlaylist("access-token", 123) } returns existingPlaylist
         every { soundCloudClient.addTrackToPlaylist("access-token", 123, listOf(100, 200, 456)) } returns playlistResponse
 
-        publisher.publish(episode, podcastWithPlaylist, "user1")
+        publisher.publish(episode, podcast, "user1")
 
         verify { soundCloudClient.getPlaylist("access-token", 123) }
         verify { soundCloudClient.addTrackToPlaylist("access-token", 123, listOf(100, 200, 456)) }
@@ -171,11 +175,12 @@ class SoundCloudPublisherTest {
 
     @Test
     fun `rebuildPlaylist sets all track IDs on existing playlist`() {
-        val podcastWithPlaylist = podcast.copy(soundcloudPlaylistId = "123")
+        every { targetService.get("pod1", "soundcloud") } returns
+            PodcastPublicationTarget(id = 1, podcastId = "pod1", target = "soundcloud", config = """{"playlistId":"123"}""", enabled = true)
         every { tokenManager.getValidAccessToken("user1") } returns "access-token"
         every { soundCloudClient.addTrackToPlaylist("access-token", 123, listOf(100, 200, 300)) } returns playlistResponse
 
-        publisher.rebuildPlaylist(podcastWithPlaylist, "user1", listOf(100, 200, 300))
+        publisher.rebuildPlaylist(podcast, "user1", listOf(100, 200, 300))
 
         verify { soundCloudClient.addTrackToPlaylist("access-token", 123, listOf(100, 200, 300)) }
         verify(exactly = 0) { soundCloudClient.createPlaylist(any(), any(), any()) }
@@ -189,24 +194,21 @@ class SoundCloudPublisherTest {
         publisher.rebuildPlaylist(podcast, "user1", listOf(100, 200))
 
         verify { soundCloudClient.createPlaylist("access-token", "Tech News", listOf(100, 200)) }
-        val savedPodcast = slot<Podcast>()
-        verify { podcastRepository.save(capture(savedPodcast)) }
-        assertEquals("789", savedPodcast.captured.soundcloudPlaylistId)
+        verify { targetService.upsert("pod1", "soundcloud", match { it.contains("789") }, any()) }
     }
 
     @Test
     fun `rebuildPlaylist creates new playlist when existing playlist returns 404`() {
-        val podcastWithStalePlaylist = podcast.copy(soundcloudPlaylistId = "999")
+        every { targetService.get("pod1", "soundcloud") } returns
+            PodcastPublicationTarget(id = 1, podcastId = "pod1", target = "soundcloud", config = """{"playlistId":"999"}""", enabled = true)
         every { tokenManager.getValidAccessToken("user1") } returns "access-token"
         every { soundCloudClient.addTrackToPlaylist("access-token", 999, listOf(100)) } throws
             HttpClientErrorException.create(HttpStatusCode.valueOf(404), "Not Found", org.springframework.http.HttpHeaders(), ByteArray(0), null)
         every { soundCloudClient.createPlaylist("access-token", "Tech News", listOf(100)) } returns playlistResponse
 
-        publisher.rebuildPlaylist(podcastWithStalePlaylist, "user1", listOf(100))
+        publisher.rebuildPlaylist(podcast, "user1", listOf(100))
 
-        val savedPodcast = slot<Podcast>()
-        verify { podcastRepository.save(capture(savedPodcast)) }
-        assertEquals("789", savedPodcast.captured.soundcloudPlaylistId)
+        verify { targetService.upsert("pod1", "soundcloud", match { it.contains("789") }, true) }
     }
 
     @Test
@@ -283,17 +285,16 @@ class SoundCloudPublisherTest {
 
     @Test
     fun `stale playlist triggers recreation when getPlaylist returns 404`() {
-        val podcastWithStalePlaylist = podcast.copy(soundcloudPlaylistId = "999")
+        every { targetService.get("pod1", "soundcloud") } returns
+            PodcastPublicationTarget(id = 1, podcastId = "pod1", target = "soundcloud", config = """{"playlistId":"999"}""", enabled = true)
         every { tokenManager.getValidAccessToken("user1") } returns "access-token"
         every { soundCloudClient.uploadTrack("access-token", any()) } returns trackResponse
         every { soundCloudClient.getPlaylist("access-token", 999) } throws
             HttpClientErrorException.create(HttpStatusCode.valueOf(404), "Not Found", org.springframework.http.HttpHeaders(), ByteArray(0), null)
         every { soundCloudClient.createPlaylist("access-token", "Tech News", listOf(456)) } returns playlistResponse
 
-        publisher.publish(episode, podcastWithStalePlaylist, "user1")
+        publisher.publish(episode, podcast, "user1")
 
-        val savedPodcast = slot<Podcast>()
-        verify { podcastRepository.save(capture(savedPodcast)) }
-        assertEquals("789", savedPodcast.captured.soundcloudPlaylistId)
+        verify { targetService.upsert("pod1", "soundcloud", match { it.contains("789") }, true) }
     }
 }

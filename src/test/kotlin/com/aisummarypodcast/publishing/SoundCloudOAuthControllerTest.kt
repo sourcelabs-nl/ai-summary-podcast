@@ -2,8 +2,6 @@ package com.aisummarypodcast.publishing
 
 import com.aisummarypodcast.config.AppProperties
 import com.aisummarypodcast.config.EncryptionProperties
-import com.aisummarypodcast.config.SoundCloudProperties
-import com.aisummarypodcast.config.FeedProperties
 import com.aisummarypodcast.store.User
 import com.aisummarypodcast.user.UserService
 import com.ninjasquad.springmockk.MockkBean
@@ -30,6 +28,9 @@ class SoundCloudOAuthControllerTest {
     @MockkBean
     private lateinit var oauthConnectionService: OAuthConnectionService
 
+    @MockkBean
+    private lateinit var credentialResolver: SoundCloudCredentialResolver
+
     @MockkBean(relaxed = true)
     private lateinit var appProperties: AppProperties
 
@@ -37,11 +38,12 @@ class SoundCloudOAuthControllerTest {
     private val user = User(id = userId, name = "Test User")
 
     private fun configureSoundCloud() {
-        every { appProperties.soundcloud } returns SoundCloudProperties(
+        every { credentialResolver.resolve(any()) } returns SoundCloudCredentials(
             clientId = "test-client-id",
-            clientSecret = "test-client-secret"
+            clientSecret = "test-client-secret",
+            callbackUri = "http://localhost:8085/oauth/soundcloud/callback"
         )
-        every { appProperties.feed } returns FeedProperties(baseUrl = "http://localhost:8085")
+        every { credentialResolver.isConfigured(any()) } returns true
         every { appProperties.encryption } returns EncryptionProperties(
             masterKey = "dGVzdC1tYXN0ZXIta2V5LTMyYnl0ZXMhIQ=="
         )
@@ -74,7 +76,8 @@ class SoundCloudOAuthControllerTest {
 
     @Test
     fun `authorize returns 503 when not configured`() {
-        every { appProperties.soundcloud } returns SoundCloudProperties(clientId = null, clientSecret = null)
+        every { userService.findById(userId) } returns user
+        every { credentialResolver.resolve(userId) } throws IllegalStateException("Not configured")
 
         mockMvc.perform(get("/users/$userId/oauth/soundcloud/authorize"))
             .andExpect(status().isServiceUnavailable)

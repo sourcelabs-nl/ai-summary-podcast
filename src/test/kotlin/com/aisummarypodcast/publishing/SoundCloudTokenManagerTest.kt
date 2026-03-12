@@ -1,7 +1,5 @@
 package com.aisummarypodcast.publishing
 
-import com.aisummarypodcast.config.AppProperties
-import com.aisummarypodcast.config.SoundCloudProperties
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -14,10 +12,14 @@ class SoundCloudTokenManagerTest {
 
     private val oauthConnectionService = mockk<OAuthConnectionService>(relaxed = true)
     private val soundCloudClient = mockk<SoundCloudClient>()
-    private val appProperties = mockk<AppProperties> {
-        every { soundcloud } returns SoundCloudProperties(clientId = "test-id", clientSecret = "test-secret")
+    private val credentialResolver = mockk<SoundCloudCredentialResolver> {
+        every { resolve(any()) } returns SoundCloudCredentials(
+            clientId = "test-id",
+            clientSecret = "test-secret",
+            callbackUri = "http://localhost/callback"
+        )
     }
-    private val tokenManager = SoundCloudTokenManager(oauthConnectionService, soundCloudClient, appProperties)
+    private val tokenManager = SoundCloudTokenManager(oauthConnectionService, soundCloudClient, credentialResolver)
 
     @Test
     fun `getValidAccessToken returns existing token when not near expiry`() {
