@@ -7,9 +7,9 @@ Scheduled polling of configured content sources (RSS feeds and websites), extrac
 ## Requirements
 
 ### Requirement: Scheduled source polling
-The system SHALL poll each enabled source on a configurable schedule using Spring's `@Scheduled`. A `SourcePollingScheduler` SHALL run on a fixed interval, iterate over all enabled sources, and poll each source whose effective poll interval has elapsed since its last poll. The effective poll interval SHALL account for exponential backoff: for sources with `consecutiveFailures > 0`, the interval is `pollIntervalMinutes × 2^consecutiveFailures`, capped at `app.source.max-backoff-hours` converted to minutes. For sources with `consecutiveFailures = 0`, the normal `pollIntervalMinutes` is used. For source types that require per-user API keys (e.g., `"twitter"`), the scheduler SHALL resolve the podcast's owner user ID and pass it to the `SourcePoller`.
+The system SHALL poll each enabled source on a configurable interval. A `SourcePollingScheduler` SHALL launch a coroutine loop on `ApplicationReadyEvent` that runs every 60 seconds, iterates over all enabled sources, and polls each source whose effective poll interval has elapsed since its last poll. The coroutine loop SHALL use its own `CoroutineScope(Dispatchers.Default + SupervisorJob())` so it runs independently from other schedulers and cannot be starved by them. The scope SHALL be cancelled on `@PreDestroy` for graceful shutdown. The effective poll interval SHALL account for exponential backoff: for sources with `consecutiveFailures > 0`, the interval is `pollIntervalMinutes × 2^consecutiveFailures`, capped at `app.source.max-backoff-hours` converted to minutes. For sources with `consecutiveFailures = 0`, the normal `pollIntervalMinutes` is used. For source types that require per-user API keys (e.g., `"twitter"`), the scheduler SHALL resolve the podcast's owner user ID and pass it to the `SourcePoller`.
 
-The scheduler's `pollSources()` method SHALL be a `suspend fun`, using Spring 6.1+'s native coroutine support for `@Scheduled` methods. Due sources SHALL be grouped by URL host (extracted via `java.net.URI(url).host`). Each host group SHALL be polled as a parallel coroutine under `supervisorScope`, with sequential polling and configurable delays within each group (as defined by the `poll-rate-limiting` capability).
+The scheduler's `pollSources()` method SHALL be a `suspend fun`. Due sources SHALL be grouped by URL host (extracted via `java.net.URI(url).host`). Each host group SHALL be polled as a parallel coroutine under `supervisorScope`, with sequential polling and configurable delays within each group (as defined by the `poll-rate-limiting` capability).
 
 Sources with `lastPolled = null` (never polled) SHALL receive startup jitter before being checked for due status (as defined by the `poll-rate-limiting` capability).
 
@@ -39,9 +39,9 @@ All `[Polling]` log messages in `SourcePoller` that identify a source SHALL use 
 - **WHEN** the scheduler runs and due sources span multiple hosts
 - **THEN** each host group is polled concurrently as a separate coroutine under `supervisorScope`
 
-#### Scenario: Scheduler method is a suspend function
-- **WHEN** the scheduler tick fires
-- **THEN** `pollSources()` executes as a Kotlin `suspend fun` using Spring's native coroutine scheduling support
+#### Scenario: Scheduler runs as independent coroutine loop
+- **WHEN** the application starts
+- **THEN** `SourcePollingScheduler` launches a coroutine loop that calls `pollSources()` every 60 seconds, independent of other schedulers
 
 #### Scenario: Log messages show source URL
 - **WHEN** a source is polled and log messages are emitted

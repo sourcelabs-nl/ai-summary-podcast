@@ -3,8 +3,17 @@ package com.aisummarypodcast.scheduler
 import com.aisummarypodcast.podcast.PodcastService
 import com.aisummarypodcast.store.Podcast
 import com.aisummarypodcast.store.PodcastRepository
+import jakarta.annotation.PreDestroy
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import org.slf4j.LoggerFactory
-import org.springframework.scheduling.annotation.Scheduled
+import org.springframework.boot.context.event.ApplicationReadyEvent
+import org.springframework.context.event.EventListener
 import org.springframework.scheduling.support.CronExpression
 import org.springframework.stereotype.Component
 import java.time.Clock
@@ -22,12 +31,31 @@ class BriefingGenerationScheduler(
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
+    private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 
     companion object {
         val STALENESS_WINDOW: Duration = Duration.ofMinutes(30)
     }
 
-    @Scheduled(fixedDelay = 60_000)
+    @EventListener(ApplicationReadyEvent::class)
+    fun start() {
+        scope.launch {
+            while (isActive) {
+                try {
+                    checkAndGenerate()
+                } catch (e: Exception) {
+                    log.error("[Pipeline] Unexpected error in briefing generation loop", e)
+                }
+                delay(60_000)
+            }
+        }
+    }
+
+    @PreDestroy
+    fun stop() {
+        scope.cancel()
+    }
+
     fun checkAndGenerate() {
         val podcasts = podcastRepository.findAll()
         val now = LocalDateTime.now(clock)

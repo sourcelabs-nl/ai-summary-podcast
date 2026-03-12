@@ -7,13 +7,20 @@ import com.aisummarypodcast.store.ArticleRepository
 import com.aisummarypodcast.store.PostRepository
 import com.aisummarypodcast.store.SourceRepository
 import com.aisummarypodcast.store.SourceType
+import jakarta.annotation.PreDestroy
 import org.slf4j.LoggerFactory
-import org.springframework.scheduling.annotation.Scheduled
+import org.springframework.boot.context.event.ApplicationReadyEvent
+import org.springframework.context.event.EventListener
 import org.springframework.stereotype.Component
 import com.aisummarypodcast.store.Source
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.withContext
 import java.net.URI
@@ -34,8 +41,27 @@ class SourcePollingScheduler(
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
+    private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 
-    @Scheduled(fixedDelay = 60_000)
+    @EventListener(ApplicationReadyEvent::class)
+    fun start() {
+        scope.launch {
+            while (isActive) {
+                try {
+                    pollSources()
+                } catch (e: Exception) {
+                    log.error("[Polling] Unexpected error in polling loop", e)
+                }
+                delay(60_000)
+            }
+        }
+    }
+
+    @PreDestroy
+    fun stop() {
+        scope.cancel()
+    }
+
     suspend fun pollSources() {
         cleanupOldArticles()
 
