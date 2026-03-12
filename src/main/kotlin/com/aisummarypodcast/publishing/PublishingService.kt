@@ -1,5 +1,6 @@
 package com.aisummarypodcast.publishing
 
+import com.aisummarypodcast.podcast.StaticFeedExporter
 import com.aisummarypodcast.store.Episode
 import com.aisummarypodcast.store.EpisodePublication
 import com.aisummarypodcast.store.EpisodePublicationRepository
@@ -17,7 +18,8 @@ class PublishingService(
     private val publicationRepository: EpisodePublicationRepository,
     private val episodeRepository: EpisodeRepository,
     private val soundCloudPublisher: SoundCloudPublisher,
-    private val targetService: PodcastPublicationTargetService
+    private val targetService: PodcastPublicationTargetService,
+    private val staticFeedExporter: StaticFeedExporter
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -69,6 +71,7 @@ class PublishingService(
                 )
             )
             log.info("Episode {} published to {} (externalId={})", episode.id, target, result.externalId)
+            staticFeedExporter.export(podcast)
             published
         } catch (e: Exception) {
             log.error("Failed to publish episode {} to {}: {}", episode.id, target, e.message, e)
@@ -100,6 +103,7 @@ class PublishingService(
                 )
             )
             log.info("Episode {} updated on {} (externalId={})", episode.id, existing.target, existing.externalId)
+            staticFeedExporter.export(podcast)
             updated
         } catch (e: UnsupportedOperationException) {
             log.warn("Publisher {} does not support updates: {}", existing.target, e.message)
