@@ -1,14 +1,19 @@
 package com.aisummarypodcast.llm
 
+import com.aisummarypodcast.config.AppProperties
 import com.aisummarypodcast.config.ModelDefinition
+import com.aisummarypodcast.config.ScoringProperties
 import com.aisummarypodcast.store.Article
 import com.aisummarypodcast.store.ArticleRepository
 import com.aisummarypodcast.store.Podcast
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.supervisorScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import org.slf4j.LoggerFactory
 import org.springframework.ai.openai.OpenAiChatOptions
 import org.springframework.stereotype.Component
@@ -21,8 +26,10 @@ data class ScoreSummarizeResult(
 @Component
 class ArticleScoreSummarizer(
     private val articleRepository: ArticleRepository,
-    private val chatClientFactory: ChatClientFactory
+    private val chatClientFactory: ChatClientFactory,
+    appProperties: AppProperties
 ) {
+    private val scoringProperties: ScoringProperties = appProperties.llm.scoring
 
     companion object {
         private const val LONG_ARTICLE_WORD_THRESHOLD = 1500
@@ -34,48 +41,65 @@ class ArticleScoreSummarizer(
     fun scoreSummarize(articles: List<Article>, podcast: Podcast, filterModelDef: ModelDefinition, sourceLabels: Map<String, String> = emptyMap()): List<Article> {
         val chatClient = chatClientFactory.createForModel(podcast.userId, filterModelDef)
         val model = filterModelDef.model
+        val semaphore = Semaphore(scoringProperties.concurrency)
+        val maxRetries = scoringProperties.maxRetries
 
         return runBlocking(Dispatchers.IO) {
             supervisorScope {
                 articles.map { article ->
                     async {
-                        val sourceLabel = sourceLabels[article.sourceId]
-                        log.info("[LLM] Scoring and summarizing article {}: '{}' (source: {})", article.id, article.title, sourceLabel ?: article.sourceId)
-                        try {
-                            val prompt = buildPrompt(article, podcast)
+                        semaphore.withPermit {
+                            val sourceLabel = sourceLabels[article.sourceId]
+                            log.info("[LLM] Scoring and summarizing article {}: '{}' (source: {})", article.id, article.title, sourceLabel ?: article.sourceId)
+                            try {
+                                val prompt = buildPrompt(article, podcast)
 
-                            val responseEntity = chatClient.prompt()
-                                .user(prompt)
-                                .options(
-                                    OpenAiChatOptions.builder()
-                                        .model(model)
-                                        .temperature(0.3)
-                                        .build()
-                                )
-                                .call()
-                                .responseEntity(ScoreSummarizeResult::class.java)
+                                var lastException: Exception? = null
+                                for (attempt in 1..maxRetries) {
+                                    try {
+                                        val responseEntity = chatClient.prompt()
+                                            .user(prompt)
+                                            .options(
+                                                OpenAiChatOptions.builder()
+                                                    .model(model)
+                                                    .temperature(0.3)
+                                                    .build()
+                                            )
+                                            .call()
+                                            .responseEntity(ScoreSummarizeResult::class.java)
 
-                            val result = responseEntity.entity()
-                            val usage = TokenUsage.fromChatResponse(responseEntity.response())
-                            val costCents = CostEstimator.estimateLlmCostCents(usage.inputTokens, usage.outputTokens, filterModelDef)
+                                        val result = responseEntity.entity()
+                                        val usage = TokenUsage.fromChatResponse(responseEntity.response())
+                                        val costCents = CostEstimator.estimateLlmCostCents(usage.inputTokens, usage.outputTokens, filterModelDef)
 
-                            val score = result?.relevanceScore ?: 0
-                            val summary = result?.summary?.takeIf { it.isNotBlank() }
+                                        val score = result?.relevanceScore ?: 0
+                                        val summary = result?.summary?.takeIf { it.isNotBlank() }
 
-                            val updated = article.copy(
-                                relevanceScore = score,
-                                summary = summary,
-                                llmInputTokens = (article.llmInputTokens ?: 0) + usage.inputTokens,
-                                llmOutputTokens = (article.llmOutputTokens ?: 0) + usage.outputTokens,
-                                llmCostCents = CostEstimator.addNullableCosts(article.llmCostCents, costCents)
-                            )
-                            articleRepository.save(updated)
+                                        val updated = article.copy(
+                                            relevanceScore = score,
+                                            summary = summary,
+                                            llmInputTokens = (article.llmInputTokens ?: 0) + usage.inputTokens,
+                                            llmOutputTokens = (article.llmOutputTokens ?: 0) + usage.outputTokens,
+                                            llmCostCents = CostEstimator.addNullableCosts(article.llmCostCents, costCents)
+                                        )
+                                        articleRepository.save(updated)
 
-                            log.info("[LLM] Article '{}' scored {} — summary: {} chars (source: {})", article.title, score, summary?.length ?: 0, sourceLabel ?: article.sourceId)
-                            updated
-                        } catch (e: Exception) {
-                            log.error("[LLM] Error scoring/summarizing article '{}' (source: {}): {}", article.title, sourceLabels[article.sourceId] ?: article.sourceId, e.message, e)
-                            null
+                                        log.info("[LLM] Article '{}' scored {} — summary: {} chars (source: {})", article.title, score, summary?.length ?: 0, sourceLabel ?: article.sourceId)
+                                        return@withPermit updated
+                                    } catch (e: Exception) {
+                                        lastException = e
+                                        if (attempt < maxRetries) {
+                                            val backoffMs = 1000L * (1 shl (attempt - 1))
+                                            log.warn("[LLM] Retry {}/{} for article '{}' (source: {}): {}", attempt, maxRetries, article.title, sourceLabel ?: article.sourceId, e.message)
+                                            delay(backoffMs)
+                                        }
+                                    }
+                                }
+                                throw lastException!!
+                            } catch (e: Exception) {
+                                log.error("[LLM] Error scoring/summarizing article '{}' (source: {}): {}", article.title, sourceLabels[article.sourceId] ?: article.sourceId, e.message, e)
+                                null
+                            }
                         }
                     }
                 }.awaitAll().filterNotNull()

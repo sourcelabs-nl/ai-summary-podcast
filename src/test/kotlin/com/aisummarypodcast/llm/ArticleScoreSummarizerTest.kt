@@ -1,6 +1,13 @@
 package com.aisummarypodcast.llm
 
+import com.aisummarypodcast.config.AppProperties
+import com.aisummarypodcast.config.BriefingProperties
+import com.aisummarypodcast.config.EncryptionProperties
+import com.aisummarypodcast.config.EpisodesProperties
+import com.aisummarypodcast.config.FeedProperties
+import com.aisummarypodcast.config.LlmProperties
 import com.aisummarypodcast.config.ModelDefinition
+import com.aisummarypodcast.config.ScoringProperties
 import com.aisummarypodcast.store.Article
 import com.aisummarypodcast.store.ArticleRepository
 import com.aisummarypodcast.store.Podcast
@@ -35,7 +42,16 @@ class ArticleScoreSummarizerTest {
         inputCostPerMtok = 0.15, outputCostPerMtok = 0.60
     )
 
-    private val scoreSummarizer = ArticleScoreSummarizer(articleRepository, chatClientFactory)
+    private fun appProperties(scoring: ScoringProperties = ScoringProperties(concurrency = 10, maxRetries = 1)): AppProperties =
+        AppProperties(
+            llm = LlmProperties(scoring = scoring),
+            briefing = BriefingProperties(),
+            episodes = EpisodesProperties(),
+            feed = FeedProperties(),
+            encryption = EncryptionProperties(masterKey = "test-key")
+        )
+
+    private val scoreSummarizer = ArticleScoreSummarizer(articleRepository, chatClientFactory, appProperties())
 
     private val podcast = Podcast(id = "p1", userId = "u1", name = "Tech Daily", topic = "AI engineering")
 
@@ -303,6 +319,116 @@ class ArticleScoreSummarizerTest {
         every { chatClientFactory.createForModel(podcast.userId, filterModelDef) } returns chatClient
 
         val result = scoreSummarizer.scoreSummarize(listOf(article1, article2, article3), podcast, filterModelDef)
+
+        assertTrue(result.isEmpty())
+        verify(exactly = 0) { articleRepository.save(any()) }
+    }
+
+    @Test
+    fun `concurrency is limited to configured window size`() {
+        val articles = (1..4).map {
+            Article(id = it.toLong(), sourceId = "s1", title = "Article $it", body = "body$it", url = "https://example.com/$it", contentHash = "h$it")
+        }
+
+        val maxConcurrent = AtomicInteger(0)
+        val currentConcurrent = AtomicInteger(0)
+
+        val successResult = ScoreSummarizeResult(relevanceScore = 7, summary = "Good summary.")
+        val metadata = ChatResponseMetadata.builder()
+            .usage(DefaultUsage(500, 80))
+            .build()
+        val chatResponse = ChatResponse(listOf(Generation(AssistantMessage("{}"))), metadata)
+        val responseEntity = ResponseEntity(chatResponse, successResult)
+
+        val callResponseSpec = mockk<ChatClient.CallResponseSpec>()
+        every { callResponseSpec.responseEntity(ScoreSummarizeResult::class.java) } returns responseEntity
+
+        val requestSpec = mockk<ChatClient.ChatClientRequestSpec>()
+        every { requestSpec.user(any<String>()) } returns requestSpec
+        every { requestSpec.options(any()) } returns requestSpec
+        every { requestSpec.call() } answers {
+            val current = currentConcurrent.incrementAndGet()
+            maxConcurrent.updateAndGet { max -> maxOf(max, current) }
+            Thread.sleep(50) // simulate LLM latency
+            currentConcurrent.decrementAndGet()
+            callResponseSpec
+        }
+
+        every { chatClient.prompt() } returns requestSpec
+        every { chatClientFactory.createForModel(podcast.userId, filterModelDef) } returns chatClient
+
+        val summarizer = ArticleScoreSummarizer(
+            articleRepository, chatClientFactory,
+            appProperties(ScoringProperties(concurrency = 2, maxRetries = 1))
+        )
+        val result = summarizer.scoreSummarize(articles, podcast, filterModelDef)
+
+        assertEquals(4, result.size)
+        assertTrue(maxConcurrent.get() <= 2, "Expected max concurrency <= 2 but was ${maxConcurrent.get()}")
+    }
+
+    @Test
+    fun `retry succeeds on second attempt`() {
+        val article = Article(
+            id = 1, sourceId = "s1", title = "Flaky Article", body = "body",
+            url = "https://example.com/1", contentHash = "h1"
+        )
+
+        val successResult = ScoreSummarizeResult(relevanceScore = 7, summary = "Good summary.")
+        val metadata = ChatResponseMetadata.builder()
+            .usage(DefaultUsage(500, 80))
+            .build()
+        val chatResponse = ChatResponse(listOf(Generation(AssistantMessage("{}"))), metadata)
+        val responseEntity = ResponseEntity(chatResponse, successResult)
+
+        val successCallSpec = mockk<ChatClient.CallResponseSpec>()
+        every { successCallSpec.responseEntity(ScoreSummarizeResult::class.java) } returns responseEntity
+
+        val failCallSpec = mockk<ChatClient.CallResponseSpec>()
+        every { failCallSpec.responseEntity(ScoreSummarizeResult::class.java) } throws RuntimeException("Transient error")
+
+        val callCount = AtomicInteger(0)
+        val requestSpec = mockk<ChatClient.ChatClientRequestSpec>()
+        every { requestSpec.user(any<String>()) } returns requestSpec
+        every { requestSpec.options(any()) } returns requestSpec
+        every { requestSpec.call() } answers {
+            if (callCount.getAndIncrement() == 0) failCallSpec else successCallSpec
+        }
+
+        every { chatClient.prompt() } returns requestSpec
+        every { chatClientFactory.createForModel(podcast.userId, filterModelDef) } returns chatClient
+
+        val summarizer = ArticleScoreSummarizer(
+            articleRepository, chatClientFactory,
+            appProperties(ScoringProperties(concurrency = 10, maxRetries = 3))
+        )
+        val result = summarizer.scoreSummarize(listOf(article), podcast, filterModelDef)
+
+        assertEquals(1, result.size)
+        assertEquals(7, result[0].relevanceScore)
+        verify(exactly = 1) { articleRepository.save(any()) }
+    }
+
+    @Test
+    fun `all retries exhausted excludes article from result`() {
+        val article = Article(
+            id = 1, sourceId = "s1", title = "Persistent Failure", body = "body",
+            url = "https://example.com/1", contentHash = "h1"
+        )
+
+        val requestSpec = mockk<ChatClient.ChatClientRequestSpec>()
+        every { requestSpec.user(any<String>()) } returns requestSpec
+        every { requestSpec.options(any()) } returns requestSpec
+        every { requestSpec.call() } throws RuntimeException("LLM unavailable")
+
+        every { chatClient.prompt() } returns requestSpec
+        every { chatClientFactory.createForModel(podcast.userId, filterModelDef) } returns chatClient
+
+        val summarizer = ArticleScoreSummarizer(
+            articleRepository, chatClientFactory,
+            appProperties(ScoringProperties(concurrency = 10, maxRetries = 3))
+        )
+        val result = summarizer.scoreSummarize(listOf(article), podcast, filterModelDef)
 
         assertTrue(result.isEmpty())
         verify(exactly = 0) { articleRepository.save(any()) }

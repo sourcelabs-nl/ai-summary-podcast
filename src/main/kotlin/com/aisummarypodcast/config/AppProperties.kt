@@ -23,7 +23,13 @@ data class EncryptionProperties(
 data class LlmProperties(
     val models: Map<String, ModelDefinition> = emptyMap(),
     val defaults: StageDefaults = StageDefaults(),
-    val maxCostCents: Int = 200
+    val maxCostCents: Int = 200,
+    val scoring: ScoringProperties = ScoringProperties()
+)
+
+data class ScoringProperties(
+    val concurrency: Int = 10,
+    val maxRetries: Int = 3
 )
 
 data class ModelDefinition(

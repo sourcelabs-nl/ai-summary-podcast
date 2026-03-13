@@ -38,6 +38,9 @@ app:
       filter: cheap
       compose: capable
     max-cost-cents: 200
+    scoring:
+      concurrency: 10
+      max-retries: 3
   briefing:
     target-words: 1500
   episodes:

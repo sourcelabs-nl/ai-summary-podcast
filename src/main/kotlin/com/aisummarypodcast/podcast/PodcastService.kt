@@ -100,10 +100,7 @@ class PodcastService(
             return null
         }
 
-        val result = llmPipeline.run(podcast) ?: run {
-            podcastRepository.save(podcast.copy(lastGeneratedAt = Instant.now().toString()))
-            return null
-        }
+        val result = llmPipeline.run(podcast) ?: return null
 
         return episodeService.createEpisodeFromPipelineResult(podcast, result)
     }
