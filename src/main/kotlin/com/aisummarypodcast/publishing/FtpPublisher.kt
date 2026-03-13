@@ -43,6 +43,36 @@ class FtpPublisher(
     override fun update(episode: Episode, podcast: Podcast, userId: String, externalId: String): PublishResult =
         publish(episode, podcast, userId)
 
+    override fun postPublish(podcast: Podcast, userId: String) {
+        val credentials = resolveCredentials(userId)
+        val targetConfig = resolveTargetConfig(podcast.id)
+        val rawRemotePath = (targetConfig["remotePath"] as? String)?.takeIf { it.isNotBlank() }
+        val podcastPath = if (rawRemotePath != null) {
+            if (rawRemotePath.endsWith("/")) rawRemotePath else "$rawRemotePath/"
+        } else {
+            "/${podcast.id}/"
+        }
+        val publicUrl = (targetConfig["publicUrl"] as? String)?.takeIf { it.isNotBlank() }
+            ?.let { if (it.endsWith("/")) it else "$it/" }
+        val podcastPublicUrl = publicUrl?.let { "${it}${podcastPath.trimStart('/')}" }
+
+        val user = userRepository.findById(podcast.userId).orElse(null) ?: return
+        val baseUrl = podcastPublicUrl ?: appProperties.feed.staticBaseUrl ?: appProperties.feed.baseUrl
+        val feedXml = feedGenerator.generate(podcast, user, baseUrl, podcastPublicUrl, publishedTarget = "ftp")
+
+        val ftpClient = createFtpClient(credentials)
+        try {
+            connect(ftpClient, credentials)
+            ensureDirectoryExists(ftpClient, podcastPath)
+            uploadContent(ftpClient, podcastPath, "feed.xml", feedXml.toByteArray())
+            log.info("Uploaded feed.xml for podcast {} to FTP", podcast.id)
+        } finally {
+            try {
+                if (ftpClient.isConnected) ftpClient.disconnect()
+            } catch (_: Exception) {}
+        }
+    }
+
     override fun publish(episode: Episode, podcast: Podcast, userId: String): PublishResult {
         val credentials = resolveCredentials(userId)
         val targetConfig = resolveTargetConfig(podcast.id)
@@ -80,16 +110,6 @@ class FtpPublisher(
                 log.info("Uploaded MP3 for episode {} to FTP", episode.id)
             }
 
-            // Generate and upload feed.xml to podcast root
-            val podcastPublicUrl = publicUrl?.let { "${it}${podcastPath.trimStart('/')}" }
-            val user = userRepository.findById(podcast.userId).orElse(null)
-            if (user != null) {
-                val baseUrl = podcastPublicUrl ?: appProperties.feed.staticBaseUrl ?: appProperties.feed.baseUrl
-                val feedXml = feedGenerator.generate(podcast, user, baseUrl, podcastPublicUrl, publishedTarget = "ftp")
-                uploadContent(ftpClient, podcastPath, "feed.xml", feedXml.toByteArray())
-                log.info("Uploaded feed.xml for podcast {} to FTP", podcast.id)
-            }
-
             // Upload podcast image to podcast root
             val imagePath = podcastImageService.get(podcast.id)
             if (imagePath != null) {
@@ -99,6 +119,7 @@ class FtpPublisher(
 
             val slug = episodeSourcesGenerator.deriveSlug(episode)
             val audioFileName = Path.of(episode.audioFilePath!!).fileName
+            val podcastPublicUrl = publicUrl?.let { "${it}${podcastPath.trimStart('/')}" }
             val externalUrl = if (podcastPublicUrl != null) {
                 "${podcastPublicUrl}episodes/$audioFileName"
             } else {

@@ -17,4 +17,12 @@ interface EpisodePublisher {
     fun update(episode: Episode, podcast: Podcast, userId: String, externalId: String): PublishResult {
         throw UnsupportedOperationException("${targetName()} does not support updating published episodes")
     }
+
+    /**
+     * Called after the publication record is saved with PUBLISHED status.
+     * Use this for actions that depend on the publication being recorded (e.g., uploading feed.xml).
+     */
+    fun postPublish(podcast: Podcast, userId: String) {
+        // no-op by default
+    }
 }

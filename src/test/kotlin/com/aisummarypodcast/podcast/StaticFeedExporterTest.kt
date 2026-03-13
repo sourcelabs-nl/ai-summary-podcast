@@ -5,11 +5,13 @@ import com.aisummarypodcast.config.EpisodesProperties
 import com.aisummarypodcast.config.FeedProperties
 import com.aisummarypodcast.publishing.PodcastPublicationTargetService
 import com.aisummarypodcast.store.Episode
+import com.aisummarypodcast.store.EpisodePublication
 import com.aisummarypodcast.store.EpisodePublicationRepository
 import com.aisummarypodcast.store.EpisodeRepository
 import com.aisummarypodcast.store.EpisodeStatus
 import com.aisummarypodcast.store.Podcast
 import com.aisummarypodcast.store.PodcastPublicationTarget
+import com.aisummarypodcast.store.PublicationStatus
 import com.aisummarypodcast.store.User
 import com.aisummarypodcast.store.UserRepository
 import io.mockk.every
@@ -106,8 +108,14 @@ class StaticFeedExporterTest {
             audioFilePath = "/data/p1/episodes/briefing-20250101-000000.mp3", durationSeconds = 120,
             showNotes = "Today's recap."
         )
+        val publication = EpisodePublication(
+            id = 1L, episodeId = 1L, target = "ftp",
+            status = PublicationStatus.PUBLISHED, externalId = "ftp:briefing-20250101-000000",
+            createdAt = "2025-01-01T00:00:00Z"
+        )
         every { userRepository.findById("u1") } returns Optional.of(user)
         every { episodeRepository.findByPodcastIdAndStatus("p1", "GENERATED") } returns listOf(episode)
+        every { publicationRepository.findPublishedByPodcastIdAndTarget("p1", "ftp") } returns listOf(publication)
         every { podcastImageService.get("p1") } returns null
         every { episodeSourcesGenerator.deriveSlug(episode) } returns "briefing-20250101-000000"
         every { targetService.get("p1", "ftp") } returns PodcastPublicationTarget(

@@ -30,8 +30,9 @@ class StaticFeedExporter(
             }
 
             val publicUrl = resolvePublicUrl(podcast.id)
+            val publishedTarget = if (publicUrl != null) "ftp" else null
             val baseUrl = publicUrl ?: appProperties.feed.staticBaseUrl ?: appProperties.feed.baseUrl
-            val xml = feedGenerator.generate(podcast, user, baseUrl, publicUrl)
+            val xml = feedGenerator.generate(podcast, user, baseUrl, publicUrl, publishedTarget)
 
             val podcastDir = Path.of(appProperties.episodes.directory, podcast.id)
 

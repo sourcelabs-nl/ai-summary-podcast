@@ -18,6 +18,7 @@ class PublishingServiceTest {
 
     private val publisher = mockk<EpisodePublisher> {
         every { targetName() } returns "soundcloud"
+        every { postPublish(any(), any()) } returns Unit
     }
     private val registry = PublisherRegistry(listOf(publisher))
     private val publicationRepository = mockk<EpisodePublicationRepository>(relaxed = true)

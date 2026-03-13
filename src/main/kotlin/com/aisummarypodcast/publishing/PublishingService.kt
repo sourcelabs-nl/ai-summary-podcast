@@ -71,6 +71,7 @@ class PublishingService(
                 )
             )
             log.info("Episode {} published to {} (externalId={})", episode.id, target, result.externalId)
+            publisher.postPublish(podcast, userId)
             staticFeedExporter.export(podcast)
             published
         } catch (e: Exception) {
@@ -103,6 +104,7 @@ class PublishingService(
                 )
             )
             log.info("Episode {} updated on {} (externalId={})", episode.id, existing.target, existing.externalId)
+            publisher.postPublish(podcast, userId)
             staticFeedExporter.export(podcast)
             updated
         } catch (e: UnsupportedOperationException) {
