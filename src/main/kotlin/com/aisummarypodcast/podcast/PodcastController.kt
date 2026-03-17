@@ -270,6 +270,23 @@ class PodcastController(
         }
     }
 
+    @PostMapping("/{podcastId}/episodes/{episodeId}/regenerate")
+    fun regenerate(
+        @PathVariable userId: String,
+        @PathVariable podcastId: String,
+        @PathVariable episodeId: Long
+    ): ResponseEntity<Any> {
+        userService.findById(userId) ?: return ResponseEntity.notFound().build()
+        val podcast = podcastService.findById(podcastId) ?: return ResponseEntity.notFound().build()
+        if (podcast.userId != userId) return ResponseEntity.notFound().build()
+        val episode = episodeService.findById(episodeId) ?: return ResponseEntity.notFound().build()
+        if (episode.podcastId != podcastId) return ResponseEntity.notFound().build()
+
+        log.info("Regenerate triggered for episode {} of podcast {}", episodeId, podcastId)
+        val newEpisode = podcastService.regenerateEpisode(episode, podcast)
+        return ResponseEntity.ok(mapOf("message" to "Episode regenerated", "episodeId" to newEpisode.id))
+    }
+
     @GetMapping("/{podcastId}/upcoming-articles")
     fun upcomingArticles(@PathVariable userId: String, @PathVariable podcastId: String): ResponseEntity<Any> {
         userService.findById(userId) ?: return ResponseEntity.notFound().build()
@@ -319,7 +336,12 @@ class PodcastController(
             )
         }
 
-        val response = (articleResponses + postResponses).sortedByDescending { it.relevanceScore }
+        val allArticles = (articleResponses + postResponses).sortedByDescending { it.relevanceScore }
+        val response = mapOf(
+            "articles" to allArticles,
+            "articleCount" to content.articles.size,
+            "postCount" to content.totalPostCount
+        )
         return ResponseEntity.ok(response)
     }
 

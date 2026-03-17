@@ -116,13 +116,13 @@ export default function EpisodesPage() {
         }`
       ).then((res) => res.json()),
       fetch(`/api/users/${selectedUser.id}/podcasts/${params.podcastId}/upcoming-articles`)
-        .then((res) => (res.ok ? res.json() : []))
-        .catch(() => []),
+        .then((res) => (res.ok ? res.json() : { articles: [], postCount: 0 }))
+        .catch(() => ({ articles: [], postCount: 0 })),
     ])
-      .then(([podcastData, episodeData, upcomingArticles]) => {
+      .then(([podcastData, episodeData, upcomingData]) => {
         setPodcast(podcastData);
         setEpisodes(episodeData);
-        setUpcomingCount((upcomingArticles as EpisodeArticle[]).length);
+        setUpcomingCount((upcomingData.articles as EpisodeArticle[]).length);
         fetchPublications(episodeData);
       })
       .catch(() => {})

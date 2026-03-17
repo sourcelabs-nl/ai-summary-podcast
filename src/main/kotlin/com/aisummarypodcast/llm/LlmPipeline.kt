@@ -2,6 +2,7 @@ package com.aisummarypodcast.llm
 
 import com.aisummarypodcast.config.AppProperties
 import com.aisummarypodcast.source.SourceAggregator
+import com.aisummarypodcast.store.Article
 import com.aisummarypodcast.store.ArticleRepository
 import com.aisummarypodcast.store.EpisodeRepository
 import com.aisummarypodcast.store.Podcast
@@ -147,6 +148,35 @@ class LlmPipeline(
             llmOutputTokens = compositionResult.usage.outputTokens,
             llmCostCents = costCents,
             processedArticleIds = processedArticleIds
+        )
+    }
+
+    fun recompose(articles: List<Article>, podcast: Podcast): PipelineResult {
+        val composeModelDef = modelResolver.resolve(podcast, PipelineStage.COMPOSE)
+        val previousRecap = episodeRepository.findMostRecentByPodcastId(podcast.id)?.recap
+        val ttsProvider = ttsProviderFactory.resolve(podcast)
+        val ttsScriptGuidelines = ttsProvider.scriptGuidelines(podcast.style, podcast.pronunciations ?: emptyMap())
+
+        val compositionResult = when (podcast.style) {
+            PodcastStyle.DIALOGUE -> dialogueComposer.compose(articles, podcast, composeModelDef, previousRecap, ttsScriptGuidelines)
+            PodcastStyle.INTERVIEW -> interviewComposer.compose(articles, podcast, composeModelDef, previousRecap, ttsScriptGuidelines)
+            else -> briefingComposer.compose(articles, podcast, composeModelDef, previousRecap, ttsScriptGuidelines)
+        }
+
+        val filterModelDef = modelResolver.resolve(podcast, PipelineStage.FILTER)
+        val costCents = CostEstimator.estimateLlmCostCents(
+            compositionResult.usage.inputTokens, compositionResult.usage.outputTokens, composeModelDef
+        )
+
+        log.info("[LLM] Recompose complete for podcast '{}' ({}): {} articles", podcast.name, podcast.id, articles.size)
+        return PipelineResult(
+            script = compositionResult.script,
+            filterModel = filterModelDef.model,
+            composeModel = composeModelDef.model,
+            llmInputTokens = compositionResult.usage.inputTokens,
+            llmOutputTokens = compositionResult.usage.outputTokens,
+            llmCostCents = costCents,
+            processedArticleIds = articles.mapNotNull { it.id }
         )
     }
 

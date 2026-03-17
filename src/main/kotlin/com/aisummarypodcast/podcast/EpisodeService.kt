@@ -35,12 +35,18 @@ class EpisodeService(
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    fun createEpisodeFromPipelineResult(podcast: Podcast, result: PipelineResult): Episode {
+    fun createEpisodeFromPipelineResult(
+        podcast: Podcast,
+        result: PipelineResult,
+        overrideGeneratedAt: String? = null,
+        updateLastGenerated: Boolean = true
+    ): Episode {
+        val generatedAt = overrideGeneratedAt ?: Instant.now().toString()
         val episode = if (podcast.requireReview) {
             episodeRepository.save(
                 Episode(
                     podcastId = podcast.id,
-                    generatedAt = Instant.now().toString(),
+                    generatedAt = generatedAt,
                     scriptText = result.script,
                     status = EpisodeStatus.PENDING_REVIEW,
                     filterModel = result.filterModel,
@@ -67,7 +73,9 @@ class EpisodeService(
         val recapEpisode = generateAndStoreRecap(episode, podcast)
         val finalEpisode = generateAndStoreShowNotes(recapEpisode)
         generateSourcesFile(finalEpisode, podcast)
-        podcastRepository.save(podcast.copy(lastGeneratedAt = Instant.now().toString()))
+        if (updateLastGenerated) {
+            podcastRepository.save(podcast.copy(lastGeneratedAt = Instant.now().toString()))
+        }
 
         return finalEpisode
     }
@@ -156,6 +164,8 @@ class EpisodeService(
         log.info("Episode {} approved, triggering async TTS generation", episode.id)
         generateAudioAsync(episode.id!!, podcastId)
     }
+
+    fun findById(episodeId: Long): Episode? = episodeRepository.findById(episodeId).orElse(null)
 
     fun hasPendingOrApprovedEpisode(podcastId: String): Boolean {
         return episodeRepository.findByPodcastIdAndStatusIn(

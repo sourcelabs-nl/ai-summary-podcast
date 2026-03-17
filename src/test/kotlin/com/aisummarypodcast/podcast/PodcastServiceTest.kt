@@ -10,10 +10,12 @@ import com.aisummarypodcast.config.SourceProperties
 import com.aisummarypodcast.llm.LlmPipeline
 import com.aisummarypodcast.store.Article
 import com.aisummarypodcast.store.ArticleRepository
+import com.aisummarypodcast.store.EpisodeArticleRepository
 import com.aisummarypodcast.store.EpisodeRepository
 import com.aisummarypodcast.store.Podcast
 import com.aisummarypodcast.store.PodcastRepository
 import com.aisummarypodcast.store.Post
+import com.aisummarypodcast.store.PostArticleRepository
 import com.aisummarypodcast.store.PostRepository
 import com.aisummarypodcast.store.Source
 import com.aisummarypodcast.store.SourceRepository
@@ -30,6 +32,8 @@ class PodcastServiceTest {
     private val sourceRepository = mockk<SourceRepository>()
     private val articleRepository = mockk<ArticleRepository>()
     private val postRepository = mockk<PostRepository>()
+    private val postArticleRepository = mockk<PostArticleRepository>()
+    private val episodeArticleRepository = mockk<EpisodeArticleRepository>()
     private val episodeRepository = mockk<EpisodeRepository>()
     private val llmPipeline = mockk<LlmPipeline>()
     private val episodeService = mockk<EpisodeService>()
@@ -44,7 +48,7 @@ class PodcastServiceTest {
 
     private val podcastService = PodcastService(
         podcastRepository, sourceRepository, articleRepository, postRepository,
-        episodeRepository, appProperties, llmPipeline, episodeService
+        postArticleRepository, episodeArticleRepository, episodeRepository, appProperties, llmPipeline, episodeService
     )
 
     private val podcast = Podcast(
@@ -73,6 +77,7 @@ class PodcastServiceTest {
         every { sourceRepository.findByPodcastId("p1") } returns listOf(source)
         every { articleRepository.findAllSince(listOf("s1"), "2026-03-01T00:00:00Z") } returns listOf(article)
         every { postRepository.findUnlinkedSince(listOf("s1"), "2026-03-01T00:00:00Z") } returns listOf(post)
+        every { postArticleRepository.countByArticleIds(listOf(1L)) } returns 3L
 
         val result = podcastService.getUpcomingContent(podcast)
 
@@ -80,6 +85,7 @@ class PodcastServiceTest {
         assertEquals(1, result.unlinkedPosts.size)
         assertEquals("Article 1", result.articles[0].title)
         assertEquals("Post 1", result.unlinkedPosts[0].title)
+        assertEquals(4L, result.totalPostCount) // 3 linked + 1 unlinked
     }
 
     @Test
@@ -94,6 +100,7 @@ class PodcastServiceTest {
 
         assertTrue(result.articles.isEmpty())
         assertTrue(result.unlinkedPosts.isEmpty())
+        assertEquals(0L, result.totalPostCount)
     }
 
     @Test

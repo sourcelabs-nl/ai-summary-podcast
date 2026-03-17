@@ -77,6 +77,12 @@ export interface EpisodeArticle {
   source: ArticleSource;
 }
 
+export interface UpcomingArticlesResponse {
+  articles: EpisodeArticle[];
+  articleCount: number;
+  postCount: number;
+}
+
 export interface PodcastDefaults {
   llmModels: Record<string, string>;
   maxLlmCostCents: number;

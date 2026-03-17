@@ -15,4 +15,7 @@ interface PostArticleRepository : CrudRepository<PostArticle, Long> {
 
     @Query("SELECT COUNT(*) FROM post_articles WHERE article_id = :articleId")
     fun countByArticleId(articleId: Long): Long
+
+    @Query("SELECT COUNT(*) FROM post_articles WHERE article_id IN (:articleIds)")
+    fun countByArticleIds(articleIds: List<Long>): Long
 }

@@ -16,7 +16,8 @@ import java.util.UUID
 data class UpcomingContent(
     val articles: List<Article>,
     val unlinkedPosts: List<Post>,
-    val sources: List<Source>
+    val sources: List<Source>,
+    val totalPostCount: Long
 )
 
 @Service
@@ -25,6 +26,8 @@ class PodcastService(
     private val sourceRepository: SourceRepository,
     private val articleRepository: ArticleRepository,
     private val postRepository: PostRepository,
+    private val postArticleRepository: PostArticleRepository,
+    private val episodeArticleRepository: EpisodeArticleRepository,
     private val episodeRepository: EpisodeRepository,
     private val appProperties: AppProperties,
     private val llmPipeline: LlmPipeline,
@@ -105,10 +108,28 @@ class PodcastService(
         return episodeService.createEpisodeFromPipelineResult(podcast, result)
     }
 
+    fun regenerateEpisode(sourceEpisode: Episode, podcast: Podcast): Episode {
+        val linkedArticles = episodeArticleRepository.findByEpisodeId(sourceEpisode.id!!)
+        val articles = linkedArticles.mapNotNull { link ->
+            articleRepository.findById(link.articleId).orElse(null)
+        }
+        if (articles.isEmpty()) {
+            throw IllegalStateException("No articles found for episode ${sourceEpisode.id}")
+        }
+
+        val result = llmPipeline.recompose(articles, podcast)
+        return episodeService.createEpisodeFromPipelineResult(
+            podcast,
+            result,
+            overrideGeneratedAt = sourceEpisode.generatedAt,
+            updateLastGenerated = false
+        )
+    }
+
     fun getUpcomingContent(podcast: Podcast): UpcomingContent {
         val sources = sourceRepository.findByPodcastId(podcast.id)
         val sourceIds = sources.map { it.id }
-        if (sourceIds.isEmpty()) return UpcomingContent(emptyList(), emptyList(), sources)
+        if (sourceIds.isEmpty()) return UpcomingContent(emptyList(), emptyList(), sources, 0)
 
         val since = podcast.lastGeneratedAt ?: Instant.now().minus(
             (podcast.maxArticleAgeDays ?: appProperties.source.maxArticleAgeDays).toLong(), ChronoUnit.DAYS
@@ -116,7 +137,12 @@ class PodcastService(
 
         val articles = articleRepository.findAllSince(sourceIds, since)
         val unlinkedPosts = postRepository.findUnlinkedSince(sourceIds, since)
-        return UpcomingContent(articles, unlinkedPosts, sources)
+
+        val articleIds = articles.mapNotNull { it.id }
+        val linkedPostCount = if (articleIds.isNotEmpty()) postArticleRepository.countByArticleIds(articleIds) else 0L
+        val totalPostCount = linkedPostCount + unlinkedPosts.size
+
+        return UpcomingContent(articles, unlinkedPosts, sources, totalPostCount)
     }
 
     @Transactional

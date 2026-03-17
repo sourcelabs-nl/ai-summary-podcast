@@ -82,7 +82,9 @@ class BriefingComposer(
         } ?: ""
 
         val locale = SupportedLanguage.fromCode(podcast.language)?.toLocale() ?: Locale.ENGLISH
-        val currentDate = LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, MMMM d, yyyy", locale))
+        val today = LocalDate.now()
+        val currentDate = today.format(DateTimeFormatter.ofPattern("EEEE, MMMM d, yyyy", locale))
+        val isFriday = today.dayOfWeek == java.time.DayOfWeek.FRIDAY
 
         val languageInstruction = if (podcast.language != "en") {
             val langName = SupportedLanguage.fromCode(podcast.language)?.displayName ?: "English"
@@ -99,6 +101,10 @@ class BriefingComposer(
 
         val ttsGuidelinesBlock = if (ttsScriptGuidelines.isNotEmpty()) {
             "\n\n            TTS script formatting:\n            $ttsScriptGuidelines"
+        } else ""
+
+        val fridayBlock = if (isFriday) {
+            "\n            - It's Friday! Feel free to adopt a slightly more casual and lighthearted tone. Sprinkle in a few nuanced, witty jokes or observations related to the topics — but keep it subtle and don't overdo it."
         } else ""
 
         val recapBlock = previousEpisodeRecap?.let {
@@ -128,7 +134,7 @@ class BriefingComposer(
             - Naturally attribute information to its source and credit original authors when known (e.g., "as John Smith reports for TechCrunch") — do not over-cite
             - Do NOT include any stage directions, sound effects, section headers (like [Opening], [Closing], [Transition]), or non-spoken text
             - Do NOT include any meta-commentary, notes, or disclaimers about the script itself
-            - ONLY discuss topics that are present in the article summaries below. Do NOT introduce facts, stories, or claims from outside the provided articles. If only a few articles are provided, produce a shorter script rather than padding with external knowledge$languageInstruction$customInstructionsBlock
+            - ONLY discuss topics that are present in the article summaries below. Do NOT introduce facts, stories, or claims from outside the provided articles. If only a few articles are provided, produce a shorter script rather than padding with external knowledge$fridayBlock$languageInstruction$customInstructionsBlock
 
             Article summaries:
             $summaryBlock$ttsGuidelinesBlock$recapBlock

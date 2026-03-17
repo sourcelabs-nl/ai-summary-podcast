@@ -6,7 +6,7 @@ import Link from "next/link";
 import { ChevronDown, ChevronRight, ExternalLink, Loader2 } from "lucide-react";
 import { CronExpressionParser } from "cron-parser";
 import { useUser } from "@/lib/user-context";
-import type { EpisodeArticle, Podcast, PreviewResponse } from "@/lib/types";
+import type { EpisodeArticle, Podcast, PreviewResponse, UpcomingArticlesResponse } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -86,6 +86,8 @@ export default function UpcomingPage() {
   const router = useRouter();
   const [podcast, setPodcast] = useState<Podcast | null>(null);
   const [articles, setArticles] = useState<EpisodeArticle[]>([]);
+  const [articleCount, setArticleCount] = useState(0);
+  const [postCount, setPostCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [preview, setPreview] = useState<PreviewResponse | null>(null);
@@ -101,12 +103,14 @@ export default function UpcomingPage() {
     Promise.all([
       fetch(`/api/users/${selectedUser.id}/podcasts/${params.podcastId}`).then((res) => res.json()),
       fetch(`/api/users/${selectedUser.id}/podcasts/${params.podcastId}/upcoming-articles`)
-        .then((res) => (res.ok ? res.json() : []))
-        .catch(() => []),
+        .then((res) => (res.ok ? res.json() : { articles: [], articleCount: 0, postCount: 0 }))
+        .catch(() => ({ articles: [], articleCount: 0, postCount: 0 })),
     ])
-      .then(([podcastData, articleData]) => {
+      .then(([podcastData, upcomingData]: [Podcast, UpcomingArticlesResponse]) => {
         setPodcast(podcastData);
-        setArticles(articleData);
+        setArticles(upcomingData.articles);
+        setArticleCount(upcomingData.articleCount);
+        setPostCount(upcomingData.postCount);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -271,7 +275,14 @@ export default function UpcomingPage() {
         <div>
           <h2 className="text-2xl font-bold">Upcoming Episode</h2>
           <p className="text-sm text-muted-foreground">
-            {articles.length} article{articles.length !== 1 ? "s" : ""} from {sourceCount} source{sourceCount !== 1 ? "s" : ""}
+            {articleCount > 0 && postCount > articleCount ? (
+              <>{articleCount} article{articleCount !== 1 ? "s" : ""} consisting of {postCount} post{postCount !== 1 ? "s" : ""}</>
+            ) : postCount > 0 && articleCount === 0 ? (
+              <>{postCount} post{postCount !== 1 ? "s" : ""}</>
+            ) : (
+              <>{articles.length} article{articles.length !== 1 ? "s" : ""}</>
+            )}
+            {" "}from {sourceCount} source{sourceCount !== 1 ? "s" : ""}
             {nextGenerationDate && (
               <> &middot; Will be generated {nextGenerationDate.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })} at {nextGenerationDate.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}</>
             )}
