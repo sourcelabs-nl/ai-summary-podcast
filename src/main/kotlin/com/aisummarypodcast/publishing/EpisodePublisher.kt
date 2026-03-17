@@ -18,6 +18,10 @@ interface EpisodePublisher {
         throw UnsupportedOperationException("${targetName()} does not support updating published episodes")
     }
 
+    fun unpublish(userId: String, externalId: String) {
+        throw UnsupportedOperationException("${targetName()} does not support unpublishing")
+    }
+
     /**
      * Called after the publication record is saved with PUBLISHED status.
      * Use this for actions that depend on the publication being recorded (e.g., uploading feed.xml).

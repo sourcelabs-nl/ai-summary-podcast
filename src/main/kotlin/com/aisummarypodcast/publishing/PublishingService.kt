@@ -47,6 +47,25 @@ class PublishingService(
             return updateExisting(publisher, episode, podcast, userId, existing)
         }
 
+        // Replace any existing publication from another episode with the same date (regenerated episodes)
+        val episodeDate = episode.generatedAt.substring(0, 10) // YYYY-MM-DD
+        val previousPublications = publicationRepository.findPublishedByPodcastIdAndTarget(podcast.id, target)
+        for (prev in previousPublications) {
+            if (prev.episodeId == episode.id) continue
+            val prevEpisode = episodeRepository.findById(prev.episodeId).orElse(null) ?: continue
+            val prevDate = prevEpisode.generatedAt.substring(0, 10)
+            if (prevDate != episodeDate) continue
+            try {
+                if (prev.externalId != null) {
+                    publisher.unpublish(userId, prev.externalId)
+                }
+                log.info("Replaced same-day publication (episode {}, externalId={}) on {}", prev.episodeId, prev.externalId, target)
+            } catch (e: Exception) {
+                log.warn("Failed to unpublish previous episode {} from {}: {}", prev.episodeId, target, e.message)
+            }
+            publicationRepository.delete(prev)
+        }
+
         val now = Instant.now().toString()
         val publication = publicationRepository.save(
             EpisodePublication(
@@ -126,11 +145,16 @@ class PublishingService(
         val publications = publicationRepository.findPublishedByPodcastIdAndTarget(podcast.id, "soundcloud")
         require(publications.isNotEmpty()) { "No published SoundCloud tracks found for this podcast" }
 
-        val trackIds = publications.mapNotNull { it.externalId?.toLongOrNull() }
-        require(trackIds.isNotEmpty()) { "No valid SoundCloud track IDs found" }
-
         val episodeIds = publications.map { it.episodeId }.distinct()
         val episodes = episodeIds.mapNotNull { episodeRepository.findById(it).orElse(null) }
+        val episodeById = episodes.associateBy { it.id }
+
+        // Newest first — standard podcast playlist order
+        val sortedPublications = publications
+            .sortedByDescending { episodeById[it.episodeId]?.generatedAt ?: "" }
+        val trackIds = sortedPublications.mapNotNull { it.externalId?.toLongOrNull() }
+        require(trackIds.isNotEmpty()) { "No valid SoundCloud track IDs found" }
+
         soundCloudPublisher.updateTrackPermalinks(podcast, userId, episodes, publications)
         soundCloudPublisher.rebuildPlaylist(podcast, userId, trackIds)
         log.info("Updated permalinks and rebuilt SoundCloud playlist for podcast {} with {} tracks", podcast.id, trackIds.size)

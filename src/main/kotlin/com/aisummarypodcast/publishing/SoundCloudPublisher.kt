@@ -74,6 +74,13 @@ class SoundCloudPublisher(
         )
     }
 
+    override fun unpublish(userId: String, externalId: String) {
+        val accessToken = tokenManager.getValidAccessToken(userId)
+        val trackId = externalId.toLong()
+        soundCloudClient.deleteTrack(accessToken, trackId)
+        log.info("Unpublished (deleted) SoundCloud track {}", trackId)
+    }
+
     override fun update(episode: Episode, podcast: Podcast, userId: String, externalId: String): PublishResult {
         val accessToken = tokenManager.getValidAccessToken(userId)
         val trackId = externalId.toLong()
