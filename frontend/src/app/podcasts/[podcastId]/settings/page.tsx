@@ -355,72 +355,6 @@ export default function PodcastSettingsPage() {
               <CardTitle>General Settings</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <FieldGroup label="Name">
-                <input
-                  type="text"
-                  value={form.name}
-                  onChange={(e) => update("name", e.target.value)}
-                  className={inputClass}
-                />
-              </FieldGroup>
-              <FieldGroup label="Topic">
-                <input
-                  type="text"
-                  value={form.topic}
-                  onChange={(e) => update("topic", e.target.value)}
-                  className={inputClass}
-                />
-              </FieldGroup>
-              <FieldGroup label="Language">
-                <input
-                  type="text"
-                  value={form.language}
-                  onChange={(e) => update("language", e.target.value)}
-                  className={inputClass}
-                />
-              </FieldGroup>
-              <FieldGroup label="Style">
-                <Select value={form.style} onValueChange={(v) => update("style", v)}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {STYLES.map((s) => (
-                      <SelectItem key={s} value={s}>
-                        {s}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </FieldGroup>
-              <FieldGroup label="Cron Schedule">
-                <input
-                  type="text"
-                  value={form.cron}
-                  onChange={(e) => update("cron", e.target.value)}
-                  className={inputClass}
-                />
-              </FieldGroup>
-              <FieldGroup label="Custom Instructions">
-                <textarea
-                  value={form.customInstructions ?? ""}
-                  onChange={(e) => update("customInstructions", e.target.value || undefined)}
-                  className={textareaClass}
-                />
-              </FieldGroup>
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="requireReview"
-                  checked={form.requireReview}
-                  onChange={(e) => update("requireReview", e.target.checked)}
-                  className="size-4 rounded border border-input"
-                />
-                <label htmlFor="requireReview" className="text-sm font-medium">
-                  Require review before publishing
-                </label>
-              </div>
-
               <div className="space-y-2">
                 <FieldLabel>Podcast Image</FieldLabel>
                 <div className="flex items-start gap-4">
@@ -478,6 +412,64 @@ export default function PodcastSettingsPage() {
                   </div>
                 </div>
               </div>
+              <FieldGroup label="Name">
+                <input
+                  type="text"
+                  value={form.name}
+                  onChange={(e) => update("name", e.target.value)}
+                  className={inputClass}
+                />
+              </FieldGroup>
+              <FieldGroup label="Topic">
+                <input
+                  type="text"
+                  value={form.topic}
+                  onChange={(e) => update("topic", e.target.value)}
+                  className={inputClass}
+                />
+              </FieldGroup>
+              <FieldGroup label="Language">
+                <input
+                  type="text"
+                  value={form.language}
+                  onChange={(e) => update("language", e.target.value)}
+                  className={inputClass}
+                />
+              </FieldGroup>
+              <FieldGroup label="Style">
+                <Select value={form.style} onValueChange={(v) => update("style", v)}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {STYLES.map((s) => (
+                      <SelectItem key={s} value={s}>
+                        {s}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FieldGroup>
+              <FieldGroup label="Cron Schedule">
+                <input
+                  type="text"
+                  value={form.cron}
+                  onChange={(e) => update("cron", e.target.value)}
+                  className={inputClass}
+                />
+              </FieldGroup>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="requireReview"
+                  checked={form.requireReview}
+                  onChange={(e) => update("requireReview", e.target.checked)}
+                  className="size-4 rounded border border-input"
+                />
+                <label htmlFor="requireReview" className="text-sm font-medium">
+                  Require review before publishing
+                </label>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -518,31 +510,11 @@ export default function PodcastSettingsPage() {
                   className={inputClass}
                 />
               </FieldGroup>
-              <FieldGroup label="Full Body Threshold">
-                <input
-                  type="number"
-                  value={form.fullBodyThreshold ?? ""}
-                  onChange={(e) => updateNumber("fullBodyThreshold", e.target.value)}
-                  placeholder={defaults ? `${defaults.fullBodyThreshold} (system default)` : ""}
-                  className={inputClass}
-                />
-              </FieldGroup>
-              <FieldGroup label="Max Article Age (days)">
-                <input
-                  type="number"
-                  value={form.maxArticleAgeDays ?? ""}
-                  onChange={(e) => updateNumber("maxArticleAgeDays", e.target.value)}
-                  placeholder={defaults ? `${defaults.maxArticleAgeDays} (system default)` : ""}
-                  className={inputClass}
-                />
-              </FieldGroup>
-              <FieldGroup label="Target Words">
-                <input
-                  type="number"
-                  value={form.targetWords ?? ""}
-                  onChange={(e) => updateNumber("targetWords", e.target.value)}
-                  placeholder={defaults ? `${defaults.targetWords} (system default)` : ""}
-                  className={inputClass}
+              <FieldGroup label="Custom Instructions">
+                <textarea
+                  value={form.customInstructions ?? ""}
+                  onChange={(e) => update("customInstructions", e.target.value || undefined)}
+                  className={`${textareaClass} min-h-[300px]`}
                 />
               </FieldGroup>
             </CardContent>
@@ -606,6 +578,33 @@ export default function PodcastSettingsPage() {
               <CardTitle>Content Settings</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              <FieldGroup label="Target Words">
+                <input
+                  type="number"
+                  value={form.targetWords ?? ""}
+                  onChange={(e) => updateNumber("targetWords", e.target.value)}
+                  placeholder={defaults ? `${defaults.targetWords} (system default)` : ""}
+                  className={inputClass}
+                />
+              </FieldGroup>
+              <FieldGroup label="Full Body Threshold">
+                <input
+                  type="number"
+                  value={form.fullBodyThreshold ?? ""}
+                  onChange={(e) => updateNumber("fullBodyThreshold", e.target.value)}
+                  placeholder={defaults ? `${defaults.fullBodyThreshold} (system default)` : ""}
+                  className={inputClass}
+                />
+              </FieldGroup>
+              <FieldGroup label="Max Article Age (days)">
+                <input
+                  type="number"
+                  value={form.maxArticleAgeDays ?? ""}
+                  onChange={(e) => updateNumber("maxArticleAgeDays", e.target.value)}
+                  placeholder={defaults ? `${defaults.maxArticleAgeDays} (system default)` : ""}
+                  className={inputClass}
+                />
+              </FieldGroup>
               <FieldGroup label="Sponsor">
                 <KeyValueEditor
                   value={form.sponsor}

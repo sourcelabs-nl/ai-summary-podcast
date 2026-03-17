@@ -20,11 +20,11 @@ The settings form SHALL be organized into four sub-tabs: General, LLM, TTS, and 
 
 #### Scenario: General tab fields
 - **WHEN** the General tab is active
-- **THEN** the form displays editable fields for: name (text), topic (text), language (text), style (select), cron (text), customInstructions (textarea), requireReview (checkbox)
+- **THEN** the form displays, in order: podcast image (upload/delete, shown first), name (text), topic (text), language (text), style (select), cron (text), requireReview (checkbox)
 
 #### Scenario: LLM tab fields
 - **WHEN** the LLM tab is active
-- **THEN** the form displays editable fields for: llmModels (key-value editor), relevanceThreshold (number), maxLlmCostCents (number), fullBodyThreshold (number), maxArticleAgeDays (number), targetWords (number)
+- **THEN** the form displays editable fields for: llmModels (key-value editor), relevanceThreshold (number), maxLlmCostCents (number), customInstructions (textarea with 300px min height)
 
 #### Scenario: TTS tab fields
 - **WHEN** the TTS tab is active
@@ -32,7 +32,7 @@ The settings form SHALL be organized into four sub-tabs: General, LLM, TTS, and 
 
 #### Scenario: Content tab fields
 - **WHEN** the Content tab is active
-- **THEN** the form displays editable fields for: sponsor (key-value editor), pronunciations (key-value editor)
+- **THEN** the form displays editable fields for: targetWords (number), fullBodyThreshold (number), maxArticleAgeDays (number), sponsor (key-value editor), pronunciations (key-value editor)
 
 ### Requirement: Key-value editor
 JSON map fields SHALL be edited using a structured key-value row editor. Each row SHALL display a text input for the key, a text input for the value, and a remove button. An "Add row" button SHALL allow adding new entries.
@@ -71,20 +71,20 @@ The system SHALL display a single Save button at the bottom of the settings page
 ### Requirement: System default placeholders on nullable fields
 Nullable number fields in the settings form SHALL display placeholder text showing the system default value when the field is empty. The placeholder values SHALL be fetched from the `GET /config/defaults` API endpoint. The placeholder format SHALL be `{value} (system default)`.
 
-#### Scenario: Empty target words shows default
-- **WHEN** the LLM tab is active and targetWords is null/empty
-- **THEN** the input displays placeholder text with the targetWords value from the defaults endpoint followed by "(system default)"
-
 #### Scenario: Empty max LLM cost shows default
 - **WHEN** the LLM tab is active and maxLlmCostCents is null/empty
 - **THEN** the input displays placeholder text with the maxLlmCostCents value from the defaults endpoint followed by "(system default)"
 
+#### Scenario: Empty target words shows default
+- **WHEN** the Content tab is active and targetWords is null/empty
+- **THEN** the input displays placeholder text with the targetWords value from the defaults endpoint followed by "(system default)"
+
 #### Scenario: Empty full body threshold shows default
-- **WHEN** the LLM tab is active and fullBodyThreshold is null/empty
+- **WHEN** the Content tab is active and fullBodyThreshold is null/empty
 - **THEN** the input displays placeholder text with the fullBodyThreshold value from the defaults endpoint followed by "(system default)"
 
 #### Scenario: Empty max article age shows default
-- **WHEN** the LLM tab is active and maxArticleAgeDays is null/empty
+- **WHEN** the Content tab is active and maxArticleAgeDays is null/empty
 - **THEN** the input displays placeholder text with the maxArticleAgeDays value from the defaults endpoint followed by "(system default)"
 
 #### Scenario: Explicit value hides placeholder
