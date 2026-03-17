@@ -94,6 +94,34 @@ class PublishingController(
         }
     }
 
+    @DeleteMapping("/publications/{target}")
+    fun unpublish(
+        @PathVariable userId: String,
+        @PathVariable podcastId: String,
+        @PathVariable episodeId: Long,
+        @PathVariable target: String
+    ): ResponseEntity<Any> {
+        userService.findById(userId) ?: return ResponseEntity.notFound().build()
+        val podcast = podcastService.findById(podcastId) ?: return ResponseEntity.notFound().build()
+        if (podcast.userId != userId) return ResponseEntity.notFound().build()
+
+        val episode = episodeRepository.findById(episodeId).orElse(null)
+            ?: return ResponseEntity.notFound().build()
+        if (episode.podcastId != podcastId) return ResponseEntity.notFound().build()
+
+        return try {
+            val publication = publishingService.unpublish(episode, podcast, userId, target)
+            ResponseEntity.ok(publication.toResponse())
+        } catch (e: IllegalArgumentException) {
+            ResponseEntity.badRequest().body(mapOf("error" to e.message))
+        } catch (e: IllegalStateException) {
+            ResponseEntity.notFound().build()
+        } catch (e: Exception) {
+            log.error("Unpublish failed for episode {} from {}: {}", episodeId, target, e.message, e)
+            ResponseEntity.internalServerError().body(mapOf("error" to "Unpublish failed: ${e.message}"))
+        }
+    }
+
     @GetMapping("/publications")
     fun listPublications(
         @PathVariable userId: String,

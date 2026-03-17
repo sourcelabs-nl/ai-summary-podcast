@@ -58,11 +58,11 @@ The system SHALL display a "Published" badge (default variant, orange) next to t
 - **THEN** no "Published" badge is displayed
 
 ### Requirement: Publications tab
-The system SHALL display a "Publications" tab on the podcast detail page alongside the existing "Episodes" tab. The tab SHALL show a table of all publications for the podcast's episodes with columns: #, Published, Status, Target, URL, Actions. The target column SHALL display a cloud icon and the properly-cased target name (e.g., "SoundCloud"). The URL column SHALL display "Track" and "Playlist" links for SoundCloud publications, where "Track" links to the individual track and "Playlist" links to the user's sets page (derived from the track URL).
+The system SHALL display a "Publications" tab on the podcast detail page between the "Episodes" and "Sources" tabs. The tab SHALL show a table of all publications for the podcast's episodes with columns: #, Date, Day, Published, Status, Target, URL, Actions. The Date column SHALL display the episode's generated date. The Day column SHALL display the day of the week. The target column SHALL display a cloud icon and the properly-cased target name (e.g., "SoundCloud"). The URL column SHALL display "Track" and "Playlist" links for SoundCloud publications. The Actions column SHALL display a Republish button and an Unpublish button (destructive variant) for PUBLISHED records.
 
 #### Scenario: Display publications table
 - **WHEN** user clicks the "Publications" tab
-- **THEN** a table is displayed with columns: # (episode number), Published (date), Status (badge), Target (cloud icon + display name), URL ("Track | Playlist" links), Actions (Republish button)
+- **THEN** a table is displayed with columns: # (episode number), Date (episode date), Day (day of week), Published (publication date), Status (badge), Target (icon + name), URL (links), Actions (Republish + Unpublish buttons)
 
 #### Scenario: SoundCloud URL links
 - **WHEN** a SoundCloud publication has an external URL
@@ -78,7 +78,7 @@ The system SHALL display a "Publications" tab on the podcast detail page alongsi
 
 #### Scenario: Publication status badges
 - **WHEN** publications are displayed
-- **THEN** status badges use the `default` variant (orange) for all statuses (PENDING, PUBLISHED, FAILED)
+- **THEN** status badges use the `default` variant (orange) for PENDING, PUBLISHED, and FAILED statuses, and `secondary` variant (grey) for UNPUBLISHED status
 
 ### Requirement: Republish from publications tab
 The system SHALL display a "Republish" button on each publication row in the publications tab. Clicking the button SHALL show a confirmation dialog before calling the publish API.
@@ -94,6 +94,44 @@ The system SHALL display a "Republish" button on each publication row in the pub
 #### Scenario: Republish cancelled
 - **WHEN** user clicks "Cancel" in the confirmation dialog
 - **THEN** the dialog closes and no API call is made
+
+### Requirement: Unpublish from publications tab
+The system SHALL display an "Unpublish" button (destructive variant, icon-only with Trash2 icon) on each publication row with status `PUBLISHED`. Clicking the button SHALL show a confirmation dialog before calling the unpublish API.
+
+#### Scenario: Unpublish button visible for PUBLISHED records
+- **WHEN** a publication has status `PUBLISHED`
+- **THEN** an Unpublish button is displayed in the actions column
+
+#### Scenario: Unpublish button hidden for non-PUBLISHED records
+- **WHEN** a publication has status `UNPUBLISHED`, `FAILED`, or `PENDING`
+- **THEN** the Unpublish button is NOT displayed
+
+#### Scenario: Unpublish confirmation dialog
+- **WHEN** user clicks the Unpublish button on a publication row
+- **THEN** a dialog appears asking "Are you sure you want to unpublish episode #N from {target}?" with Cancel and Unpublish buttons
+
+#### Scenario: Unpublish confirmed
+- **WHEN** user clicks "Unpublish" in the confirmation dialog
+- **THEN** the system calls `DELETE .../episodes/{id}/publications/{target}` and refreshes the publications and episodes data on completion
+
+### Requirement: Publish wizard shows target publication status
+The publish wizard target selection step SHALL fetch existing publications for the episode and display a status badge next to each target indicating its current publication state.
+
+#### Scenario: Target already published
+- **WHEN** the episode has a PUBLISHED publication for a target
+- **THEN** a "Published" badge (outline variant) is displayed next to the target name
+
+#### Scenario: Target previously failed
+- **WHEN** the episode has a FAILED publication for a target
+- **THEN** a "Failed" badge (destructive variant) is displayed next to the target name
+
+#### Scenario: Target previously unpublished
+- **WHEN** the episode has an UNPUBLISHED publication for a target
+- **THEN** an "Unpublished" badge (secondary variant) is displayed next to the target name
+
+#### Scenario: Target never published
+- **WHEN** the episode has no publication record for a target
+- **THEN** no badge is displayed next to the target name
 
 ### Requirement: EpisodePublication TypeScript type
 The system SHALL define an `EpisodePublication` interface in `frontend/src/lib/types.ts` with fields: `id` (number), `episodeId` (number), `target` (string), `status` (string), `externalId` (string | null), `externalUrl` (string | null), `errorMessage` (string | null), `publishedAt` (string | null), `createdAt` (string).

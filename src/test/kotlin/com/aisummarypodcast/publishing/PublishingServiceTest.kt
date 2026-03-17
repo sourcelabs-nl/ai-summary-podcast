@@ -9,8 +9,10 @@ import com.aisummarypodcast.store.PodcastPublicationTarget
 import com.aisummarypodcast.store.PublicationStatus
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import org.springframework.context.ApplicationEventPublisher
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
@@ -152,6 +154,48 @@ class PublishingServiceTest {
 
         assertThrows<RuntimeException> {
             service.publish(episode, podcast, "user1", "soundcloud")
+        }
+    }
+
+    // --- unpublish tests ---
+
+    @Test
+    fun `unpublish succeeds for published episode`() {
+        val publication = EpisodePublication(
+            id = 5L, episodeId = 1L, target = "soundcloud",
+            status = PublicationStatus.PUBLISHED, externalId = "sc-123",
+            createdAt = "2026-02-13T10:00:00Z"
+        )
+        every { publicationRepository.findByEpisodeIdAndTarget(1L, "soundcloud") } returns publication
+        every { publisher.unpublish("user1", "sc-123") } returns Unit
+        every { publicationRepository.save(any()) } answers { firstArg() }
+        every { publicationRepository.findPublishedByPodcastIdAndTarget("pod1", "soundcloud") } returns emptyList()
+
+        val result = service.unpublish(episode, podcast, "user1", "soundcloud")
+
+        assertEquals(PublicationStatus.UNPUBLISHED, result.status)
+        assertNull(result.externalId)
+        verify { publisher.unpublish("user1", "sc-123") }
+    }
+
+    @Test
+    fun `unpublish throws when not published`() {
+        val publication = EpisodePublication(
+            id = 5L, episodeId = 1L, target = "soundcloud",
+            status = PublicationStatus.FAILED,
+            createdAt = "2026-02-13T10:00:00Z"
+        )
+        every { publicationRepository.findByEpisodeIdAndTarget(1L, "soundcloud") } returns publication
+
+        assertThrows<IllegalStateException> {
+            service.unpublish(episode, podcast, "user1", "soundcloud")
+        }
+    }
+
+    @Test
+    fun `unpublish throws for unknown target`() {
+        assertThrows<IllegalArgumentException> {
+            service.unpublish(episode, podcast, "user1", "youtube")
         }
     }
 }

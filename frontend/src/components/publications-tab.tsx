@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { Episode, EpisodePublication } from "@/lib/types";
-import { Cloud, RefreshCw, Server } from "lucide-react";
+import { Cloud, RefreshCw, Server, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,6 +30,13 @@ interface PublicationsTabProps {
   onRepublished: () => void;
 }
 
+const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+  PUBLISHED: "default",
+  PENDING: "default",
+  FAILED: "default",
+  UNPUBLISHED: "secondary",
+};
+
 export function PublicationsTab({
   userId,
   podcastId,
@@ -38,11 +45,12 @@ export function PublicationsTab({
   onRepublished,
 }: PublicationsTabProps) {
   const [publications, setPublications] = useState<
-    (EpisodePublication & { episodeNumber: number })[]
+    (EpisodePublication & { episodeNumber: number; episodeDate: string })[]
   >([]);
   const [loading, setLoading] = useState(true);
-  const [confirmPub, setConfirmPub] = useState<(EpisodePublication & { episodeNumber: number }) | null>(null);
-  const [republishing, setRepublishing] = useState(false);
+  const [confirmPub, setConfirmPub] = useState<(EpisodePublication & { episodeNumber: number; episodeDate: string }) | null>(null);
+  const [confirmAction, setConfirmAction] = useState<"republish" | "unpublish">("republish");
+  const [actionInProgress, setActionInProgress] = useState(false);
 
   useEffect(() => {
     if (episodes.length === 0) {
@@ -59,9 +67,9 @@ export function PublicationsTab({
         )
           .then((res) => (res.ok ? res.json() : []))
           .then((pubs: EpisodePublication[]) =>
-            pubs.map((p) => ({ ...p, episodeNumber: ep.id }))
+            pubs.map((p) => ({ ...p, episodeNumber: ep.id, episodeDate: ep.generatedAt }))
           )
-          .catch(() => [] as (EpisodePublication & { episodeNumber: number })[])
+          .catch(() => [] as (EpisodePublication & { episodeNumber: number; episodeDate: string })[])
       )
     )
       .then((results) => setPublications(results.flat()))
@@ -70,7 +78,7 @@ export function PublicationsTab({
 
   async function handleRepublish() {
     if (!confirmPub) return;
-    setRepublishing(true);
+    setActionInProgress(true);
     try {
       await fetch(
         `/api/users/${userId}/podcasts/${podcastId}/episodes/${confirmPub.episodeId}/publish/${confirmPub.target}`,
@@ -80,9 +88,31 @@ export function PublicationsTab({
     } catch {
       // error handled silently, refresh will show current state
     } finally {
-      setRepublishing(false);
+      setActionInProgress(false);
       setConfirmPub(null);
     }
+  }
+
+  async function handleUnpublish() {
+    if (!confirmPub) return;
+    setActionInProgress(true);
+    try {
+      await fetch(
+        `/api/users/${userId}/podcasts/${podcastId}/episodes/${confirmPub.episodeId}/publications/${confirmPub.target}`,
+        { method: "DELETE" }
+      );
+      onRepublished();
+    } catch {
+      // error handled silently
+    } finally {
+      setActionInProgress(false);
+      setConfirmPub(null);
+    }
+  }
+
+  function openConfirm(pub: typeof publications[0], action: "republish" | "unpublish") {
+    setConfirmPub(pub);
+    setConfirmAction(action);
   }
 
   if (loading) {
@@ -99,6 +129,8 @@ export function PublicationsTab({
         <TableHeader>
           <TableRow>
             <TableHead className="w-12">#</TableHead>
+            <TableHead className="w-24">Date</TableHead>
+            <TableHead className="w-12">Day</TableHead>
             <TableHead className="w-24">Published</TableHead>
             <TableHead className="w-24">Status</TableHead>
             <TableHead className="w-32">Target</TableHead>
@@ -110,13 +142,19 @@ export function PublicationsTab({
           {publications.map((pub) => (
             <TableRow key={pub.id}>
               <TableCell className="font-medium">{pub.episodeNumber}</TableCell>
-              <TableCell>
+              <TableCell className="text-sm">
+                {new Date(pub.episodeDate).toLocaleDateString()}
+              </TableCell>
+              <TableCell className="text-sm text-muted-foreground">
+                {new Date(pub.episodeDate).toLocaleDateString(undefined, { weekday: "short" })}
+              </TableCell>
+              <TableCell className="text-sm">
                 {pub.publishedAt
                   ? new Date(pub.publishedAt).toLocaleDateString()
                   : "—"}
               </TableCell>
               <TableCell>
-                <Badge className="text-[11px] px-1.5 py-px">{pub.status}</Badge>
+                <Badge variant={STATUS_VARIANT[pub.status] ?? "default"} className="text-[11px] px-1.5 py-px">{pub.status}</Badge>
               </TableCell>
               <TableCell>
                 <div className="flex items-center gap-1.5">
@@ -179,13 +217,25 @@ export function PublicationsTab({
                 </div>
               </TableCell>
               <TableCell className="text-right">
-                <Button
-                  size="icon-lg"
-                  title="Republish"
-                  onClick={() => setConfirmPub(pub)}
-                >
-                  <RefreshCw className="size-4" />
-                </Button>
+                <div className="flex items-center justify-end gap-1">
+                  <Button
+                    size="icon-lg"
+                    title="Republish"
+                    onClick={() => openConfirm(pub, "republish")}
+                  >
+                    <RefreshCw className="size-4" />
+                  </Button>
+                  {pub.status === "PUBLISHED" && (
+                    <Button
+                      size="icon-lg"
+                      variant="destructive"
+                      title="Unpublish"
+                      onClick={() => openConfirm(pub, "unpublish")}
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  )}
+                </div>
               </TableCell>
             </TableRow>
           ))}
@@ -195,18 +245,24 @@ export function PublicationsTab({
       <Dialog open={!!confirmPub} onOpenChange={(open) => { if (!open) setConfirmPub(null); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Republish Episode</DialogTitle>
+            <DialogTitle>{confirmAction === "republish" ? "Republish" : "Unpublish"} Episode</DialogTitle>
             <DialogDescription>
-              Are you sure you want to republish episode #{confirmPub?.episodeNumber} to {confirmPub?.target === "soundcloud" ? "SoundCloud" : confirmPub?.target}?
+              Are you sure you want to {confirmAction} episode #{confirmPub?.episodeNumber} {confirmAction === "republish" ? "to" : "from"} {confirmPub?.target === "soundcloud" ? "SoundCloud" : confirmPub?.target}?
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setConfirmPub(null)}>
               Cancel
             </Button>
-            <Button onClick={handleRepublish} disabled={republishing}>
-              {republishing ? "Republishing..." : "Republish"}
-            </Button>
+            {confirmAction === "republish" ? (
+              <Button onClick={handleRepublish} disabled={actionInProgress}>
+                {actionInProgress ? "Republishing..." : "Republish"}
+              </Button>
+            ) : (
+              <Button variant="destructive" onClick={handleUnpublish} disabled={actionInProgress}>
+                {actionInProgress ? "Unpublishing..." : "Unpublish"}
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

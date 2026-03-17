@@ -73,6 +73,38 @@ class FtpPublisher(
         }
     }
 
+    override fun unpublish(userId: String, externalId: String) {
+        // externalId format: "ftp:slug" — no file path info
+        // File deletion handled by deleteRemoteFile() called from service layer
+        log.info("FTP unpublish for externalId={}", externalId)
+    }
+
+    fun deleteRemoteFile(userId: String, podcastId: String, audioFileName: String) {
+        val credentials = resolveCredentials(userId)
+        val targetConfig = resolveTargetConfig(podcastId)
+        val rawRemotePath = (targetConfig["remotePath"] as? String)?.takeIf { it.isNotBlank() }
+        val podcastPath = if (rawRemotePath != null) {
+            if (rawRemotePath.endsWith("/")) rawRemotePath else "$rawRemotePath/"
+        } else {
+            "/$podcastId/"
+        }
+        val remoteFile = "${podcastPath}episodes/$audioFileName"
+
+        val ftpClient = createFtpClient(credentials)
+        try {
+            connect(ftpClient, credentials)
+            if (ftpClient.deleteFile(remoteFile)) {
+                log.info("Deleted FTP file {}", remoteFile)
+            } else {
+                log.warn("Failed to delete FTP file {} (may not exist): {}", remoteFile, ftpClient.replyString)
+            }
+        } finally {
+            try {
+                if (ftpClient.isConnected) ftpClient.disconnect()
+            } catch (_: Exception) {}
+        }
+    }
+
     override fun publish(episode: Episode, podcast: Podcast, userId: String): PublishResult {
         val credentials = resolveCredentials(userId)
         val targetConfig = resolveTargetConfig(podcast.id)

@@ -172,7 +172,7 @@ class EpisodeService(
     }
 
     fun approveAndGenerateAudio(episode: Episode, podcast: Podcast) {
-        episodeRepository.save(episode.copy(status = EpisodeStatus.APPROVED))
+        episodeRepository.save(episode.copy(status = EpisodeStatus.APPROVED, errorMessage = null))
         log.info("Episode {} approved, triggering async TTS generation", episode.id)
         eventPublisher.publishEvent(
             PodcastEvent(this, podcast.id, "episode", episode.id!!, "episode.approved",
@@ -200,7 +200,7 @@ class EpisodeService(
         val podcast = podcastRepository.findById(podcastId).orElse(null)
         if (podcast == null) {
             log.error("Podcast {} not found for async TTS generation", podcastId)
-            episodeRepository.save(episode.copy(status = EpisodeStatus.FAILED))
+            episodeRepository.save(episode.copy(status = EpisodeStatus.FAILED, errorMessage = "Podcast not found"))
             return
         }
 
@@ -218,7 +218,7 @@ class EpisodeService(
             )
         } catch (e: Exception) {
             log.error("Async TTS generation failed for episode {} (podcast '{}' ({})): {}", episodeId, podcast.name, podcastId, e.message, e)
-            episodeRepository.save(episode.copy(status = EpisodeStatus.FAILED))
+            episodeRepository.save(episode.copy(status = EpisodeStatus.FAILED, errorMessage = e.message))
             eventPublisher.publishEvent(
                 PodcastEvent(this, podcastId, "episode", episodeId, "episode.failed",
                     mapOf("episodeNumber" to episodeId, "error" to (e.message ?: "Unknown error")))

@@ -45,7 +45,7 @@ The system SHALL provide a `POST /users/{userId}/podcasts/{podcastId}/episodes/{
 - **THEN** the system returns HTTP 404
 
 ### Requirement: Publication status tracking
-The system SHALL store publication records in an `episode_publications` table with columns: `id` (INTEGER, auto-increment PK), `episode_id` (INTEGER, FK to episodes), `target` (TEXT, NOT NULL), `status` (TEXT, NOT NULL — PENDING, PUBLISHED, FAILED), `external_id` (TEXT, nullable), `external_url` (TEXT, nullable), `error_message` (TEXT, nullable), `published_at` (TEXT, nullable — ISO-8601), `created_at` (TEXT, NOT NULL — ISO-8601). A unique constraint SHALL exist on `(episode_id, target)`.
+The system SHALL store publication records in an `episode_publications` table with columns: `id` (INTEGER, auto-increment PK), `episode_id` (INTEGER, FK to episodes), `target` (TEXT, NOT NULL), `status` (TEXT, NOT NULL — PENDING, PUBLISHED, FAILED, UNPUBLISHED), `external_id` (TEXT, nullable), `external_url` (TEXT, nullable), `error_message` (TEXT, nullable), `published_at` (TEXT, nullable — ISO-8601), `created_at` (TEXT, NOT NULL — ISO-8601). A unique constraint SHALL exist on `(episode_id, target)`.
 
 #### Scenario: Publication record created on publish attempt
 - **WHEN** a user triggers publishing an episode to SoundCloud
@@ -99,3 +99,22 @@ When an episode is deleted (e.g., during cleanup or podcast deletion), all of it
 #### Scenario: Podcast deletion cascades to publications
 - **WHEN** a podcast is deleted and its episodes have publication records
 - **THEN** the episode deletions cascade to remove all associated publication records
+
+### Requirement: Unpublish episode from target endpoint
+The system SHALL provide a `DELETE /users/{userId}/podcasts/{podcastId}/episodes/{episodeId}/publications/{target}` endpoint. The endpoint SHALL verify the episode has a PUBLISHED publication for the given target, delegate removal to the publisher, update the publication status to `UNPUBLISHED`, clear the `externalId`, and return the updated publication record.
+
+#### Scenario: Successful unpublish from SoundCloud
+- **WHEN** a `DELETE .../publications/soundcloud` request is received for an episode with a PUBLISHED SoundCloud publication
+- **THEN** the system deletes the track from SoundCloud, rebuilds the playlist, updates the publication status to `UNPUBLISHED`, clears `external_id`, publishes an `episode.unpublished` SSE event, and returns HTTP 200
+
+#### Scenario: Successful unpublish from FTP
+- **WHEN** a `DELETE .../publications/ftp` request is received for an episode with a PUBLISHED FTP publication
+- **THEN** the system deletes the MP3 file from the FTP server, regenerates feed.xml, updates the publication status to `UNPUBLISHED`, clears `external_id`, and returns HTTP 200
+
+#### Scenario: Episode not published to target
+- **WHEN** a `DELETE .../publications/soundcloud` request is received for an episode that is not PUBLISHED to SoundCloud
+- **THEN** the system returns HTTP 404
+
+#### Scenario: Unknown target
+- **WHEN** a `DELETE .../publications/youtube` request is received for an unsupported target
+- **THEN** the system returns HTTP 400

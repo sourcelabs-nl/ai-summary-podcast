@@ -42,6 +42,7 @@ export interface Episode {
   ttsCostCents?: number;
   recap?: string;
   showNotes?: string;
+  errorMessage?: string;
 }
 
 export interface Source {

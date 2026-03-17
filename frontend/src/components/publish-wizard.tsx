@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { Episode, EpisodePublication } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -55,6 +55,15 @@ export function PublishWizard({
   const [isOAuthExpired, setIsOAuthExpired] = useState(false);
   const [oldestTrack, setOldestTrack] = useState<OldestTrack | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [publications, setPublications] = useState<EpisodePublication[]>([]);
+
+  useEffect(() => {
+    if (!open) return;
+    fetch(`/api/users/${userId}/podcasts/${podcastId}/episodes/${episode.id}/publications`)
+      .then((res) => (res.ok ? res.json() : []))
+      .then(setPublications)
+      .catch(() => setPublications([]));
+  }, [open, userId, podcastId, episode.id]);
 
   function reset() {
     setStep("select");
@@ -152,22 +161,36 @@ export function PublishWizard({
               <DialogDescription>Select a provider to publish to.</DialogDescription>
             </DialogHeader>
             <div className="flex flex-col gap-2 py-2">
-              {TARGETS.map((t) => (
-                <button
-                  key={t.value}
-                  onClick={() => setTarget(t.value)}
-                  className={`flex items-center justify-between rounded-md border p-3 text-left transition-colors ${
-                    target === t.value
-                      ? "border-primary bg-primary/5"
-                      : "border-border hover:bg-accent"
-                  }`}
-                >
-                  <span className="font-medium">{t.label}</span>
-                  {target === t.value && (
-                    <Badge>Selected</Badge>
-                  )}
-                </button>
-              ))}
+              {TARGETS.map((t) => {
+                const pub = publications.find((p) => p.target === t.value);
+                return (
+                  <button
+                    key={t.value}
+                    onClick={() => setTarget(t.value)}
+                    className={`flex items-center justify-between rounded-md border p-3 text-left transition-colors ${
+                      target === t.value
+                        ? "border-primary bg-primary/5"
+                        : "border-border hover:bg-accent"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">{t.label}</span>
+                      {pub?.status === "PUBLISHED" && (
+                        <Badge variant="outline" className="text-[11px] px-1.5 py-px">Published</Badge>
+                      )}
+                      {pub?.status === "FAILED" && (
+                        <Badge variant="destructive" className="text-[11px] px-1.5 py-px">Failed</Badge>
+                      )}
+                      {pub?.status === "UNPUBLISHED" && (
+                        <Badge variant="secondary" className="text-[11px] px-1.5 py-px">Unpublished</Badge>
+                      )}
+                    </div>
+                    {target === t.value && (
+                      <Badge>Selected</Badge>
+                    )}
+                  </button>
+                );
+              })}
             </div>
             <DialogFooter>
               <Button onClick={() => setStep("confirm")}>Next</Button>

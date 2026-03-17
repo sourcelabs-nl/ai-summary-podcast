@@ -149,6 +149,9 @@ export default function EpisodeDetailPage() {
               <> &middot; {episode.recap}</>
             )}
           </p>
+          {episode.status === "FAILED" && episode.errorMessage && (
+            <p className="text-sm text-destructive mt-1">{episode.errorMessage}</p>
+          )}
         </div>
         <div className="flex items-center gap-2">
           {episode.status === "PENDING_REVIEW" && (
@@ -166,10 +169,22 @@ export default function EpisodeDetailPage() {
               </Button>
             </>
           )}
-          {episode.status === "GENERATED" && !published && (
+          {episode.status === "GENERATED" && (
+            <>
             <Button size="icon-lg" title="Publish episode" onClick={() => setPublishOpen(true)}>
               <Upload className="size-4" />
             </Button>
+            {!published && (
+            <Button
+              size="icon-lg"
+              variant="destructive"
+              title="Discard episode"
+              onClick={() => handleAction("discard")}
+            >
+              <X className="size-4" />
+            </Button>
+            )}
+            </>
           )}
         </div>
       </div>

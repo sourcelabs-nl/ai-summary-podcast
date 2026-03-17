@@ -71,17 +71,17 @@ The system SHALL allow approving an episode script, which triggers async TTS gen
 
 #### Scenario: TTS generation fails after approval
 - **WHEN** the async TTS pipeline fails for an approved episode
-- **THEN** the episode status is updated to `FAILED`
+- **THEN** the episode status is updated to `FAILED` and `errorMessage` is populated with the failure reason
 
 ### Requirement: Retry failed episode
 The system SHALL allow re-triggering TTS for a `FAILED` episode by approving it again.
 
 #### Scenario: Approve failed episode
 - **WHEN** a `POST /users/{userId}/podcasts/{podcastId}/episodes/{episodeId}/approve` request is received and the episode status is `FAILED`
-- **THEN** the system updates the episode status to `APPROVED`, triggers TTS generation asynchronously, and returns HTTP 202
+- **THEN** the system updates the episode status to `APPROVED`, clears `errorMessage`, triggers TTS generation asynchronously, and returns HTTP 202
 
 ### Requirement: Discard episode script
-The system SHALL allow discarding an episode script that is in `PENDING_REVIEW` status. When an episode is discarded, the system SHALL handle linked articles differently based on whether they are aggregated:
+The system SHALL allow discarding an episode script that is in `PENDING_REVIEW` or `GENERATED` status. Episodes that are published to any target SHALL NOT be discardable. When an episode is discarded, the system SHALL handle linked articles differently based on whether they are aggregated:
 
 - **Non-aggregated articles** (0 or 1 linked posts in `post_articles`): The system SHALL reset the article's `is_processed` flag to `false`, preserving the article's score and summary for reuse.
 - **Aggregated articles** (2+ linked posts in `post_articles`): The system SHALL delete all `post_articles` entries for the article, then delete the article itself. This makes the original posts unlinked and eligible for re-aggregation on the next pipeline run.
@@ -104,6 +104,14 @@ The system SHALL look up linked articles via the `episode_articles` table. If no
 - **WHEN** a `POST /users/{userId}/podcasts/{podcastId}/episodes/{episodeId}/discard` request is received, the episode status is `PENDING_REVIEW`, and the episode has no linked articles in `episode_articles`
 - **THEN** the system updates the episode status to `DISCARDED`, logs a warning that no articles could be reset, and returns HTTP 200
 
-#### Scenario: Discard non-pending episode
-- **WHEN** a `POST /users/{userId}/podcasts/{podcastId}/episodes/{episodeId}/discard` request is received and the episode status is not `PENDING_REVIEW`
+#### Scenario: Discard generated episode
+- **WHEN** a `POST /users/{userId}/podcasts/{podcastId}/episodes/{episodeId}/discard` request is received and the episode status is `GENERATED` and the episode has no PUBLISHED publications
+- **THEN** the system updates the episode status to `DISCARDED`, handles linked articles as above, and returns HTTP 200
+
+#### Scenario: Discard non-discardable episode
+- **WHEN** a `POST /users/{userId}/podcasts/{podcastId}/episodes/{episodeId}/discard` request is received and the episode status is not `PENDING_REVIEW` or `GENERATED`
 - **THEN** the system returns HTTP 409 (Conflict) with an error message
+
+#### Scenario: Discard published episode blocked
+- **WHEN** a `POST /users/{userId}/podcasts/{podcastId}/episodes/{episodeId}/discard` request is received and the episode has a PUBLISHED publication to any target
+- **THEN** the system returns HTTP 409 (Conflict) indicating the episode must be unpublished first

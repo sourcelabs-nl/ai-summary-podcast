@@ -25,7 +25,8 @@ data class EpisodeResponse(
     val ttsCostCents: Int?,
     val ttsModel: String?,
     val recap: String?,
-    val showNotes: String?
+    val showNotes: String?,
+    val errorMessage: String?
 )
 
 data class UpdateScriptRequest(
@@ -77,7 +78,7 @@ class EpisodeController(
             episodeRepository.findByPodcastId(podcastId)
         }
 
-        return ResponseEntity.ok(episodes.sortedByDescending { it.generatedAt }.map { it.toResponse() })
+        return ResponseEntity.ok(episodes.sortedWith(compareByDescending<Episode> { it.generatedAt }.thenByDescending { it.id }).map { it.toResponse() })
     }
 
     @GetMapping("/{episodeId}")
@@ -157,8 +158,8 @@ class EpisodeController(
             ?: return ResponseEntity.notFound().build()
         if (episode.podcastId != podcastId) return ResponseEntity.notFound().build()
 
-        if (episode.status != EpisodeStatus.PENDING_REVIEW) {
-            return ResponseEntity.status(409).body(mapOf("error" to "Episode is not in PENDING_REVIEW status"))
+        if (episode.status != EpisodeStatus.PENDING_REVIEW && episode.status != EpisodeStatus.GENERATED) {
+            return ResponseEntity.status(409).body(mapOf("error" to "Episode is not in PENDING_REVIEW or GENERATED status"))
         }
 
         episodeService.discardAndResetArticles(episode, podcastId)
@@ -231,6 +232,7 @@ class EpisodeController(
         ttsCostCents = ttsCostCents,
         ttsModel = ttsModel,
         recap = recap,
-        showNotes = showNotes
+        showNotes = showNotes,
+        errorMessage = errorMessage
     )
 }

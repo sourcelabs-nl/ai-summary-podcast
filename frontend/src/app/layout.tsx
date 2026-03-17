@@ -22,7 +22,7 @@ export default function RootLayout({
           <EventProvider>
             <Header />
             <main className="container mx-auto px-4 py-6 overflow-x-hidden">{children}</main>
-            <Toaster position="bottom-right" />
+            <Toaster position="bottom-right" expand visibleToasts={5} />
           </EventProvider>
         </UserProvider>
       </body>

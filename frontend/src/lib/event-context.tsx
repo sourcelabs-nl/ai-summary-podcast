@@ -26,6 +26,14 @@ const TOAST_EVENTS: Record<string, { message: (data: PodcastEventData) => string
     message: () => "New episode pending review",
     type: "info",
   },
+  "episode.approved": {
+    message: (d) => `Episode #${d.data.episodeNumber ?? d.entityId} approved`,
+    type: "success",
+  },
+  "episode.audio.started": {
+    message: (d) => `Episode #${d.data.episodeNumber ?? d.entityId} audio generating...`,
+    type: "info",
+  },
   "episode.generated": {
     message: (d) => `Episode #${d.data.episodeNumber ?? d.entityId} audio ready`,
     type: "success",
@@ -41,6 +49,14 @@ const TOAST_EVENTS: Record<string, { message: (data: PodcastEventData) => string
   "episode.publish.failed": {
     message: (d) => `Episode #${d.data.episodeNumber ?? d.entityId} publish failed`,
     type: "error",
+  },
+  "episode.discarded": {
+    message: (d) => `Episode #${d.data.episodeNumber ?? d.entityId} discarded`,
+    type: "info",
+  },
+  "episode.unpublished": {
+    message: (d) => `Episode #${d.data.episodeNumber ?? d.entityId} unpublished from ${d.data.target ?? "target"}`,
+    type: "info",
   },
 };
 

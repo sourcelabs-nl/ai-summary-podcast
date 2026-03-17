@@ -30,6 +30,10 @@ The episode detail page SHALL display a header section following this layout ord
 - **WHEN** the episode has a recap field
 - **THEN** the recap text is displayed inline after the duration, separated by `·`
 
+#### Scenario: Header with error message for FAILED episode
+- **WHEN** the episode has status `FAILED` and an `errorMessage` field is present
+- **THEN** the error message is displayed in red (`text-destructive`) below the metadata line
+
 ### Requirement: Episode detail tabbed layout
 The episode detail page SHALL display three tabs: "Script" (default active), "Articles", and "Publications".
 
@@ -102,7 +106,7 @@ Article relevance scores SHALL be color-coded: scores 7-10 use green, scores 4-6
 - **THEN** the score badge is displayed in muted grey
 
 ### Requirement: Episode action buttons
-The episode detail page header SHALL display action buttons appropriate to the episode status: "Approve" (PENDING_REVIEW only), "Discard" (PENDING_REVIEW only), "Publish" (GENERATED and unpublished only).
+The episode detail page header SHALL display action buttons appropriate to the episode status: "Approve" (PENDING_REVIEW only), "Discard" (PENDING_REVIEW only), "Publish" (GENERATED and unpublished only), "Discard" (GENERATED and not published to any target).
 
 #### Scenario: Pending review actions
 - **WHEN** the episode has status PENDING_REVIEW
@@ -110,4 +114,8 @@ The episode detail page header SHALL display action buttons appropriate to the e
 
 #### Scenario: Generated episode actions
 - **WHEN** the episode has status GENERATED and is not published
-- **THEN** a "Publish" button is displayed
+- **THEN** "Publish" and "Discard" buttons are displayed
+
+#### Scenario: Generated published episode actions
+- **WHEN** the episode has status GENERATED and is published to at least one target
+- **THEN** only the "Publish" button is displayed (no Discard)

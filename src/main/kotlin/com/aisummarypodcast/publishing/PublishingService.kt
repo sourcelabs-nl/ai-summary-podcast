@@ -94,6 +94,13 @@ class PublishingService(
             )
             log.info("Episode {} published to {} (externalId={})", episode.id, target, result.externalId)
             publisher.postPublish(podcast, userId)
+            if (target == "soundcloud") {
+                try {
+                    rebuildSoundCloudPlaylist(podcast, userId)
+                } catch (e: Exception) {
+                    log.warn("Failed to rebuild SoundCloud playlist after publish: {}", e.message)
+                }
+            }
             staticFeedExporter.export(podcast)
             eventPublisher.publishEvent(
                 PodcastEvent(this, podcast.id, "publication", episode.id!!, "episode.published",
@@ -147,6 +154,58 @@ class PublishingService(
             )
             throw e
         }
+    }
+
+    fun unpublish(episode: Episode, podcast: Podcast, userId: String, target: String): EpisodePublication {
+        val publisher = publisherRegistry.getPublisher(target)
+            ?: throw IllegalArgumentException("Unsupported publish target: $target")
+
+        val publication = publicationRepository.findByEpisodeIdAndTarget(episode.id!!, target)
+            ?: throw IllegalStateException("No publication found for episode ${episode.id} on $target")
+
+        if (publication.status != PublicationStatus.PUBLISHED) {
+            throw IllegalStateException("Publication is not in PUBLISHED status (current: ${publication.status})")
+        }
+
+        try {
+            if (publication.externalId != null) {
+                publisher.unpublish(userId, publication.externalId)
+            }
+            if (target == "ftp" && episode.audioFilePath != null) {
+                val audioFileName = java.nio.file.Path.of(episode.audioFilePath).fileName.toString()
+                (publisher as FtpPublisher).deleteRemoteFile(userId, podcast.id, audioFileName)
+            }
+            log.info("Unpublished episode {} from {}", episode.id, target)
+        } catch (e: UnsupportedOperationException) {
+            throw e
+        } catch (e: Exception) {
+            log.warn("Failed to remove episode {} from {}: {} — marking as unpublished anyway", episode.id, target, e.message)
+        }
+
+        val updated = publicationRepository.save(
+            publication.copy(
+                status = PublicationStatus.UNPUBLISHED,
+                externalId = null
+            )
+        )
+
+        if (target == "soundcloud") {
+            try {
+                rebuildSoundCloudPlaylist(podcast, userId)
+            } catch (e: Exception) {
+                log.warn("Failed to rebuild SoundCloud playlist after unpublish: {}", e.message)
+            }
+        }
+
+        publisher.postPublish(podcast, userId)
+        staticFeedExporter.export(podcast)
+
+        eventPublisher.publishEvent(
+            PodcastEvent(this, podcast.id, "publication", episode.id, "episode.unpublished",
+                mapOf("episodeNumber" to episode.id, "target" to target))
+        )
+
+        return updated
     }
 
     fun getPublications(episodeId: Long): List<EpisodePublication> =
