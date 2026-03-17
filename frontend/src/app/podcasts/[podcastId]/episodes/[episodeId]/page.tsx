@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { Check, Upload, X } from "lucide-react";
 import { useUser } from "@/lib/user-context";
+import { useEventStream } from "@/lib/event-context";
 import type { Podcast, Episode, EpisodePublication } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -53,6 +54,12 @@ export default function EpisodeDetailPage() {
       .catch(() => setEpisode(null));
     fetchPublished(selectedUser.id, params.podcastId, params.episodeId);
   }, [selectedUser, params.podcastId, params.episodeId, fetchPublished]);
+
+  useEventStream(params.podcastId, useCallback((_event, data) => {
+    if (data.entityId === Number(params.episodeId)) {
+      fetchEpisode();
+    }
+  }, [params.episodeId, fetchEpisode]));
 
   useEffect(() => {
     if (!selectedUser) return;

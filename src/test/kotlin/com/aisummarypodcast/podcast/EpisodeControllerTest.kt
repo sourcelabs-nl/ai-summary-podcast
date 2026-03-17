@@ -152,12 +152,12 @@ class EpisodeControllerTest {
         every { userService.findById(userId) } returns user
         every { podcastService.findById(podcastId) } returns podcast
         every { episodeRepository.findById(1L) } returns Optional.of(pendingEpisode)
-        justRun { episodeService.approveAndGenerateAudio(pendingEpisode, podcastId) }
+        justRun { episodeService.approveAndGenerateAudio(pendingEpisode, podcast) }
 
         mockMvc.perform(post("/users/$userId/podcasts/$podcastId/episodes/1/approve"))
             .andExpect(status().isAccepted)
 
-        verify { episodeService.approveAndGenerateAudio(pendingEpisode, podcastId) }
+        verify { episodeService.approveAndGenerateAudio(pendingEpisode, podcast) }
     }
 
     @Test
@@ -166,7 +166,7 @@ class EpisodeControllerTest {
         every { userService.findById(userId) } returns user
         every { podcastService.findById(podcastId) } returns podcast
         every { episodeRepository.findById(1L) } returns Optional.of(failedEpisode)
-        justRun { episodeService.approveAndGenerateAudio(failedEpisode, podcastId) }
+        justRun { episodeService.approveAndGenerateAudio(failedEpisode, podcast) }
 
         mockMvc.perform(post("/users/$userId/podcasts/$podcastId/episodes/1/approve"))
             .andExpect(status().isAccepted)
@@ -187,12 +187,12 @@ class EpisodeControllerTest {
         every { userService.findById(userId) } returns user
         every { podcastService.findById(podcastId) } returns podcast
         every { episodeRepository.findById(1L) } returns Optional.of(pendingEpisode)
-        justRun { episodeService.discardAndResetArticles(pendingEpisode) }
+        justRun { episodeService.discardAndResetArticles(pendingEpisode, podcastId) }
 
         mockMvc.perform(post("/users/$userId/podcasts/$podcastId/episodes/1/discard"))
             .andExpect(status().isOk)
 
-        verify { episodeService.discardAndResetArticles(pendingEpisode) }
+        verify { episodeService.discardAndResetArticles(pendingEpisode, podcastId) }
     }
 
     @Test

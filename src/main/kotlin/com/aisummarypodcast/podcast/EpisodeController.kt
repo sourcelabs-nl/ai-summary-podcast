@@ -138,7 +138,7 @@ class EpisodeController(
             return ResponseEntity.status(409).body(mapOf("error" to "Episode is not in PENDING_REVIEW or FAILED status"))
         }
 
-        episodeService.approveAndGenerateAudio(episode, podcastId)
+        episodeService.approveAndGenerateAudio(episode, podcast)
 
         return ResponseEntity.accepted().body(mapOf("message" to "Episode approved, audio generation started"))
     }
@@ -161,7 +161,7 @@ class EpisodeController(
             return ResponseEntity.status(409).body(mapOf("error" to "Episode is not in PENDING_REVIEW status"))
         }
 
-        episodeService.discardAndResetArticles(episode)
+        episodeService.discardAndResetArticles(episode, podcastId)
         return ResponseEntity.ok(mapOf("message" to "Episode discarded"))
     }
 

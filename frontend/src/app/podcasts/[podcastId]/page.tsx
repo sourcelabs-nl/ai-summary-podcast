@@ -6,6 +6,7 @@ import Link from "next/link";
 import cronstrue from "cronstrue";
 import { Check, ChevronDown, ChevronRight, Settings, Upload, X } from "lucide-react";
 import { useUser } from "@/lib/user-context";
+import { useEventStream } from "@/lib/event-context";
 import type { Podcast, Episode, EpisodePublication, EpisodeArticle } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -102,6 +103,10 @@ export default function EpisodesPage() {
       })
       .catch(() => setEpisodes([]));
   }, [selectedUser, params.podcastId, statusFilter, fetchPublications]);
+
+  useEventStream(params.podcastId, useCallback(() => {
+    fetchEpisodes();
+  }, [fetchEpisodes]));
 
   useEffect(() => {
     if (!selectedUser) return;

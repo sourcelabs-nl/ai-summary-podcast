@@ -15,6 +15,7 @@ import com.aisummarypodcast.store.PodcastRepository
 import com.aisummarypodcast.store.PostArticleRepository
 import com.aisummarypodcast.tts.TtsPipeline
 import org.slf4j.LoggerFactory
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.scheduling.annotation.Async
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -30,7 +31,8 @@ class EpisodeService(
     private val episodeRecapGenerator: EpisodeRecapGenerator,
     private val modelResolver: ModelResolver,
     private val postArticleRepository: PostArticleRepository,
-    private val episodeSourcesGenerator: EpisodeSourcesGenerator
+    private val episodeSourcesGenerator: EpisodeSourcesGenerator,
+    private val eventPublisher: ApplicationEventPublisher
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -76,6 +78,12 @@ class EpisodeService(
         if (updateLastGenerated) {
             podcastRepository.save(podcast.copy(lastGeneratedAt = Instant.now().toString()))
         }
+
+        val eventName = if (podcast.requireReview) "episode.created" else "episode.generated"
+        eventPublisher.publishEvent(
+            PodcastEvent(this, podcast.id, "episode", finalEpisode.id!!, eventName,
+                mapOf("episodeNumber" to finalEpisode.id))
+        )
 
         return finalEpisode
     }
@@ -128,8 +136,12 @@ class EpisodeService(
     }
 
     @Transactional
-    fun discardAndResetArticles(episode: Episode) {
+    fun discardAndResetArticles(episode: Episode, podcastId: String) {
         episodeRepository.save(episode.copy(status = EpisodeStatus.DISCARDED))
+        eventPublisher.publishEvent(
+            PodcastEvent(this, podcastId, "episode", episode.id!!, "episode.discarded",
+                mapOf("episodeNumber" to episode.id))
+        )
 
         val linkedArticles = episodeArticleRepository.findByEpisodeId(episode.id!!)
         if (linkedArticles.isEmpty()) {
@@ -159,10 +171,14 @@ class EpisodeService(
         return episodeRepository.save(episode.copy(scriptText = scriptText))
     }
 
-    fun approveAndGenerateAudio(episode: Episode, podcastId: String) {
+    fun approveAndGenerateAudio(episode: Episode, podcast: Podcast) {
         episodeRepository.save(episode.copy(status = EpisodeStatus.APPROVED))
         log.info("Episode {} approved, triggering async TTS generation", episode.id)
-        generateAudioAsync(episode.id!!, podcastId)
+        eventPublisher.publishEvent(
+            PodcastEvent(this, podcast.id, "episode", episode.id!!, "episode.approved",
+                mapOf("episodeNumber" to episode.id))
+        )
+        generateAudioAsync(episode.id, podcast.id)
     }
 
     fun findById(episodeId: Long): Episode? = episodeRepository.findById(episodeId).orElse(null)
@@ -190,11 +206,23 @@ class EpisodeService(
 
         try {
             log.info("Starting async TTS generation for episode {} (podcast '{}' ({}))", episodeId, podcast.name, podcastId)
-            val generatedEpisode = ttsPipeline.generateForExistingEpisode(episode, podcast)
+            eventPublisher.publishEvent(
+                PodcastEvent(this, podcastId, "episode", episodeId, "episode.audio.started",
+                    mapOf("episodeNumber" to episodeId))
+            )
+            ttsPipeline.generateForExistingEpisode(episode, podcast)
             log.info("Async TTS generation complete for episode {} (podcast '{}' ({}))", episodeId, podcast.name, podcastId)
+            eventPublisher.publishEvent(
+                PodcastEvent(this, podcastId, "episode", episodeId, "episode.generated",
+                    mapOf("episodeNumber" to episodeId))
+            )
         } catch (e: Exception) {
             log.error("Async TTS generation failed for episode {} (podcast '{}' ({})): {}", episodeId, podcast.name, podcastId, e.message, e)
             episodeRepository.save(episode.copy(status = EpisodeStatus.FAILED))
+            eventPublisher.publishEvent(
+                PodcastEvent(this, podcastId, "episode", episodeId, "episode.failed",
+                    mapOf("episodeNumber" to episodeId, "error" to (e.message ?: "Unknown error")))
+            )
         }
     }
 }

@@ -8,7 +8,9 @@ import com.aisummarypodcast.store.EpisodeRepository
 import com.aisummarypodcast.store.EpisodeStatus
 import com.aisummarypodcast.store.Podcast
 import com.aisummarypodcast.store.PublicationStatus
+import com.aisummarypodcast.podcast.PodcastEvent
 import org.slf4j.LoggerFactory
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Service
 import java.time.Instant
 
@@ -19,7 +21,8 @@ class PublishingService(
     private val episodeRepository: EpisodeRepository,
     private val soundCloudPublisher: SoundCloudPublisher,
     private val targetService: PodcastPublicationTargetService,
-    private val staticFeedExporter: StaticFeedExporter
+    private val staticFeedExporter: StaticFeedExporter,
+    private val eventPublisher: ApplicationEventPublisher
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -92,6 +95,10 @@ class PublishingService(
             log.info("Episode {} published to {} (externalId={})", episode.id, target, result.externalId)
             publisher.postPublish(podcast, userId)
             staticFeedExporter.export(podcast)
+            eventPublisher.publishEvent(
+                PodcastEvent(this, podcast.id, "publication", episode.id!!, "episode.published",
+                    mapOf("episodeNumber" to episode.id, "target" to target))
+            )
             published
         } catch (e: Exception) {
             log.error("Failed to publish episode {} to {}: {}", episode.id, target, e.message, e)
@@ -100,6 +107,10 @@ class PublishingService(
                     status = PublicationStatus.FAILED,
                     errorMessage = e.message
                 )
+            )
+            eventPublisher.publishEvent(
+                PodcastEvent(this, podcast.id, "publication", episode.id!!, "episode.publish.failed",
+                    mapOf("episodeNumber" to episode.id, "target" to target, "error" to (e.message ?: "Unknown error")))
             )
             throw e
         }

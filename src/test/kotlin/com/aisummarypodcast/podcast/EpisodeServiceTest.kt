@@ -22,6 +22,7 @@ import io.mockk.every
 import io.mockk.justRun
 import io.mockk.mockk
 import io.mockk.verify
+import org.springframework.context.ApplicationEventPublisher
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import java.util.*
@@ -39,13 +40,14 @@ class EpisodeServiceTest {
     private val modelResolver = mockk<ModelResolver>()
     private val postArticleRepository = mockk<PostArticleRepository>()
     private val episodeSourcesGenerator = mockk<EpisodeSourcesGenerator>(relaxed = true)
+    private val eventPublisher = mockk<ApplicationEventPublisher>(relaxed = true)
 
     private val filterModelDef = ModelDefinition(provider = "openrouter", model = "anthropic/claude-haiku-4.5")
 
     private val episodeService = EpisodeService(
         episodeRepository, podcastRepository, ttsPipeline,
         episodeArticleRepository, articleRepository, episodeRecapGenerator, modelResolver,
-        postArticleRepository, episodeSourcesGenerator
+        postArticleRepository, episodeSourcesGenerator, eventPublisher
     )
 
     private val podcast = Podcast(id = "p1", userId = "u1", name = "Test", topic = "tech")
@@ -222,7 +224,7 @@ class EpisodeServiceTest {
         every { postArticleRepository.countByArticleId(10L) } returns 1L
         every { postArticleRepository.countByArticleId(20L) } returns 0L
 
-        episodeService.discardAndResetArticles(episode)
+        episodeService.discardAndResetArticles(episode, "p1")
 
         verify { episodeRepository.save(match { it.status == EpisodeStatus.DISCARDED }) }
         verify { articleRepository.save(match { it.id == 10L && !it.isProcessed }) }
@@ -244,7 +246,7 @@ class EpisodeServiceTest {
         justRun { postArticleRepository.deleteByArticleId(30L) }
         justRun { articleRepository.deleteById(30L) }
 
-        episodeService.discardAndResetArticles(episode)
+        episodeService.discardAndResetArticles(episode, "p1")
 
         verify { episodeRepository.save(match { it.status == EpisodeStatus.DISCARDED }) }
         verify { postArticleRepository.deleteByArticleId(30L) }
@@ -272,7 +274,7 @@ class EpisodeServiceTest {
         justRun { postArticleRepository.deleteByArticleId(30L) }
         justRun { articleRepository.deleteById(30L) }
 
-        episodeService.discardAndResetArticles(episode)
+        episodeService.discardAndResetArticles(episode, "p1")
 
         verify { episodeRepository.save(match { it.status == EpisodeStatus.DISCARDED }) }
         verify { articleRepository.save(match { it.id == 10L && !it.isProcessed }) }
@@ -287,7 +289,7 @@ class EpisodeServiceTest {
         every { episodeRepository.save(any()) } answers { firstArg() }
         every { episodeArticleRepository.findByEpisodeId(1L) } returns emptyList()
 
-        episodeService.discardAndResetArticles(episode)
+        episodeService.discardAndResetArticles(episode, "p1")
 
         verify { episodeRepository.save(match { it.status == EpisodeStatus.DISCARDED }) }
         verify(exactly = 0) { articleRepository.save(any()) }

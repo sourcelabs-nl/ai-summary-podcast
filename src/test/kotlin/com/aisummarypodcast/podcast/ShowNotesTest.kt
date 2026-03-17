@@ -9,6 +9,7 @@ import com.aisummarypodcast.store.PodcastRepository
 import com.aisummarypodcast.store.PostArticleRepository
 import com.aisummarypodcast.tts.TtsPipeline
 import io.mockk.mockk
+import org.springframework.context.ApplicationEventPublisher
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
@@ -25,12 +26,13 @@ class ShowNotesTest {
     private val modelResolver = mockk<ModelResolver>()
     private val postArticleRepository = mockk<PostArticleRepository>()
     private val episodeSourcesGenerator = mockk<EpisodeSourcesGenerator>()
+    private val eventPublisher = mockk<ApplicationEventPublisher>(relaxed = true)
 
     private val service = EpisodeService(
         episodeRepository, podcastRepository, ttsPipeline,
         episodeArticleRepository, articleRepository,
         episodeRecapGenerator, modelResolver, postArticleRepository,
-        episodeSourcesGenerator
+        episodeSourcesGenerator, eventPublisher
     )
 
     private val buildShowNotes: Method = EpisodeService::class.java

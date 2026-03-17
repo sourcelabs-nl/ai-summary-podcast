@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { UserProvider } from "@/lib/user-context";
+import { EventProvider } from "@/lib/event-context";
 import { Header } from "@/components/header";
+import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -17,8 +19,11 @@ export default function RootLayout({
     <html lang="en">
       <body className="antialiased">
         <UserProvider>
-          <Header />
-          <main className="container mx-auto px-4 py-6 overflow-x-hidden">{children}</main>
+          <EventProvider>
+            <Header />
+            <main className="container mx-auto px-4 py-6 overflow-x-hidden">{children}</main>
+            <Toaster position="bottom-right" />
+          </EventProvider>
         </UserProvider>
       </body>
     </html>

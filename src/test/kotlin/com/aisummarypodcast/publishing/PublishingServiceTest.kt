@@ -9,6 +9,7 @@ import com.aisummarypodcast.store.PodcastPublicationTarget
 import com.aisummarypodcast.store.PublicationStatus
 import io.mockk.every
 import io.mockk.mockk
+import org.springframework.context.ApplicationEventPublisher
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -26,7 +27,8 @@ class PublishingServiceTest {
     private val soundCloudPublisher = mockk<SoundCloudPublisher>()
     private val targetService = mockk<PodcastPublicationTargetService>()
     private val staticFeedExporter = mockk<com.aisummarypodcast.podcast.StaticFeedExporter>(relaxed = true)
-    private val service = PublishingService(registry, publicationRepository, episodeRepository, soundCloudPublisher, targetService, staticFeedExporter)
+    private val eventPublisher = mockk<ApplicationEventPublisher>(relaxed = true)
+    private val service = PublishingService(registry, publicationRepository, episodeRepository, soundCloudPublisher, targetService, staticFeedExporter, eventPublisher)
 
     private val podcast = Podcast(id = "pod1", userId = "user1", name = "Test Pod", topic = "tech")
     private val episode = Episode(
