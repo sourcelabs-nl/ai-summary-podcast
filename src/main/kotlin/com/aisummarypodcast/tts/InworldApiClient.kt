@@ -8,6 +8,7 @@ import org.springframework.http.MediaType
 import org.springframework.http.client.ReactorClientHttpRequestFactory
 import org.springframework.stereotype.Component
 import org.springframework.web.client.RestClient
+import io.netty.resolver.DefaultAddressResolverGroup
 import reactor.netty.http.client.HttpClient
 import java.time.Duration
 import java.util.Base64
@@ -100,6 +101,7 @@ class InworldApiClient(
         val basicToken = buildBasicToken(apiKey)
 
         val httpClient = HttpClient.create()
+            .resolver(DefaultAddressResolverGroup.INSTANCE)
             .responseTimeout(Duration.ofMinutes(5))
         val requestFactory = ReactorClientHttpRequestFactory(httpClient)
 
