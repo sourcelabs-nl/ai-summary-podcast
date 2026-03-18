@@ -171,6 +171,18 @@ class EpisodeService(
                 }
             }
         }
+
+        // Roll back lastGeneratedAt so reset articles appear in upcoming again
+        if (resetCount > 0) {
+            val podcast = podcastRepository.findById(podcastId).orElse(null)
+            if (podcast != null) {
+                val lastPublished = episodeRepository.findLatestPublishedByPodcastId(podcastId)
+                val rollbackTo = lastPublished?.generatedAt
+                podcastRepository.save(podcast.copy(lastGeneratedAt = rollbackTo))
+                log.info("Episode {} discard: rolled back lastGeneratedAt to {} for podcast '{}'", episode.id, rollbackTo ?: "null", podcast.name)
+            }
+        }
+
         log.info("Episode {} discarded, reset {} articles, deleted {} aggregated articles, skipped {} (linked to published episodes)", episode.id, resetCount, deletedCount, skippedCount)
     }
 

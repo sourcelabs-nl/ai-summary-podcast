@@ -227,6 +227,9 @@ class EpisodeServiceTest {
         every { articleRepository.save(any()) } answers { firstArg() }
         every { postArticleRepository.countByArticleId(10L) } returns 1L
         every { postArticleRepository.countByArticleId(20L) } returns 0L
+        every { podcastRepository.findById("p1") } returns Optional.of(podcast)
+        every { episodeRepository.findLatestPublishedByPodcastId("p1") } returns null
+        every { podcastRepository.save(any()) } answers { firstArg() }
 
         episodeService.discardAndResetArticles(episode, "p1")
 
@@ -277,6 +280,9 @@ class EpisodeServiceTest {
         every { postArticleRepository.countByArticleId(30L) } returns 4L
         justRun { postArticleRepository.deleteByArticleId(30L) }
         justRun { articleRepository.deleteById(30L) }
+        every { podcastRepository.findById("p1") } returns Optional.of(podcast)
+        every { episodeRepository.findLatestPublishedByPodcastId("p1") } returns null
+        every { podcastRepository.save(any()) } answers { firstArg() }
 
         episodeService.discardAndResetArticles(episode, "p1")
 
@@ -317,6 +323,9 @@ class EpisodeServiceTest {
         every { articleEligibilityService.canResetArticle(10L) } returns false
         every { articleEligibilityService.canResetArticle(20L) } returns true
         every { postArticleRepository.countByArticleId(20L) } returns 0L
+        every { podcastRepository.findById("p1") } returns Optional.of(podcast)
+        every { episodeRepository.findLatestPublishedByPodcastId("p1") } returns null
+        every { podcastRepository.save(any()) } answers { firstArg() }
 
         episodeService.discardAndResetArticles(episode, "p1")
 
@@ -343,6 +352,47 @@ class EpisodeServiceTest {
         verify(exactly = 0) { postArticleRepository.deleteByArticleId(any()) }
         verify(exactly = 0) { articleRepository.deleteById(any<Long>()) }
         verify(exactly = 0) { articleRepository.save(any()) }
+    }
+
+    @Test
+    fun `discardAndResetArticles rolls back lastGeneratedAt to latest published episode`() {
+        val episode = Episode(id = 3L, podcastId = "p1", generatedAt = "2026-03-18T15:00:00Z", scriptText = "Script", status = EpisodeStatus.PENDING_REVIEW)
+        val article = Article(id = 10L, sourceId = "src-1", title = "A1", body = "body", url = "https://example.com/1", contentHash = "h1", isProcessed = true, publishedAt = "2026-03-18T12:00:00Z")
+        val links = listOf(EpisodeArticle(id = 1L, episodeId = 3L, articleId = 10L))
+        val publishedEpisode = Episode(id = 2L, podcastId = "p1", generatedAt = "2026-03-17T15:00:00Z", scriptText = "Old", status = EpisodeStatus.GENERATED)
+
+        every { episodeRepository.save(any()) } answers { firstArg() }
+        every { episodeArticleRepository.findByEpisodeId(3L) } returns links
+        every { articleRepository.findById(10L) } returns Optional.of(article)
+        every { articleRepository.save(any()) } answers { firstArg() }
+        every { postArticleRepository.countByArticleId(10L) } returns 0L
+        every { podcastRepository.findById("p1") } returns Optional.of(podcast)
+        every { episodeRepository.findLatestPublishedByPodcastId("p1") } returns publishedEpisode
+        every { podcastRepository.save(any()) } answers { firstArg() }
+
+        episodeService.discardAndResetArticles(episode, "p1")
+
+        verify { podcastRepository.save(match { it.lastGeneratedAt == "2026-03-17T15:00:00Z" }) }
+    }
+
+    @Test
+    fun `discardAndResetArticles clears lastGeneratedAt when no published episodes exist`() {
+        val episode = Episode(id = 1L, podcastId = "p1", generatedAt = "2026-03-18T15:00:00Z", scriptText = "Script", status = EpisodeStatus.PENDING_REVIEW)
+        val article = Article(id = 10L, sourceId = "src-1", title = "A1", body = "body", url = "https://example.com/1", contentHash = "h1", isProcessed = true)
+        val links = listOf(EpisodeArticle(id = 1L, episodeId = 1L, articleId = 10L))
+
+        every { episodeRepository.save(any()) } answers { firstArg() }
+        every { episodeArticleRepository.findByEpisodeId(1L) } returns links
+        every { articleRepository.findById(10L) } returns Optional.of(article)
+        every { articleRepository.save(any()) } answers { firstArg() }
+        every { postArticleRepository.countByArticleId(10L) } returns 0L
+        every { podcastRepository.findById("p1") } returns Optional.of(podcast)
+        every { episodeRepository.findLatestPublishedByPodcastId("p1") } returns null
+        every { podcastRepository.save(any()) } answers { firstArg() }
+
+        episodeService.discardAndResetArticles(episode, "p1")
+
+        verify { podcastRepository.save(match { it.lastGeneratedAt == null }) }
     }
 
     // --- hasPendingOrApprovedEpisode tests ---

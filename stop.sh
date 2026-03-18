@@ -11,7 +11,7 @@ if [ -f "$PID_FILE" ]; then
   if kill -0 "$APP_PID" 2>/dev/null; then
     echo "Stopping ai-summary-podcast (PID $APP_PID)..."
     kill "$APP_PID"
-    for i in $(seq 1 10); do
+    for i in $(seq 1 20); do
       if ! kill -0 "$APP_PID" 2>/dev/null; then
         break
       fi
