@@ -103,8 +103,8 @@ class InterviewComposerTest {
     fun `prompt specifies asymmetric word distribution`() {
         val prompt = composer.buildPrompt(articles, podcast)
 
-        assertTrue(prompt.contains("~20%"))
-        assertTrue(prompt.contains("~80%"))
+        assertTrue(prompt.contains("~35%"))
+        assertTrue(prompt.contains("~65%"))
     }
 
     @Test
@@ -171,7 +171,9 @@ class InterviewComposerTest {
         assertTrue(prompt.contains("CURIOSITY HOOKS"))
         assertTrue(prompt.contains("MID-ROLL CALLBACKS"))
         assertTrue(prompt.contains("SHORT SEGMENTS WITH SIGNPOSTING"))
-        assertTrue(prompt.contains("NATURAL INTERRUPTIONS"))
+        assertTrue(prompt.contains("STRATEGIC CLIFFHANGERS"))
+        assertTrue(prompt.contains("SPONTANEOUS INTERRUPTIONS"))
+        assertTrue(prompt.contains("STRICT TURN LENGTH"))
         assertTrue(prompt.contains("EMPHASIS ON IMPORTANT NEWS"))
     }
 
@@ -229,5 +231,75 @@ class InterviewComposerTest {
 
         assertTrue(prompt.contains("Summary 1."))
         assertFalse(prompt.contains("Body 1."))
+    }
+
+    @Test
+    fun `prompt includes coming up teaser when 5 or more articles`() {
+        val manyArticles = (1..5).map { i ->
+            Article(sourceId = "s1", title = "News $i", body = "Body $i.", url = "https://example.com/$i", contentHash = "h$i", summary = "Summary $i.")
+        }
+        val prompt = composer.buildPrompt(manyArticles, podcast)
+
+        assertTrue(prompt.contains("COMING UP TEASER"))
+        assertTrue(prompt.contains("preview of 3-4"))
+    }
+
+    @Test
+    fun `prompt omits coming up teaser when fewer than 5 articles`() {
+        val prompt = composer.buildPrompt(articles, podcast) // 2 articles
+
+        assertFalse(prompt.contains("COMING UP TEASER"))
+    }
+
+    @Test
+    fun `coming up teaser placed after sponsor when sponsor configured`() {
+        val manyArticles = (1..5).map { i ->
+            Article(sourceId = "s1", title = "News $i", body = "Body $i.", url = "https://example.com/$i", contentHash = "h$i", summary = "Summary $i.")
+        }
+        val podcastWithSponsor = podcast.copy(sponsor = mapOf("name" to "Acme", "message" to "building the future"))
+        val prompt = composer.buildPrompt(manyArticles, podcastWithSponsor)
+
+        assertTrue(prompt.contains("immediately after the sponsor message"))
+    }
+
+    @Test
+    fun `coming up teaser placed after introduction when no sponsor`() {
+        val manyArticles = (1..5).map { i ->
+            Article(sourceId = "s1", title = "News $i", body = "Body $i.", url = "https://example.com/$i", contentHash = "h$i", summary = "Summary $i.")
+        }
+        val podcastNoSponsor = podcast.copy(sponsor = null)
+        val prompt = composer.buildPrompt(manyArticles, podcastNoSponsor)
+
+        assertTrue(prompt.contains("immediately after the introduction"))
+    }
+
+    @Test
+    fun `prompt includes strategic cliffhangers instruction`() {
+        val prompt = composer.buildPrompt(articles, podcast)
+
+        assertTrue(prompt.contains("STRATEGIC CLIFFHANGERS"))
+        assertTrue(prompt.contains("2-3 forward hooks"))
+    }
+
+    @Test
+    fun `prompt includes varied interruption types`() {
+        val prompt = composer.buildPrompt(articles, podcast)
+
+        assertTrue(prompt.contains("Excited:"))
+        assertTrue(prompt.contains("Skeptical:"))
+        assertTrue(prompt.contains("Confused (audience surrogate):"))
+        assertTrue(prompt.contains("Connecting dots:"))
+        assertTrue(prompt.contains("Playful disagreement:"))
+        assertTrue(prompt.contains("expert can push back"))
+    }
+
+    @Test
+    fun `prompt includes strict turn length enforcement`() {
+        val prompt = composer.buildPrompt(articles, podcast)
+
+        assertTrue(prompt.contains("STRICT TURN LENGTH"))
+        assertTrue(prompt.contains("HARD RULE"))
+        assertTrue(prompt.contains("3-4 sentences"))
+        assertTrue(prompt.contains("listener drop-off"))
     }
 }

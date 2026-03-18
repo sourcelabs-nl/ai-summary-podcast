@@ -1,10 +1,4 @@
-# Capability: Interview Composition
-
-## Purpose
-
-Interview-style dialogue composition for podcast scripts, producing natural asymmetric conversations between an interviewer and expert with XML speaker tags for TTS processing.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: InterviewComposer generates asymmetric speaker-tagged scripts
 The system SHALL provide an `InterviewComposer` component that generates interview-style dialogue scripts with two fixed roles: `interviewer` and `expert`. The interviewer SHALL act as an active conversational partner — asking questions, bridging topics, reacting, challenging, and providing commentary (~35% of total words). The expert SHALL deliver the news content, context, and analysis (~65% of total words). The output SHALL use XML-style speaker tags `<interviewer>` and `<expert>`. The composer SHALL use the `compose` model (resolved via `ModelResolver`).
@@ -164,18 +158,3 @@ When `customInstructions` is provided on the podcast, the prompt SHALL append th
 #### Scenario: Transition patterns are varied
 - **WHEN** the LLM generates an interview script with 10+ speaker transitions
 - **THEN** the transitions use varied patterns — some with reactions, some with follow-up questions, some with topic bridges — rather than a single repeated pattern
-
-### Requirement: Interview style routing in pipeline
-The LLM pipeline SHALL route `style: "interview"` to the `InterviewComposer`. The selection SHALL happen in the pipeline orchestration layer (`LlmPipeline`).
-
-#### Scenario: Interview style uses InterviewComposer
-- **WHEN** a podcast has `style: "interview"`
-- **THEN** the pipeline uses `InterviewComposer` for script generation
-
-#### Scenario: Dialogue style still uses DialogueComposer
-- **WHEN** a podcast has `style: "dialogue"`
-- **THEN** the pipeline uses `DialogueComposer` for script generation
-
-#### Scenario: Monologue styles still use BriefingComposer
-- **WHEN** a podcast has `style: "news-briefing"`
-- **THEN** the pipeline uses `BriefingComposer` for script generation

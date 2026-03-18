@@ -205,7 +205,7 @@ Each podcast can be tailored to your preferences via the following settings:
 | `deep-dive` | Analytical exploration — in-depth analysis and thoughtful commentary |
 | `executive-summary` | Concise and fact-focused — minimal commentary, straight to the point |
 | `dialogue` | Multi-speaker conversation — requires ElevenLabs or Inworld TTS and at least two voice roles |
-| `interview` | Interviewer/expert conversation — asymmetric roles (~20% interviewer, ~80% expert). Requires ElevenLabs or Inworld TTS with exactly `interviewer` and `expert` voice roles |
+| `interview` | Interviewer/expert conversation — asymmetric roles (~35% interviewer, ~65% expert). Features "coming up" topic teasers (5+ articles), strategic cliffhangers, spontaneous interruptions (excited, skeptical, confused, connecting dots, disagreement), and strict 3-4 sentence expert turn limits. Requires ElevenLabs or Inworld TTS with exactly `interviewer` and `expert` voice roles |
 
 ### TTS Configuration
 

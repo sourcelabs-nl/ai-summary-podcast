@@ -86,6 +86,12 @@ class InterviewComposer(
             - End with a sign-off that includes a mention of the sponsor: $name"""
         } ?: ""
 
+        val comingUpTeaser = if (articles.size >= 5) {
+            val placement = if (podcast.sponsor != null) "immediately after the sponsor message" else "immediately after the introduction"
+            """
+            - COMING UP TEASER: $placement, the interviewer should rattle off a quick preview of 3-4 of the most interesting topics coming up in the show. Keep each teaser to one punchy sentence. Example: "Coming up — why OpenAI's latest move has everyone scrambling, a database claiming to be 100x faster than Postgres, and the security flaw nobody's talking about." This builds anticipation and gives listeners a reason to stay"""
+        } else ""
+
         val ttsGuidelinesBlock = if (ttsScriptGuidelines.isNotEmpty()) {
             "\n\n            TTS script formatting:\n            $ttsScriptGuidelines"
         } else ""
@@ -98,15 +104,15 @@ class InterviewComposer(
             Date: $currentDate
 
             Requirements:
-            - The interviewer (~20% of words) asks questions, bridges between topics, and reacts briefly
-            - The expert (~80% of words) delivers substantive news content, provides context, and offers analysis
+            - The interviewer (~35% of words) asks questions, bridges between topics, reacts, challenges, and provides commentary
+            - The expert (~65% of words) delivers substantive news content, provides context, and offers analysis
             - Use XML-style tags for each speaker turn. The ONLY valid tags are: <interviewer>, <expert>
             - Example format:
             <interviewer>Example question or reaction</interviewer>
             <expert>Example detailed answer with analysis</expert>
             - ALL text MUST be inside speaker tags — no text outside of tags
             - Target approximately $targetWords words
-            - In the introduction, the interviewer should mention the podcast name, its topic, and today's date$sponsorBlock
+            - In the introduction, the interviewer should mention the podcast name, its topic, and today's date$sponsorBlock$comingUpTeaser
             - Naturally attribute information to its source and credit original authors when known
             - Do NOT include any stage directions, sound effects, or non-spoken text outside of speaker tags. Inside speaker tags, TTS-supported cues (described in the TTS formatting section below, if present) ARE allowed
             - Do NOT include any meta-commentary, notes, or disclaimers about the script itself
@@ -118,7 +124,15 @@ class InterviewComposer(
             - CURIOSITY HOOKS: The interviewer should use rhetorical questions and teaser hooks before transitions (e.g., "But here's where it gets really interesting...", "So why should we care?", "You'd think that's the whole story, but..."). Create micro-curiosity loops that pull listeners forward
             - MID-ROLL CALLBACKS: Reference earlier topics later in the episode to create narrative cohesion (e.g., "Remember that framework we discussed earlier? Well, this connects directly...", "This ties back to what you said about..."). Cross-reference at least once per episode
             - SHORT SEGMENTS WITH SIGNPOSTING: Keep individual topic segments concise (roughly 60-90 seconds each). Use clear verbal signposts so listeners always know where they are (e.g., "Next up...", "Switching gears...", "Now for something completely different...")
-            - NATURAL INTERRUPTIONS: The interviewer should occasionally interrupt the expert MID-TOPIC — not at the end of a complete explanation, but while the expert is still building their point. Keep each expert turn to 3-5 sentences max, then have the interviewer jump in with a reaction, follow-up question, or interjection (e.g., "Wait — sorry to cut you off, but does that mean...", "Hold on, I need to understand this part first...", "Okay but that sounds like..."). The expert then continues in their NEXT turn. Aim for 3-4 interruptions per episode, spread across different topics
+            - STRATEGIC CLIFFHANGERS: Include 2-3 forward hooks spread across the episode. Before transitioning to a new topic, tease something from a later story to keep listeners hooked (e.g., "We'll dig into that bombshell in a moment, but first...", "And this actually connects to something wild we'll get to later — I don't want to spoil it yet.", "Keep that in mind, because it's about to become very relevant."). Do NOT overuse — only 2-3 per episode, placed at natural transition points
+            - SPONTANEOUS INTERRUPTIONS: The interviewer should interrupt the expert 4-5 times per episode with genuine, varied reactions — not polite topic bridges, but emotional and spontaneous interjections. Mix these types:
+              * Excited: "Wait, wait — did you say 100x?!"
+              * Skeptical: "Hold on, I'm not buying that. Isn't that exactly what they said last year?"
+              * Confused (audience surrogate): "Okay you lost me — back up. What does that actually mean?"
+              * Connecting dots: "Oh! That reminds me of what we just talked about with..."
+              * Playful disagreement: "See, I actually think that's completely wrong, and here's why..."
+              The expert can push back too: "No no, let me finish this part because it changes everything."
+            - STRICT TURN LENGTH: The expert MUST NOT speak for more than 3-4 sentences in a single turn. This is a HARD RULE, not a suggestion. After 3-4 sentences, the interviewer MUST jump in — even if it's just a short reaction ("That's huge.", "Wow.", "Okay I need to process that."). Long expert monologues are the number one cause of listener drop-off. Keep the rhythm tight
             - EMPHASIS ON IMPORTANT NEWS: When covering major announcements or surprising developments, convey their significance — use emphatic language, exclamation marks, and brief pauses to let important news land. Not everything is exciting; save the energy for what truly stands out
 
             Speaker transitions:
