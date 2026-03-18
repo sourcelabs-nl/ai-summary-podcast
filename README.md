@@ -16,10 +16,11 @@ flowchart LR
 
 1. **Source Poller** — Periodically fetches new content from configured RSS feeds, websites, and X (Twitter) accounts. Individual items (tweets, RSS entries, scraped pages) are stored as **posts** in a dedicated table. Posts older than a configurable threshold (default 7 days) are automatically discarded.
 2. **Aggregation** — At briefing generation time, unprocessed posts are aggregated into articles. For short-form sources (tweets, nitter feeds), multiple posts are merged into a single digest article. For long-form sources, each post maps 1:1 to an article. A `post_articles` join table maintains full traceability.
-3. **LLM Processing** — Two sequential stages, each using a configurable model from the named model registry:
+3. **LLM Processing** — Three sequential stages, each using a configurable model from the named model registry:
    - **Score + Summarize** — A single LLM call per article that scores relevance (0–10), filters out irrelevant content, and summarizes the relevant parts. Summary length scales with article length: short articles get 2–3 sentences, medium articles 4–6 sentences, and long articles a full paragraph. Articles below the `relevanceThreshold` (default 5) are excluded.
-   - **Briefing Composition** — Composes a coherent briefing script from all relevant articles with natural transitions. When few articles are available (below `fullBodyThreshold`, default 5), full article bodies are used instead of summaries for richer content. When a previous episode exists, its recap is passed to the composer for continuity — the script references what was discussed last time.
-4. **TTS Generation** — Converts the script to speech via OpenAI TTS, ElevenLabs, or Inworld AI, chunking at sentence boundaries and concatenating with FFmpeg. ElevenLabs and Inworld support multi-speaker dialogue and interview styles. Each TTS provider can inject provider-specific script guidelines into the LLM prompt (e.g. Inworld's expressiveness markup). After each episode is saved, a short recap is generated and stored for use as continuity context in the next episode.
+   - **Topic Dedup Filter** — Clusters candidate articles by topic, compares against articles from recent episodes, and filters out duplicates. For each topic: NEW topics pass through (top 3 articles per cluster), CONTINUATION topics with genuinely new developments are kept with `[FOLLOW-UP]` context annotations, and topics already fully covered are skipped. An age gate also excludes articles older than the latest published episode, preventing old content from new sources from flooding in.
+   - **Briefing Composition** — Composes a coherent briefing script from the filtered articles with natural transitions. When few articles are available (below `fullBodyThreshold`, default 5), full article bodies are used instead of summaries for richer content. Continuation topics receive `[FOLLOW-UP]` annotations so the composer can naturally reference previous coverage.
+4. **TTS Generation** — Converts the script to speech via OpenAI TTS, ElevenLabs, or Inworld AI, chunking at sentence boundaries and concatenating with FFmpeg. ElevenLabs and Inworld support multi-speaker dialogue and interview styles. Each TTS provider can inject provider-specific script guidelines into the LLM prompt (e.g. Inworld's expressiveness markup). After each episode is saved, a short recap is generated and stored for use as the episode description in publication targets (feed.xml, SoundCloud).
 5. **Podcast Feed** — Serves an RSS 2.0 feed with `<enclosure>` tags so any podcast app can subscribe.
 
 Each user can create multiple podcasts, each with its own sources, topic, language, LLM models, TTS provider/voices, style, and generation schedule (cron).
@@ -161,7 +162,7 @@ The dashboard provides:
 - **User settings** — gear icon in the header opens a settings page to edit your profile name and manage API keys (LLM and TTS provider configs) with a wizard-style dialog. All API keys are stored encrypted
 - **Podcast overview** — browse all podcasts with style badges, topics, and quick-access settings gear icon
 - **Podcast settings** — edit all podcast configuration (general, LLM, TTS, content) via a tabbed settings page with key-value editors for JSON map fields
-- **Episode management** — view episodes with status filtering, approve/discard pending reviews. Click any episode row to open the detail page. Shows the generation schedule in human-readable form
+- **Episode management** — view episodes with status filtering, approve/discard/regenerate pending reviews. Click any episode row to open the detail page. Shows the generation schedule in human-readable form
 - **Episode detail page** — dedicated page per episode with tabs for Script (chat-bubble rendering), Articles (grouped by source with relevance scores and collapsible sections), and Publications. Shows episode metadata, recap, and contextual action buttons
 - **Upcoming episode preview** — see collected articles for the next episode, preview the script via Server-Sent Events with real-time progress stages (aggregating, scoring, composing), and trigger episode generation on demand. Shows next scheduled generation time
 - **Source export** — download all configured sources as a markdown file from the Sources tab
@@ -193,6 +194,7 @@ Each podcast can be tailored to your preferences via the following settings:
 | `requireReview` | `false` | When `true`, generated scripts pause for review before TTS — see [Episode Review](#episode-review) below |
 | `maxLlmCostCents` | `null` | Per-podcast LLM cost threshold in cents — see [Cost Gate](#cost-gate) below |
 | `pronunciations` | `null` | IPA pronunciation dictionary — maps terms to phonemes (e.g. `{"Anthropic": "/ænˈθɹɒpɪk/"}`) for correct TTS pronunciation. Currently supported by Inworld TTS |
+| `recapLookbackEpisodes` | `null` | Number of recent episodes to check for topic overlap (default: 7). The dedup filter uses article titles and summaries from these episodes to prevent repeating previously covered topics |
 
 ### Briefing Styles
 
@@ -257,7 +259,9 @@ Per-podcast overrides use the `llmModels` field, mapping stage names (`filter`, 
 
 When `requireReview` is enabled on a podcast, the generation pipeline pauses after the LLM produces a script — no audio is generated yet. This lets you review, edit, or discard the script before committing to TTS costs.
 
-The episode workflow is: `PENDING_REVIEW` → (edit script if needed) → `APPROVED` → TTS runs → `GENERATED`. You can also discard an episode — discarding resets non-aggregated articles so they are included in the next generation run, while aggregated articles (from X/Nitter sources) are deleted so their posts get re-aggregated fresh with any new posts on the next run.
+The episode workflow is: `PENDING_REVIEW` → (edit script if needed) → `APPROVED` → TTS runs → `GENERATED`. You can also discard an episode — discarding resets non-aggregated articles so they are included in the next generation run, while aggregated articles (from X/Nitter sources) are deleted so their posts get re-aggregated fresh with any new posts on the next run. Articles linked to published episodes are never reset or deleted during discard, preventing published content from being reprocessed.
+
+Episodes can be **regenerated** — this re-composes the script from the same articles using the current podcast settings, creating a new episode. Regeneration is available for `PENDING_REVIEW` and `DISCARDED` episodes, and is blocked if any episode on the same day has already been published.
 
 ### Cost Tracking
 
@@ -462,8 +466,9 @@ GET    /users/{userId}/podcasts/{podcastId}/feed.xml — RSS 2.0 feed for podcas
 GET    /users/{userId}/podcasts/{podcastId}/episodes              — List episodes (optional ?status= filter)
 GET    /users/{userId}/podcasts/{podcastId}/episodes/{episodeId}  — Get episode (includes cost tracking fields)
 PUT    /users/{userId}/podcasts/{podcastId}/episodes/{episodeId}/script  — Edit script (PENDING_REVIEW only)
-POST   /users/{userId}/podcasts/{podcastId}/episodes/{episodeId}/approve — Approve and trigger TTS generation
-POST   /users/{userId}/podcasts/{podcastId}/episodes/{episodeId}/discard — Discard episode
+POST   /users/{userId}/podcasts/{podcastId}/episodes/{episodeId}/approve    — Approve and trigger TTS generation
+POST   /users/{userId}/podcasts/{podcastId}/episodes/{episodeId}/discard    — Discard episode
+POST   /users/{userId}/podcasts/{podcastId}/episodes/{episodeId}/regenerate — Re-compose script from same articles
 ```
 
 Episode statuses: `PENDING_REVIEW` → `APPROVED` → `GENERATED` (or `FAILED`). Episodes can also be `DISCARDED`. The review endpoints are only relevant when `requireReview` is enabled on the podcast.
@@ -478,6 +483,8 @@ DELETE /users/{userId}/podcasts/{podcastId}/sources/{sourceId}  — Delete sourc
 ```
 
 Sources can be of type `rss`, `website`, or `twitter`. Each source has a configurable `pollIntervalMinutes` and can be toggled with `enabled`. Twitter sources require an X OAuth connection (see below). An optional `aggregate` field (boolean) controls whether posts are merged into a single digest article at briefing generation time — useful for short-form sources like tweets. When `null` (default), aggregation is auto-detected for `twitter` type sources and nitter.net RSS feeds.
+
+When adding a source, the URL is validated by performing a test fetch — RSS feeds must return valid XML with at least one item, and websites must return extractable content. Invalid URLs are rejected with HTTP 422 and a descriptive error message. Twitter sources skip URL validation (they use OAuth).
 
 Posts older than `app.source.max-article-age-days` (default: 7) are skipped during ingestion and periodically cleaned up. Newly added sources only ingest content published after the source was created, preventing historical backlog from flooding into existing briefings. Additionally, posts are deduplicated across all sources within the same podcast — if two sources (e.g., a Twitter account and its Nitter RSS mirror) produce identical content, only the first copy is kept.
 
