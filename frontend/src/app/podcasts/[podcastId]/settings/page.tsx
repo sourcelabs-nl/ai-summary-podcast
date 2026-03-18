@@ -283,15 +283,15 @@ export default function PodcastSettingsPage() {
             ttsVoices: form.ttsVoices,
             ttsSettings: form.ttsSettings,
             style: form.style,
-            targetWords: form.targetWords,
+            targetWords: form.targetWords ?? null,
             cron: form.cron,
-            customInstructions: form.customInstructions,
+            customInstructions: form.customInstructions ?? "",
             relevanceThreshold: form.relevanceThreshold,
             requireReview: form.requireReview,
-            maxLlmCostCents: form.maxLlmCostCents,
-            maxArticleAgeDays: form.maxArticleAgeDays,
+            maxLlmCostCents: form.maxLlmCostCents ?? null,
+            maxArticleAgeDays: form.maxArticleAgeDays ?? null,
             speakerNames: form.speakerNames,
-            fullBodyThreshold: form.fullBodyThreshold,
+            fullBodyThreshold: form.fullBodyThreshold ?? null,
             sponsor: form.sponsor,
             pronunciations: form.pronunciations,
           }),
@@ -317,8 +317,8 @@ export default function PodcastSettingsPage() {
   }
 
   function updateNumber(key: keyof Podcast, raw: string) {
-    const parsed = raw === "" ? undefined : Number(raw);
-    update(key, (parsed !== undefined && isNaN(parsed) ? undefined : parsed) as never);
+    const parsed = raw === "" ? null : Number(raw);
+    update(key, (parsed !== null && isNaN(parsed) ? null : parsed) as never);
   }
 
   if (userLoading || loading) {
@@ -484,7 +484,7 @@ export default function PodcastSettingsPage() {
               <FieldGroup label="LLM Models" description="Override the LLM model per pipeline stage. Keys: 'filter' (scoring/summarization, cheap model) and 'compose' (script writing, capable model). Values: OpenRouter model IDs.">
                 <KeyValueEditor
                   value={form.llmModels}
-                  onChange={(v) => update("llmModels", v ?? undefined)}
+                  onChange={(v) => update("llmModels", v)}
                   keyPlaceholder="Stage (e.g. filter, compose)"
                   valuePlaceholder="Model name"
                 />
@@ -514,7 +514,7 @@ export default function PodcastSettingsPage() {
               <FieldGroup label="Custom Instructions" description="Additional instructions appended to the LLM composition prompt. Use this for tone, structure, engagement techniques, or topic-specific guidance.">
                 <textarea
                   value={form.customInstructions ?? ""}
-                  onChange={(e) => update("customInstructions", e.target.value || undefined)}
+                  onChange={(e) => update("customInstructions", e.target.value)}
                   className={`${textareaClass} min-h-[300px]`}
                 />
               </FieldGroup>
@@ -548,7 +548,7 @@ export default function PodcastSettingsPage() {
               <FieldGroup label="TTS Voices" description="Voice assignment per role. For monologue styles use key 'default'. For dialogue/interview use role keys (e.g. 'interviewer', 'expert', 'host', 'cohost'). Values are provider-specific voice IDs.">
                 <KeyValueEditor
                   value={form.ttsVoices}
-                  onChange={(v) => update("ttsVoices", v ?? undefined)}
+                  onChange={(v) => update("ttsVoices", v)}
                   keyPlaceholder="Role (e.g. default, host)"
                   valuePlaceholder="Voice ID"
                 />
@@ -556,7 +556,7 @@ export default function PodcastSettingsPage() {
               <FieldGroup label="TTS Settings" description="Provider-specific settings. Common keys: 'model' (TTS model ID), 'speed' (speaking rate, e.g. 1.0), 'temperature' (expressiveness, 0.0-1.0).">
                 <KeyValueEditor
                   value={form.ttsSettings}
-                  onChange={(v) => update("ttsSettings", v ?? undefined)}
+                  onChange={(v) => update("ttsSettings", v)}
                   keyPlaceholder="Setting (e.g. speed)"
                   valuePlaceholder="Value"
                 />
@@ -564,7 +564,7 @@ export default function PodcastSettingsPage() {
               <FieldGroup label="Speaker Names" description="Display names for speakers in dialogue/interview styles. Keys match TTS voice roles (e.g. 'interviewer', 'expert'). Used in the script for natural conversation.">
                 <KeyValueEditor
                   value={form.speakerNames}
-                  onChange={(v) => update("speakerNames", v ?? undefined)}
+                  onChange={(v) => update("speakerNames", v)}
                   keyPlaceholder="Role (e.g. host, cohost)"
                   valuePlaceholder="Display name"
                 />
@@ -609,7 +609,7 @@ export default function PodcastSettingsPage() {
               <FieldGroup label="Sponsor" description="Sponsor message injected into the script. Keys: 'name' (sponsor name) and 'message' (tagline). Both required for the sponsor mention to appear.">
                 <KeyValueEditor
                   value={form.sponsor}
-                  onChange={(v) => update("sponsor", v ?? undefined)}
+                  onChange={(v) => update("sponsor", v)}
                   keyPlaceholder="Field (e.g. name, message)"
                   valuePlaceholder="Value"
                 />
@@ -617,7 +617,7 @@ export default function PodcastSettingsPage() {
               <FieldGroup label="Pronunciations" description="IPA pronunciation overrides for proper nouns. Keys: the word as written. Values: IPA notation (e.g. '/jɑrnoː/'). Applied on first occurrence in the script.">
                 <KeyValueEditor
                   value={form.pronunciations}
-                  onChange={(v) => update("pronunciations", v ?? undefined)}
+                  onChange={(v) => update("pronunciations", v)}
                   keyPlaceholder="Word"
                   valuePlaceholder="IPA pronunciation"
                 />

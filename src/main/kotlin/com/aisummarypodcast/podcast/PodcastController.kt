@@ -223,7 +223,7 @@ class PodcastController(
             PodcastStyle.fromValue(it)
                 ?: return ResponseEntity.badRequest().body(mapOf("error" to "Unsupported style: $it. Supported: ${PodcastStyle.entries.joinToString { e -> e.value }}"))
         } ?: existing.style
-        val effectiveVoices = request.ttsVoices ?: existing.ttsVoices
+        val effectiveVoices = request.ttsVoices.orKeep(existing.ttsVoices)
         validateTtsConfig(effectiveTtsProvider, effectiveStyle, effectiveVoices)?.let {
             return ResponseEntity.badRequest().body(mapOf("error" to it))
         }
@@ -238,18 +238,18 @@ class PodcastController(
                 language = request.language ?: existing.language,
                 llmModels = request.llmModels.orKeep(existing.llmModels),
                 ttsProvider = effectiveTtsProvider,
-                ttsVoices = request.ttsVoices ?: existing.ttsVoices,
+                ttsVoices = request.ttsVoices.orKeep(existing.ttsVoices),
                 ttsSettings = request.ttsSettings.orKeep(existing.ttsSettings),
                 style = effectiveStyle,
-                targetWords = request.targetWords ?: existing.targetWords,
+                targetWords = request.targetWords,
                 cron = request.cron ?: existing.cron,
                 customInstructions = request.customInstructions.orKeep(existing.customInstructions),
                 relevanceThreshold = request.relevanceThreshold ?: existing.relevanceThreshold,
                 requireReview = request.requireReview ?: existing.requireReview,
-                maxLlmCostCents = request.maxLlmCostCents ?: existing.maxLlmCostCents,
-                maxArticleAgeDays = request.maxArticleAgeDays ?: existing.maxArticleAgeDays,
+                maxLlmCostCents = request.maxLlmCostCents,
+                maxArticleAgeDays = request.maxArticleAgeDays,
                 speakerNames = request.speakerNames.orKeep(existing.speakerNames),
-                fullBodyThreshold = request.fullBodyThreshold ?: existing.fullBodyThreshold,
+                fullBodyThreshold = request.fullBodyThreshold,
                 sponsor = request.sponsor.orKeep(existing.sponsor),
                 pronunciations = request.pronunciations.orKeep(existing.pronunciations)
             )

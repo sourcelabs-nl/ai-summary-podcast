@@ -11,7 +11,7 @@ interface KeyValueRow {
 
 interface KeyValueEditorProps {
   value: Record<string, string> | null | undefined;
-  onChange: (value: Record<string, string> | null) => void;
+  onChange: (value: Record<string, string>) => void;
   keyPlaceholder?: string;
   valuePlaceholder?: string;
 }
@@ -21,9 +21,9 @@ function toRows(value: Record<string, string> | null | undefined): KeyValueRow[]
   return Object.entries(value).map(([key, val]) => ({ key, value: val }));
 }
 
-function toRecord(rows: KeyValueRow[]): Record<string, string> | null {
+function toRecord(rows: KeyValueRow[]): Record<string, string> {
   const filtered = rows.filter((r) => r.key.trim() !== "");
-  if (filtered.length === 0) return null;
+  if (filtered.length === 0) return {};
   return Object.fromEntries(filtered.map((r) => [r.key, r.value]));
 }
 
