@@ -66,7 +66,11 @@ The system SHALL display a single Save button at the bottom of the settings page
 
 #### Scenario: Key-value serialization
 - **WHEN** the form is saved and key-value editors contain rows
-- **THEN** each key-value editor's rows are serialized into a JSON object (e.g., rows `[{key: "a", value: "b"}]` become `{"a": "b"}`). Empty keys are excluded. If no rows remain, the field is sent as null.
+- **THEN** each key-value editor's rows are serialized into a JSON object (e.g., rows `[{key: "a", value: "b"}]` become `{"a": "b"}`). Empty keys are excluded. If no rows remain, the field is sent as an empty object `{}`.
+
+#### Scenario: Clearing nullable fields
+- **WHEN** the form is saved and a nullable field has been cleared by the user
+- **THEN** string fields (e.g., customInstructions) are sent as an empty string `""`, map fields (e.g., llmModels) are sent as an empty object `{}`, and number fields (e.g., targetWords) are sent as `null`. The value MUST NOT be omitted from the JSON payload, as omitted fields are treated as "keep existing" by the backend.
 
 ### Requirement: System default placeholders on nullable fields
 Nullable number fields in the settings form SHALL display placeholder text showing the system default value when the field is empty. The placeholder values SHALL be fetched from the `GET /config/defaults` API endpoint. The placeholder format SHALL be `{value} (system default)`.

@@ -248,6 +248,25 @@ The `pronunciations` field SHALL be accepted as an optional nullable JSON map in
 - **WHEN** a `GET /users/{userId}/podcasts/{podcastId}` request is received for a podcast with pronunciations configured
 - **THEN** the response includes the `pronunciations` field with its current value
 
+### Requirement: Clearing nullable fields via update endpoint
+The update endpoint SHALL support clearing nullable fields. For `String?` fields (e.g., `customInstructions`), sending an empty string `""` SHALL clear the field to null. For `Map?` fields (e.g., `llmModels`, `ttsVoices`, `ttsSettings`, `speakerNames`, `sponsor`, `pronunciations`), sending an empty object `{}` SHALL clear the field to null. For `Int?` fields (e.g., `targetWords`, `maxLlmCostCents`, `maxArticleAgeDays`, `fullBodyThreshold`), sending `null` SHALL clear the field. In all cases, omitting the field from the request (or sending `null` for string/map fields) SHALL preserve the existing value.
+
+#### Scenario: Clear custom instructions
+- **WHEN** a `PUT /users/{userId}/podcasts/{podcastId}` request includes `"customInstructions": ""`
+- **THEN** the podcast's `custom_instructions` is set to null
+
+#### Scenario: Clear LLM models override
+- **WHEN** a `PUT /users/{userId}/podcasts/{podcastId}` request includes `"llmModels": {}`
+- **THEN** the podcast's `llm_models` is set to null and both stages fall back to global defaults
+
+#### Scenario: Clear target words
+- **WHEN** a `PUT /users/{userId}/podcasts/{podcastId}` request includes `"targetWords": null`
+- **THEN** the podcast's `target_words` is set to null and the system falls back to the global default
+
+#### Scenario: Omitted field preserves existing value
+- **WHEN** a `PUT /users/{userId}/podcasts/{podcastId}` request omits the `customInstructions` field entirely
+- **THEN** the podcast's existing `custom_instructions` value is preserved unchanged
+
 ### Requirement: Relevance threshold per podcast
 Each podcast SHALL have a `relevance_threshold` field (INTEGER, NOT NULL, default 5). The LLM pipeline SHALL use this threshold to determine which scored articles are relevant: articles with `relevance_score >= relevance_threshold` are considered relevant. Valid values are 0-10. The field SHALL be accepted in podcast create (`POST`) and update (`PUT`) endpoints and included in GET responses. Jackson 3 `@JsonProperty` annotations SHALL be used on the `relevanceThreshold` DTO field to ensure correct deserialization of nullable `Int?` values.
 
