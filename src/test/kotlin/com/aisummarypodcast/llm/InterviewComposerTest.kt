@@ -37,8 +37,8 @@ class InterviewComposerTest {
     )
 
     private val articles = listOf(
-        Article(sourceId = "s1", title = "AI News", body = "AI is advancing.", url = "https://example.com/ai", contentHash = "h1", summary = "AI progress."),
-        Article(sourceId = "s1", title = "Cloud News", body = "Cloud is growing.", url = "https://example.com/cloud", contentHash = "h2", summary = "Cloud growth.")
+        Article(id = 1, sourceId = "s1", title = "AI News", body = "AI is advancing.", url = "https://example.com/ai", contentHash = "h1", summary = "AI progress."),
+        Article(id = 2, sourceId = "s1", title = "Cloud News", body = "Cloud is growing.", url = "https://example.com/cloud", contentHash = "h2", summary = "Cloud growth.")
     )
 
     @Test
@@ -116,31 +116,18 @@ class InterviewComposerTest {
     }
 
     @Test
-    fun `prompt includes continuity context when provided`() {
-        val recaps = listOf("AI chip shortages continue. New EU regulations proposed.")
-        val prompt = composer.buildPrompt(articles, podcast, recaps)
+    fun `prompt includes follow-up annotation for continuation articles`() {
+        val annotations = mapOf(1L to "Previously covered release details")
+        val prompt = composer.buildPrompt(articles, podcast, followUpAnnotations = annotations)
 
-        assertTrue(prompt.contains("Recent episode context:"))
-        assertTrue(prompt.contains("AI chip shortages continue."))
-        assertTrue(prompt.contains("Last time we discussed"))
+        assertTrue(prompt.contains("[FOLLOW-UP: Previously covered release details]"))
     }
 
     @Test
-    fun `prompt excludes continuity context when empty list`() {
-        val prompt = composer.buildPrompt(articles, podcast, emptyList())
+    fun `prompt excludes follow-up annotation when empty`() {
+        val prompt = composer.buildPrompt(articles, podcast)
 
-        assertFalse(prompt.contains("Recent episode context:"))
-    }
-
-    @Test
-    fun `prompt includes multiple numbered recaps`() {
-        val recaps = listOf("AI chip shortages continue.", "EU regulations proposed.", "Quantum breakthrough.")
-        val prompt = composer.buildPrompt(articles, podcast, recaps)
-
-        assertTrue(prompt.contains("#1 (most recent)"))
-        assertTrue(prompt.contains("#2 (2 episodes ago)"))
-        assertTrue(prompt.contains("#3 (3 episodes ago)"))
-        assertTrue(prompt.contains("Do NOT repeat topics"))
+        assertFalse(prompt.contains("[FOLLOW-UP:"))
     }
 
     @Test

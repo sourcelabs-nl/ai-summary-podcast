@@ -196,12 +196,16 @@ class EpisodeControllerTest {
     }
 
     @Test
-    fun `discard non-pending episode returns 409`() {
+    fun `discard non-discardable episode returns 409`() {
+        val approvedEpisode = Episode(
+            id = 3L, podcastId = podcastId, generatedAt = "2025-01-01T00:00:00Z",
+            scriptText = "Test script", status = EpisodeStatus.APPROVED
+        )
         every { userService.findById(userId) } returns user
         every { podcastService.findById(podcastId) } returns podcast
-        every { episodeRepository.findById(2L) } returns Optional.of(generatedEpisode)
+        every { episodeRepository.findById(3L) } returns Optional.of(approvedEpisode)
 
-        mockMvc.perform(post("/users/$userId/podcasts/$podcastId/episodes/2/discard"))
+        mockMvc.perform(post("/users/$userId/podcasts/$podcastId/episodes/3/discard"))
             .andExpect(status().isConflict)
     }
 

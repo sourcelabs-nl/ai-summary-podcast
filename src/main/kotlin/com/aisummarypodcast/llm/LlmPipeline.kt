@@ -4,7 +4,6 @@ import com.aisummarypodcast.config.AppProperties
 import com.aisummarypodcast.source.SourceAggregator
 import com.aisummarypodcast.store.Article
 import com.aisummarypodcast.store.ArticleRepository
-import com.aisummarypodcast.store.EpisodeRepository
 import com.aisummarypodcast.store.Podcast
 import com.aisummarypodcast.store.PodcastStyle
 import com.aisummarypodcast.store.PostRepository
@@ -43,8 +42,9 @@ class LlmPipeline(
     private val postRepository: PostRepository,
     private val sourceAggregator: SourceAggregator,
     private val appProperties: AppProperties,
-    private val episodeRepository: EpisodeRepository,
-    private val ttsProviderFactory: TtsProviderFactory
+    private val ttsProviderFactory: TtsProviderFactory,
+    private val articleEligibilityService: ArticleEligibilityService,
+    private val topicDedupFilter: TopicDedupFilter
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -107,30 +107,36 @@ class LlmPipeline(
             log.info("[LLM] Score+summarize complete — {} articles in {} ({} relevant)", unscored.size, scoringDuration, relevantCount)
         }
 
-        // Step 3: Compose briefing from all relevant unprocessed articles
-        val toCompose = articleRepository.findRelevantUnprocessedBySourceIds(sourceIds, threshold)
-        if (toCompose.isEmpty()) {
-            log.info("[LLM] No relevant unprocessed articles for podcast '{}' ({}) — skipping briefing generation", podcast.name, podcast.id)
+        // Step 3: Find eligible articles and run dedup filter
+        val eligible = articleEligibilityService.findEligibleArticles(sourceIds, podcast)
+        if (eligible.isEmpty()) {
+            log.info("[LLM] No eligible articles for podcast '{}' ({}) — skipping briefing generation", podcast.name, podcast.id)
             return null
         }
 
-        onProgress("composing", mapOf("articleCount" to toCompose.size))
+        onProgress("deduplicating", mapOf("articleCount" to eligible.size))
 
-        // Fetch recent episode recaps for continuity context and topic deduplication
-        val previousRecaps = fetchRecentRecaps(podcast)
-        if (previousRecaps.isNotEmpty()) {
-            log.info("[LLM] {} recent episode recap(s) found for podcast '{}' ({}) — passing to composer", previousRecaps.size, podcast.name, podcast.id)
-        } else {
-            log.info("[LLM] No previous episode recaps for podcast '{}' ({}) — composing without continuity context", podcast.name, podcast.id)
+        val historicalArticles = articleEligibilityService.findHistoricalArticles(podcast)
+        val dedupResult = topicDedupFilter.filter(eligible, historicalArticles, podcast.userId, filterModelDef)
+
+        if (dedupResult.filteredArticles.isEmpty()) {
+            log.info("[LLM] All articles filtered as duplicates for podcast '{}' ({}) — skipping briefing generation", podcast.name, podcast.id)
+            return null
         }
+
+        // Step 4: Compose briefing from filtered articles
+        val toCompose = dedupResult.filteredArticles.map { it.article }
+        onProgress("composing", mapOf("articleCount" to toCompose.size))
 
         val ttsProvider = ttsProviderFactory.resolve(podcast)
         val ttsScriptGuidelines = ttsProvider.scriptGuidelines(podcast.style, podcast.pronunciations ?: emptyMap())
 
+        val followUpAnnotations = buildFollowUpAnnotations(dedupResult.filteredArticles)
+
         val compositionResult = when (podcast.style) {
-            PodcastStyle.DIALOGUE -> dialogueComposer.compose(toCompose, podcast, composeModelDef, previousRecaps, ttsScriptGuidelines)
-            PodcastStyle.INTERVIEW -> interviewComposer.compose(toCompose, podcast, composeModelDef, previousRecaps, ttsScriptGuidelines)
-            else -> briefingComposer.compose(toCompose, podcast, composeModelDef, previousRecaps, ttsScriptGuidelines)
+            PodcastStyle.DIALOGUE -> dialogueComposer.compose(toCompose, podcast, composeModelDef, ttsScriptGuidelines, followUpAnnotations)
+            PodcastStyle.INTERVIEW -> interviewComposer.compose(toCompose, podcast, composeModelDef, ttsScriptGuidelines, followUpAnnotations)
+            else -> briefingComposer.compose(toCompose, podcast, composeModelDef, ttsScriptGuidelines, followUpAnnotations)
         }
 
         val processedArticleIds = toCompose.mapNotNull { it.id }
@@ -139,34 +145,37 @@ class LlmPipeline(
             articleRepository.save(article.copy(isProcessed = true))
         }
 
-        val costCents = CostEstimator.estimateLlmCostCents(
+        val dedupCostCents = CostEstimator.estimateLlmCostCents(
+            dedupResult.usage.inputTokens, dedupResult.usage.outputTokens, filterModelDef
+        )
+        val composeCostCents = CostEstimator.estimateLlmCostCents(
             compositionResult.usage.inputTokens, compositionResult.usage.outputTokens, composeModelDef
         )
+        val totalCostCents = CostEstimator.addNullableCosts(dedupCostCents, composeCostCents)
 
         log.info("[LLM] Pipeline complete for podcast '{}' ({}): {} articles processed into briefing", podcast.name, podcast.id, toCompose.size)
         return PipelineResult(
             script = compositionResult.script,
             filterModel = filterModelDef.model,
             composeModel = composeModelDef.model,
-            llmInputTokens = compositionResult.usage.inputTokens,
-            llmOutputTokens = compositionResult.usage.outputTokens,
-            llmCostCents = costCents,
+            llmInputTokens = dedupResult.usage.inputTokens + compositionResult.usage.inputTokens,
+            llmOutputTokens = dedupResult.usage.outputTokens + compositionResult.usage.outputTokens,
+            llmCostCents = totalCostCents,
             processedArticleIds = processedArticleIds
         )
     }
 
     fun recompose(articles: List<Article>, podcast: Podcast, onProgress: (stage: String, detail: Map<String, Any>) -> Unit = { _, _ -> }): PipelineResult {
         val composeModelDef = modelResolver.resolve(podcast, PipelineStage.COMPOSE)
-        val previousRecaps = fetchRecentRecaps(podcast)
         val ttsProvider = ttsProviderFactory.resolve(podcast)
         val ttsScriptGuidelines = ttsProvider.scriptGuidelines(podcast.style, podcast.pronunciations ?: emptyMap())
 
         onProgress("composing", mapOf("articleCount" to articles.size))
 
         val compositionResult = when (podcast.style) {
-            PodcastStyle.DIALOGUE -> dialogueComposer.compose(articles, podcast, composeModelDef, previousRecaps, ttsScriptGuidelines)
-            PodcastStyle.INTERVIEW -> interviewComposer.compose(articles, podcast, composeModelDef, previousRecaps, ttsScriptGuidelines)
-            else -> briefingComposer.compose(articles, podcast, composeModelDef, previousRecaps, ttsScriptGuidelines)
+            PodcastStyle.DIALOGUE -> dialogueComposer.compose(articles, podcast, composeModelDef, ttsScriptGuidelines)
+            PodcastStyle.INTERVIEW -> interviewComposer.compose(articles, podcast, composeModelDef, ttsScriptGuidelines)
+            else -> briefingComposer.compose(articles, podcast, composeModelDef, ttsScriptGuidelines)
         }
 
         val filterModelDef = modelResolver.resolve(podcast, PipelineStage.FILTER)
@@ -193,7 +202,6 @@ class LlmPipeline(
 
         val filterModelDef = modelResolver.resolve(podcast, PipelineStage.FILTER)
         val composeModelDef = modelResolver.resolve(podcast, PipelineStage.COMPOSE)
-        val threshold = podcast.relevanceThreshold
         val sourceLabels = sources.associate { it.id to extractDomainAndPath(it.url) }
 
         // Step 1: Aggregate unlinked posts into articles
@@ -219,23 +227,36 @@ class LlmPipeline(
             articleScoreSummarizer.scoreSummarize(unscored, podcast, filterModelDef, sourceLabels)
         }
 
-        // Step 3: Compose script from relevant unprocessed articles (NO marking as processed)
-        val toCompose = articleRepository.findRelevantUnprocessedBySourceIds(sourceIds, threshold)
-        if (toCompose.isEmpty()) {
-            log.info("[LLM Preview] No relevant unprocessed articles for podcast '{}' ({})", podcast.name, podcast.id)
+        // Step 3: Find eligible articles and run dedup filter
+        val eligible = articleEligibilityService.findEligibleArticles(sourceIds, podcast)
+        if (eligible.isEmpty()) {
+            log.info("[LLM Preview] No eligible articles for podcast '{}' ({})", podcast.name, podcast.id)
             return null
         }
 
+        onProgress("deduplicating", mapOf("articleCount" to eligible.size))
+
+        val historicalArticles = articleEligibilityService.findHistoricalArticles(podcast)
+        val dedupResult = topicDedupFilter.filter(eligible, historicalArticles, podcast.userId, filterModelDef)
+
+        if (dedupResult.filteredArticles.isEmpty()) {
+            log.info("[LLM Preview] All articles filtered as duplicates for podcast '{}' ({})", podcast.name, podcast.id)
+            return null
+        }
+
+        // Step 4: Compose script from filtered articles (NO marking as processed)
+        val toCompose = dedupResult.filteredArticles.map { it.article }
         onProgress("composing", mapOf("articleCount" to toCompose.size))
 
-        val previousRecaps = fetchRecentRecaps(podcast)
         val ttsProvider = ttsProviderFactory.resolve(podcast)
         val ttsScriptGuidelines = ttsProvider.scriptGuidelines(podcast.style, podcast.pronunciations ?: emptyMap())
 
+        val followUpAnnotations = buildFollowUpAnnotations(dedupResult.filteredArticles)
+
         val compositionResult = when (podcast.style) {
-            PodcastStyle.DIALOGUE -> dialogueComposer.compose(toCompose, podcast, composeModelDef, previousRecaps, ttsScriptGuidelines)
-            PodcastStyle.INTERVIEW -> interviewComposer.compose(toCompose, podcast, composeModelDef, previousRecaps, ttsScriptGuidelines)
-            else -> briefingComposer.compose(toCompose, podcast, composeModelDef, previousRecaps, ttsScriptGuidelines)
+            PodcastStyle.DIALOGUE -> dialogueComposer.compose(toCompose, podcast, composeModelDef, ttsScriptGuidelines, followUpAnnotations)
+            PodcastStyle.INTERVIEW -> interviewComposer.compose(toCompose, podcast, composeModelDef, ttsScriptGuidelines, followUpAnnotations)
+            else -> briefingComposer.compose(toCompose, podcast, composeModelDef, ttsScriptGuidelines, followUpAnnotations)
         }
 
         log.info("[LLM Preview] Preview complete for podcast '{}' ({}): {} articles composed", podcast.name, podcast.id, toCompose.size)
@@ -245,9 +266,13 @@ class LlmPipeline(
         )
     }
 
-    private fun fetchRecentRecaps(podcast: Podcast): List<String> {
-        val lookback = podcast.recapLookbackEpisodes ?: appProperties.episode.recapLookbackEpisodes
-        return episodeRepository.findRecentWithRecapByPodcastId(podcast.id, lookback)
-            .mapNotNull { it.recap }
+    private fun buildFollowUpAnnotations(filteredArticles: List<FilteredArticle>): Map<Long, String> {
+        val annotations = mutableMapOf<Long, String>()
+        for (fa in filteredArticles) {
+            if (fa.followUpContext != null && fa.article.id != null) {
+                annotations[fa.article.id] = fa.followUpContext
+            }
+        }
+        return annotations
     }
 }

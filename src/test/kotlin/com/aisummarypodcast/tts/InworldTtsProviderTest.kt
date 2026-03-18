@@ -450,7 +450,7 @@ class InworldTtsProviderTest {
         assertTrue(guidelines.contains("- Jarno → /jɑrnoː/"))
         assertTrue(guidelines.contains("FIRST occurrence"))
         assertTrue(guidelines.contains("REPLACE the word"))
-        assertTrue(guidelines.contains("ONLY use IPA notation for the terms listed"))
+        assertTrue(guidelines.contains("ONLY use IPA notation for the exact terms listed below"))
     }
 
     @Test

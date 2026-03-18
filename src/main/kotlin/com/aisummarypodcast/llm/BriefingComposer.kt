@@ -35,15 +35,15 @@ class BriefingComposer(
         PodcastStyle.EXECUTIVE_SUMMARY to "You are creating a concise executive summary. Be fact-focused with minimal commentary. Get straight to the point."
     )
 
-    fun compose(articles: List<Article>, podcast: Podcast, previousEpisodeRecaps: List<String> = emptyList(), ttsScriptGuidelines: String = ""): CompositionResult {
+    fun compose(articles: List<Article>, podcast: Podcast, ttsScriptGuidelines: String = "", followUpAnnotations: Map<Long, String> = emptyMap()): CompositionResult {
         val composeModelDef = modelResolver.resolve(podcast, PipelineStage.COMPOSE)
-        return compose(articles, podcast, composeModelDef, previousEpisodeRecaps, ttsScriptGuidelines)
+        return compose(articles, podcast, composeModelDef, ttsScriptGuidelines, followUpAnnotations)
     }
 
-    fun compose(articles: List<Article>, podcast: Podcast, composeModelDef: ModelDefinition, previousEpisodeRecaps: List<String> = emptyList(), ttsScriptGuidelines: String = ""): CompositionResult {
+    fun compose(articles: List<Article>, podcast: Podcast, composeModelDef: ModelDefinition, ttsScriptGuidelines: String = "", followUpAnnotations: Map<Long, String> = emptyMap()): CompositionResult {
         log.info("[LLM] Composing briefing from {} articles for podcast '{}' ({}) (style: {})", articles.size, podcast.name, podcast.id, podcast.style)
         val chatClient = chatClientFactory.createForModel(podcast.userId, composeModelDef)
-        val prompt = buildPrompt(articles, podcast, previousEpisodeRecaps, ttsScriptGuidelines)
+        val prompt = buildPrompt(articles, podcast, ttsScriptGuidelines, followUpAnnotations)
 
         val (result, elapsed) = measureTimedValue {
             val chatResponse = chatClient.prompt()
@@ -64,18 +64,13 @@ class BriefingComposer(
         return result
     }
 
-    internal fun buildPrompt(articles: List<Article>, podcast: Podcast, previousEpisodeRecaps: List<String> = emptyList(), ttsScriptGuidelines: String = ""): String {
+    internal fun buildPrompt(articles: List<Article>, podcast: Podcast, ttsScriptGuidelines: String = "", followUpAnnotations: Map<Long, String> = emptyMap()): String {
         val targetWords = podcast.targetWords ?: appProperties.briefing.targetWords
         val stylePrompt = stylePrompts[podcast.style] ?: stylePrompts[PodcastStyle.NEWS_BRIEFING]!!
 
         val useFullBody = shouldUseFullBody(articles.size, podcast, appProperties.briefing.fullBodyThreshold)
 
-        val summaryBlock = articles.mapIndexed { index, article ->
-            val source = extractDomain(article.url)
-            val authorSuffix = article.author?.let { ", by $it" } ?: ""
-            val content = resolveArticleContent(article, useFullBody)
-            "${index + 1}. [$source$authorSuffix] ${article.title}\n$content"
-        }.joinToString("\n\n")
+        val summaryBlock = buildArticleSummaryBlock(articles, useFullBody, followUpAnnotations)
 
         val customInstructionsBlock = podcast.customInstructions?.let {
             "\n\nAdditional instructions: $it"
@@ -107,21 +102,6 @@ class BriefingComposer(
             "\n            - It's Friday! Feel free to adopt a slightly more casual and lighthearted tone. Sprinkle in a few nuanced, witty jokes or observations related to the topics — but keep it subtle and don't overdo it."
         } else ""
 
-        val recapBlock = if (previousEpisodeRecaps.isNotEmpty()) {
-            val numberedRecaps = previousEpisodeRecaps.mapIndexed { index, recap ->
-                "#${index + 1} (${if (index == 0) "most recent" else "${index + 1} episodes ago"}): $recap"
-            }.joinToString("\n            ")
-            """
-
-            Recent episode context:
-            $numberedRecaps
-
-            - Do NOT repeat topics already covered in any recent episode unless there is a genuinely new development
-            - If a topic was covered recently and there is new information, reference it briefly (e.g., "following up on what we covered recently...") rather than presenting it as new
-            - If a topic was covered and there is no new development, skip it entirely
-            - For the most recent episode (#1), you may weave in natural references (e.g., "as we discussed last time...")"""
-        } else ""
-
         return """
             $stylePrompt
 
@@ -148,7 +128,7 @@ class BriefingComposer(
             - EMPHASIS ON IMPORTANT NEWS: When covering major announcements or surprising developments, convey their significance — use emphatic language, exclamation marks, and brief pauses to let important news land. Not everything is exciting; save the energy for what truly stands out$fridayBlock$languageInstruction$customInstructionsBlock
 
             Article summaries:
-            $summaryBlock$ttsGuidelinesBlock$recapBlock
+            $summaryBlock$ttsGuidelinesBlock
         """.trimIndent()
     }
 

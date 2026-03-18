@@ -22,15 +22,15 @@ class InterviewComposer(
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    fun compose(articles: List<Article>, podcast: Podcast, previousEpisodeRecaps: List<String> = emptyList(), ttsScriptGuidelines: String = ""): CompositionResult {
+    fun compose(articles: List<Article>, podcast: Podcast, ttsScriptGuidelines: String = "", followUpAnnotations: Map<Long, String> = emptyMap()): CompositionResult {
         val composeModelDef = modelResolver.resolve(podcast, PipelineStage.COMPOSE)
-        return compose(articles, podcast, composeModelDef, previousEpisodeRecaps, ttsScriptGuidelines)
+        return compose(articles, podcast, composeModelDef, ttsScriptGuidelines, followUpAnnotations)
     }
 
-    fun compose(articles: List<Article>, podcast: Podcast, composeModelDef: ModelDefinition, previousEpisodeRecaps: List<String> = emptyList(), ttsScriptGuidelines: String = ""): CompositionResult {
+    fun compose(articles: List<Article>, podcast: Podcast, composeModelDef: ModelDefinition, ttsScriptGuidelines: String = "", followUpAnnotations: Map<Long, String> = emptyMap()): CompositionResult {
         log.info("[LLM] Composing interview from {} articles for podcast '{}' ({})", articles.size, podcast.name, podcast.id)
         val chatClient = chatClientFactory.createForModel(podcast.userId, composeModelDef)
-        val prompt = buildPrompt(articles, podcast, previousEpisodeRecaps, ttsScriptGuidelines)
+        val prompt = buildPrompt(articles, podcast, ttsScriptGuidelines, followUpAnnotations)
 
         val (result, elapsed) = measureTimedValue {
             val chatResponse = chatClient.prompt()
@@ -50,7 +50,7 @@ class InterviewComposer(
         return result
     }
 
-    internal fun buildPrompt(articles: List<Article>, podcast: Podcast, previousEpisodeRecaps: List<String> = emptyList(), ttsScriptGuidelines: String = ""): String {
+    internal fun buildPrompt(articles: List<Article>, podcast: Podcast, ttsScriptGuidelines: String = "", followUpAnnotations: Map<Long, String> = emptyMap()): String {
         val targetWords = podcast.targetWords ?: appProperties.briefing.targetWords
 
         val interviewerName = podcast.speakerNames?.get("interviewer")
@@ -64,12 +64,7 @@ class InterviewComposer(
 
         val useFullBody = shouldUseFullBody(articles.size, podcast, appProperties.briefing.fullBodyThreshold)
 
-        val summaryBlock = articles.mapIndexed { index, article ->
-            val source = extractDomain(article.url)
-            val authorSuffix = article.author?.let { ", by $it" } ?: ""
-            val content = resolveArticleContent(article, useFullBody)
-            "${index + 1}. [$source$authorSuffix] ${article.title}\n$content"
-        }.joinToString("\n\n")
+        val summaryBlock = buildArticleSummaryBlock(articles, useFullBody, followUpAnnotations)
 
         val customInstructionsBlock = podcast.customInstructions?.let {
             "\n\nAdditional instructions: $it"
@@ -93,21 +88,6 @@ class InterviewComposer(
 
         val ttsGuidelinesBlock = if (ttsScriptGuidelines.isNotEmpty()) {
             "\n\n            TTS script formatting:\n            $ttsScriptGuidelines"
-        } else ""
-
-        val recapBlock = if (previousEpisodeRecaps.isNotEmpty()) {
-            val numberedRecaps = previousEpisodeRecaps.mapIndexed { index, recap ->
-                "#${index + 1} (${if (index == 0) "most recent" else "${index + 1} episodes ago"}): $recap"
-            }.joinToString("\n            ")
-            """
-
-            Recent episode context:
-            $numberedRecaps
-
-            - Do NOT repeat topics already covered in any recent episode unless there is a genuinely new development
-            - If a topic was covered recently and there is new information, the interviewer should reference it briefly (e.g., "We talked about this recently — what's new?") rather than presenting it as new
-            - If a topic was covered and there is no new development, skip it entirely
-            - For the most recent episode (#1), the interviewer may naturally reference it (e.g., "Last time we discussed...")"""
         } else ""
 
         return """
@@ -148,7 +128,7 @@ class InterviewComposer(
             - STRICT STRUCTURAL RULE — NEVER place two consecutive tags of the same speaker. The pattern <expert>...</expert><expert>...</expert> or <interviewer>...</interviewer><interviewer>...</interviewer> is ABSOLUTELY FORBIDDEN and will break the TTS pipeline. Tags MUST strictly alternate: <interviewer>...</interviewer><expert>...</expert><interviewer>...</interviewer><expert>...</expert>. This rule overrides any other instruction including custom instructions below$nameInstruction$languageInstruction$customInstructionsBlock
 
             Article summaries:
-            $summaryBlock$ttsGuidelinesBlock$recapBlock
+            $summaryBlock$ttsGuidelinesBlock
         """.trimIndent()
     }
 

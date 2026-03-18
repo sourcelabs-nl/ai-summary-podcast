@@ -1,7 +1,6 @@
 package com.aisummarypodcast.llm
 
 import com.aisummarypodcast.config.AppProperties
-import com.aisummarypodcast.llm.PipelineStage
 import com.aisummarypodcast.config.BriefingProperties
 import com.aisummarypodcast.config.EncryptionProperties
 import com.aisummarypodcast.config.EpisodesProperties
@@ -12,8 +11,6 @@ import com.aisummarypodcast.config.SourceProperties
 import com.aisummarypodcast.source.SourceAggregator
 import com.aisummarypodcast.store.Article
 import com.aisummarypodcast.store.ArticleRepository
-import com.aisummarypodcast.store.Episode
-import com.aisummarypodcast.store.EpisodeRepository
 import com.aisummarypodcast.store.Podcast
 import com.aisummarypodcast.store.PodcastStyle
 import com.aisummarypodcast.store.Post
@@ -45,15 +42,14 @@ class LlmPipelineTest {
     private val sourceRepository = mockk<SourceRepository>()
     private val postRepository = mockk<PostRepository>()
     private val sourceAggregator = mockk<SourceAggregator>()
-    private val episodeRepository = mockk<EpisodeRepository> {
-        every { findRecentWithRecapByPodcastId(any(), any()) } returns emptyList()
-    }
     private val ttsProviderMock = mockk<TtsProvider> {
         every { scriptGuidelines(any(), any()) } returns ""
     }
     private val ttsProviderFactory = mockk<TtsProviderFactory> {
         every { resolve(any()) } returns ttsProviderMock
     }
+    private val articleEligibilityService = mockk<ArticleEligibilityService>()
+    private val topicDedupFilter = mockk<TopicDedupFilter>()
 
     private val appProperties = AppProperties(
         llm = LlmProperties(),
@@ -69,11 +65,29 @@ class LlmPipelineTest {
 
     private val pipeline = LlmPipeline(
         articleScoreSummarizer, briefingComposer, dialogueComposer, interviewComposer, modelResolver, articleRepository,
-        sourceRepository, postRepository, sourceAggregator, appProperties, episodeRepository, ttsProviderFactory
+        sourceRepository, postRepository, sourceAggregator, appProperties, ttsProviderFactory,
+        articleEligibilityService, topicDedupFilter
     )
 
     private val podcast = Podcast(id = "p1", userId = "u1", name = "Tech Daily", topic = "tech", relevanceThreshold = 5)
     private val source = Source(id = "s1", podcastId = "p1", type = SourceType.RSS, url = "https://example.com/feed")
+
+    private val scoredArticle = Article(
+        id = 1, sourceId = "s1", title = "AI News", body = "Body",
+        url = "https://example.com/ai", contentHash = "hash1", relevanceScore = 8, summary = "Summary."
+    )
+
+    private fun setupBasicPipeline(articles: List<Article> = listOf(scoredArticle), podcast: Podcast = this.podcast) {
+        every { sourceRepository.findByPodcastId(podcast.id) } returns listOf(source)
+        every { modelResolver.resolve(podcast, PipelineStage.FILTER) } returns filterModelDef
+        every { modelResolver.resolve(podcast, PipelineStage.COMPOSE) } returns composeModelDef
+        every { postRepository.findUnlinkedBySourceIds(listOf("s1"), any()) } returns emptyList()
+        every { articleRepository.findUnscoredBySourceIds(listOf("s1")) } returns emptyList()
+        every { articleEligibilityService.findEligibleArticles(listOf("s1"), podcast) } returns articles
+        every { articleEligibilityService.findHistoricalArticles(podcast) } returns emptyList()
+        every { topicDedupFilter.filter(articles, emptyList(), podcast.userId, filterModelDef) } returns
+            DedupFilterResult(articles.map { FilteredArticle(it) }, TokenUsage(100, 50))
+    }
 
     @Test
     fun `returns null when podcast has no sources`() {
@@ -85,13 +99,24 @@ class LlmPipelineTest {
     }
 
     @Test
-    fun `returns null when no relevant unprocessed articles exist`() {
+    fun `returns null when no eligible articles exist`() {
         every { sourceRepository.findByPodcastId("p1") } returns listOf(source)
         every { modelResolver.resolve(podcast, PipelineStage.FILTER) } returns filterModelDef
         every { modelResolver.resolve(podcast, PipelineStage.COMPOSE) } returns composeModelDef
         every { postRepository.findUnlinkedBySourceIds(listOf("s1"), any()) } returns emptyList()
         every { articleRepository.findUnscoredBySourceIds(listOf("s1")) } returns emptyList()
-        every { articleRepository.findRelevantUnprocessedBySourceIds(listOf("s1"), 5) } returns emptyList()
+        every { articleEligibilityService.findEligibleArticles(listOf("s1"), podcast) } returns emptyList()
+
+        val result = pipeline.run(podcast)
+
+        assertNull(result)
+    }
+
+    @Test
+    fun `returns null when all articles filtered as duplicates`() {
+        setupBasicPipeline()
+        every { topicDedupFilter.filter(any(), any(), any(), any()) } returns
+            DedupFilterResult(emptyList(), TokenUsage(100, 50))
 
         val result = pipeline.run(podcast)
 
@@ -108,7 +133,7 @@ class LlmPipelineTest {
             id = 1, sourceId = "s1", title = "AI News", body = "Post body",
             url = "https://example.com/ai", contentHash = "arthash1"
         )
-        val scoredArticle = createdArticle.copy(relevanceScore = 8, summary = "AI is advancing.")
+        val scored = createdArticle.copy(relevanceScore = 8, summary = "AI is advancing.")
         val compositionResult = CompositionResult("Today in tech...", TokenUsage(1000, 500))
 
         every { sourceRepository.findByPodcastId("p1") } returns listOf(source)
@@ -117,98 +142,122 @@ class LlmPipelineTest {
         every { postRepository.findUnlinkedBySourceIds(listOf("s1"), any()) } returns listOf(unlinkedPost)
         every { sourceAggregator.aggregateAndPersist(listOf(unlinkedPost), source) } returns listOf(createdArticle)
         every { articleRepository.findUnscoredBySourceIds(listOf("s1")) } returns listOf(createdArticle)
-        every { articleScoreSummarizer.scoreSummarize(listOf(createdArticle), podcast, filterModelDef, mapOf("s1" to "example.com/feed")) } returns listOf(scoredArticle)
-        every { articleRepository.findRelevantUnprocessedBySourceIds(listOf("s1"), 5) } returns listOf(scoredArticle)
-        every { briefingComposer.compose(listOf(scoredArticle), podcast, composeModelDef, emptyList(), "") } returns compositionResult
+        every { articleScoreSummarizer.scoreSummarize(listOf(createdArticle), podcast, filterModelDef, mapOf("s1" to "example.com/feed")) } returns listOf(scored)
+        every { articleEligibilityService.findEligibleArticles(listOf("s1"), podcast) } returns listOf(scored)
+        every { articleEligibilityService.findHistoricalArticles(podcast) } returns emptyList()
+        every { topicDedupFilter.filter(listOf(scored), emptyList(), "u1", filterModelDef) } returns
+            DedupFilterResult(listOf(FilteredArticle(scored)), TokenUsage(100, 50))
+        every { briefingComposer.compose(listOf(scored), podcast, composeModelDef, "", emptyMap()) } returns compositionResult
 
         val result = pipeline.run(podcast)
 
         assertNotNull(result)
         assertEquals("Today in tech...", result!!.script)
-        assertEquals("anthropic/claude-haiku-4.5", result.filterModel)
-        assertEquals("anthropic/claude-sonnet-4", result.composeModel)
 
         verify { sourceAggregator.aggregateAndPersist(listOf(unlinkedPost), source) }
         verify { articleScoreSummarizer.scoreSummarize(listOf(createdArticle), podcast, filterModelDef, mapOf("s1" to "example.com/feed")) }
-        verify { articleRepository.save(scoredArticle.copy(isProcessed = true)) }
+        verify { articleRepository.save(scored.copy(isProcessed = true)) }
     }
 
     @Test
-    fun `marks articles as processed with summaries preserved`() {
-        val article = Article(
-            id = 1, sourceId = "s1", title = "AI News", body = "Article body",
-            url = "https://example.com/ai", contentHash = "hash1",
-            relevanceScore = 8, summary = "AI is advancing rapidly."
-        )
+    fun `delegates article selection to ArticleEligibilityService`() {
+        setupBasicPipeline()
+        every { briefingComposer.compose(any(), any(), any(), any(), any<Map<Long, String>>()) } returns CompositionResult("Script", TokenUsage(500, 200))
 
-        every { sourceRepository.findByPodcastId("p1") } returns listOf(source)
-        every { modelResolver.resolve(podcast, PipelineStage.FILTER) } returns filterModelDef
-        every { modelResolver.resolve(podcast, PipelineStage.COMPOSE) } returns composeModelDef
-        every { postRepository.findUnlinkedBySourceIds(listOf("s1"), any()) } returns emptyList()
-        every { articleRepository.findUnscoredBySourceIds(listOf("s1")) } returns emptyList()
-        every { articleRepository.findRelevantUnprocessedBySourceIds(listOf("s1"), 5) } returns listOf(article)
-        every { briefingComposer.compose(listOf(article), podcast, composeModelDef, emptyList(), "") } returns CompositionResult("Script text", TokenUsage(500, 200))
+        pipeline.run(podcast)
+
+        verify { articleEligibilityService.findEligibleArticles(listOf("s1"), podcast) }
+        verify { articleEligibilityService.findHistoricalArticles(podcast) }
+    }
+
+    @Test
+    fun `calls dedup filter with eligible and historical articles`() {
+        val historical = listOf(Article(id = 99, sourceId = "s1", title = "Old", body = "old", url = "http://old.com", contentHash = "h99"))
+        setupBasicPipeline()
+        every { articleEligibilityService.findHistoricalArticles(podcast) } returns historical
+        every { topicDedupFilter.filter(listOf(scoredArticle), historical, "u1", filterModelDef) } returns
+            DedupFilterResult(listOf(FilteredArticle(scoredArticle)), TokenUsage(100, 50))
+        every { briefingComposer.compose(any(), any(), any(), any(), any<Map<Long, String>>()) } returns CompositionResult("Script", TokenUsage(500, 200))
+
+        pipeline.run(podcast)
+
+        verify { topicDedupFilter.filter(listOf(scoredArticle), historical, "u1", filterModelDef) }
+    }
+
+    @Test
+    fun `passes follow-up annotations from dedup filter to composer`() {
+        setupBasicPipeline()
+        every { topicDedupFilter.filter(any(), any(), any(), any()) } returns
+            DedupFilterResult(listOf(FilteredArticle(scoredArticle, "Previously covered release")), TokenUsage(100, 50))
+        every { briefingComposer.compose(listOf(scoredArticle), podcast, composeModelDef, "", mapOf(1L to "Previously covered release")) } returns
+            CompositionResult("Script with follow-up", TokenUsage(500, 200))
 
         val result = pipeline.run(podcast)
 
         assertNotNull(result)
-
-        verify {
-            articleRepository.save(match {
-                it.isProcessed && it.summary == "AI is advancing rapidly." && it.relevanceScore == 8
-            })
-        }
+        verify { briefingComposer.compose(listOf(scoredArticle), podcast, composeModelDef, "", mapOf(1L to "Previously covered release")) }
     }
 
     @Test
-    fun `skips aggregation when no unlinked posts exist`() {
-        val scoredArticle = Article(
-            id = 1, sourceId = "s1", title = "AI News", body = "Body",
-            url = "https://example.com/ai", contentHash = "hash1", relevanceScore = 7,
-            summary = "Summary."
-        )
+    fun `uses dialogueComposer for dialogue style podcast`() {
+        val dialoguePodcast = podcast.copy(style = PodcastStyle.DIALOGUE, ttsProvider = TtsProviderType.ELEVENLABS, ttsVoices = mapOf("host" to "v1", "cohost" to "v2"))
+        setupBasicPipeline(podcast = dialoguePodcast)
+        every { dialogueComposer.compose(any(), any(), any(), any(), any<Map<Long, String>>()) } returns CompositionResult("<host>Hello!</host>", TokenUsage(500, 200))
 
-        every { sourceRepository.findByPodcastId("p1") } returns listOf(source)
-        every { modelResolver.resolve(podcast, PipelineStage.FILTER) } returns filterModelDef
-        every { modelResolver.resolve(podcast, PipelineStage.COMPOSE) } returns composeModelDef
-        every { postRepository.findUnlinkedBySourceIds(listOf("s1"), any()) } returns emptyList()
-        every { articleRepository.findUnscoredBySourceIds(listOf("s1")) } returns emptyList()
-        every { articleRepository.findRelevantUnprocessedBySourceIds(listOf("s1"), 5) } returns listOf(scoredArticle)
-        every { briefingComposer.compose(any(), any(), any(), any(), any()) } returns CompositionResult("Briefing", TokenUsage(800, 300))
+        val result = pipeline.run(dialoguePodcast)
+
+        assertNotNull(result)
+        verify { dialogueComposer.compose(any(), any(), any(), any(), any<Map<Long, String>>()) }
+        verify(exactly = 0) { briefingComposer.compose(any(), any(), any(), any(), any<Map<Long, String>>()) }
+    }
+
+    @Test
+    fun `uses interviewComposer for interview style podcast`() {
+        val interviewPodcast = podcast.copy(style = PodcastStyle.INTERVIEW, ttsProvider = TtsProviderType.ELEVENLABS, ttsVoices = mapOf("interviewer" to "v1", "expert" to "v2"))
+        setupBasicPipeline(podcast = interviewPodcast)
+        every { interviewComposer.compose(any(), any(), any(), any(), any<Map<Long, String>>()) } returns CompositionResult("<interviewer>Q?</interviewer>", TokenUsage(500, 200))
+
+        val result = pipeline.run(interviewPodcast)
+
+        assertNotNull(result)
+        verify { interviewComposer.compose(any(), any(), any(), any(), any<Map<Long, String>>()) }
+        verify(exactly = 0) { briefingComposer.compose(any(), any(), any(), any(), any<Map<Long, String>>()) }
+    }
+
+    @Test
+    fun `includes dedup filter token usage in pipeline result`() {
+        setupBasicPipeline()
+        every { topicDedupFilter.filter(any(), any(), any(), any()) } returns
+            DedupFilterResult(listOf(FilteredArticle(scoredArticle)), TokenUsage(200, 100))
+        every { briefingComposer.compose(any(), any(), any(), any(), any<Map<Long, String>>()) } returns
+            CompositionResult("Script", TokenUsage(500, 300))
 
         val result = pipeline.run(podcast)
 
         assertNotNull(result)
-        verify(exactly = 0) { sourceAggregator.aggregateAndPersist(any(), any()) }
-        verify(exactly = 0) { articleScoreSummarizer.scoreSummarize(any(), any(), any(), any()) }
+        assertEquals(700, result!!.llmInputTokens)
+        assertEquals(400, result.llmOutputTokens)
     }
 
     @Test
-    fun `per-podcast maxArticleAgeDays override is used for cutoff`() {
-        // Global max is 7 days. Podcast overrides to 30 days.
-        // We have an unlinked post from 15 days ago — should be included with the 30-day override.
-        val podcastWith30Days = podcast.copy(maxArticleAgeDays = 30)
+    fun `marks articles as processed after composition`() {
+        setupBasicPipeline()
+        every { briefingComposer.compose(any(), any(), any(), any(), any<Map<Long, String>>()) } returns CompositionResult("Script", TokenUsage(500, 200))
 
-        every { sourceRepository.findByPodcastId("p1") } returns listOf(source)
-        every { modelResolver.resolve(podcastWith30Days, PipelineStage.FILTER) } returns filterModelDef
-        every { modelResolver.resolve(podcastWith30Days, PipelineStage.COMPOSE) } returns composeModelDef
-        // The cutoff string is dynamic, so use any() matcher
-        every { postRepository.findUnlinkedBySourceIds(listOf("s1"), any()) } returns emptyList()
-        every { articleRepository.findUnscoredBySourceIds(listOf("s1")) } returns emptyList()
-        every { articleRepository.findRelevantUnprocessedBySourceIds(listOf("s1"), 5) } returns emptyList()
+        pipeline.run(podcast)
 
-        pipeline.run(podcastWith30Days)
+        verify { articleRepository.save(match { it.id == 1L && it.isProcessed }) }
+    }
 
-        // Verify the cutoff passed to findUnlinkedBySourceIds is ~30 days ago, not 7
-        verify {
-            postRepository.findUnlinkedBySourceIds(listOf("s1"), match { cutoff ->
-                // The cutoff should be roughly 30 days ago (within a minute tolerance)
-                val cutoffInstant = java.time.Instant.parse(cutoff)
-                val expected = java.time.Instant.now().minus(30, java.time.temporal.ChronoUnit.DAYS)
-                val diff = kotlin.math.abs(cutoffInstant.epochSecond - expected.epochSecond)
-                diff < 60 // within 60 seconds
-            })
-        }
+    @Test
+    fun `passes pronunciations to scriptGuidelines`() {
+        val podcastWithPronunciations = podcast.copy(pronunciations = mapOf("Anthropic" to "/ænˈθɹɒpɪk/"))
+        setupBasicPipeline(podcast = podcastWithPronunciations)
+        every { briefingComposer.compose(any(), any(), any(), any(), any<Map<Long, String>>()) } returns CompositionResult("Script", TokenUsage(500, 200))
+
+        pipeline.run(podcastWithPronunciations)
+
+        verify { ttsProviderMock.scriptGuidelines(PodcastStyle.NEWS_BRIEFING, mapOf("Anthropic" to "/ænˈθɹɒpɪk/")) }
     }
 
     // --- Cost gate tests ---
@@ -217,52 +266,18 @@ class LlmPipelineTest {
         provider = "openrouter", model = "gpt-4o-mini",
         inputCostPerMtok = 0.15, outputCostPerMtok = 0.60
     )
-
     private val pricedComposeModel = ModelDefinition(
         provider = "openrouter", model = "claude-sonnet",
         inputCostPerMtok = 3.00, outputCostPerMtok = 15.00
     )
 
-    // Helper: creates an article with a body of the given size
     private fun articleWithBody(bodySize: Int) = Article(
         id = null, sourceId = "s1", title = "Test", body = "x".repeat(bodySize),
         url = "http://test.com", contentHash = "hash-$bodySize"
     )
 
-    private fun setupCostGateTest(
-        podcast: Podcast,
-        unscoredArticles: List<Article>,
-        filterModel: ModelDefinition = pricedFilterModel,
-        composeModel: ModelDefinition = pricedComposeModel
-    ) {
-        every { sourceRepository.findByPodcastId(podcast.id) } returns listOf(source)
-        every { modelResolver.resolve(podcast, PipelineStage.FILTER) } returns filterModel
-        every { modelResolver.resolve(podcast, PipelineStage.COMPOSE) } returns composeModel
-        every { postRepository.findUnlinkedBySourceIds(listOf("s1"), any()) } returns emptyList()
-        every { articleRepository.findUnscoredBySourceIds(listOf("s1")) } returns unscoredArticles
-    }
-
-    @Test
-    fun `cost gate - below threshold proceeds with pipeline`() {
-        // Small articles → low cost, well under 200¢ default threshold
-        val articles = listOf(articleWithBody(2000))
-        val scoredArticle = articles[0].copy(relevanceScore = 8, summary = "Summary")
-        val podcastWithPricing = podcast.copy()
-
-        setupCostGateTest(podcastWithPricing, articles)
-        every { articleScoreSummarizer.scoreSummarize(articles, podcastWithPricing, pricedFilterModel, mapOf("s1" to "example.com/feed")) } returns listOf(scoredArticle)
-        every { articleRepository.findRelevantUnprocessedBySourceIds(listOf("s1"), 5) } returns listOf(scoredArticle)
-        every { briefingComposer.compose(listOf(scoredArticle), podcastWithPricing, pricedComposeModel, emptyList(), "") } returns CompositionResult("Script", TokenUsage(500, 200))
-
-        val result = pipeline.run(podcastWithPricing)
-
-        assertNotNull(result)
-        verify { briefingComposer.compose(any(), any(), any(), any(), any()) }
-    }
-
     @Test
     fun `cost gate - above threshold skips pipeline`() {
-        // Use a very low threshold (1¢) so even small articles trigger the gate
         val lowThresholdProps = AppProperties(
             llm = LlmProperties(maxCostCents = 1),
             briefing = BriefingProperties(),
@@ -273,10 +288,10 @@ class LlmPipelineTest {
         )
         val pipelineWithLowThreshold = LlmPipeline(
             articleScoreSummarizer, briefingComposer, dialogueComposer, interviewComposer, modelResolver, articleRepository,
-            sourceRepository, postRepository, sourceAggregator, lowThresholdProps, episodeRepository, ttsProviderFactory
+            sourceRepository, postRepository, sourceAggregator, lowThresholdProps, ttsProviderFactory,
+            articleEligibilityService, topicDedupFilter
         )
 
-        // 100 articles with 10000 chars each → estimated cost will exceed 1¢
         val articles = (1..100).map { articleWithBody(10000) }
 
         every { sourceRepository.findByPodcastId("p1") } returns listOf(source)
@@ -289,323 +304,19 @@ class LlmPipelineTest {
 
         assertNull(result)
         verify(exactly = 0) { articleScoreSummarizer.scoreSummarize(any(), any(), any(), any()) }
-        verify(exactly = 0) { briefingComposer.compose(any(), any(), any(), any(), any()) }
     }
 
     @Test
-    fun `cost gate - equal threshold proceeds`() {
-        // We need to find a cost that exactly equals the threshold.
-        // Use a custom threshold that matches the estimated cost.
-        // For 1 article with 4 chars body: scoring input = 1 token, output = 200 tokens
-        // Scoring cost = (1 * 0.15 + 200 * 0.60) / 1_000_000 * 100 ≈ 0.012 cents → 0
-        // Composition: input = 200 tokens, output = 1500 * 1.3 = 1950 tokens
-        // Composition cost = (200 * 3.00 + 1950 * 15.00) / 1_000_000 * 100 ≈ 2.985 → 3
-        // Total: 0 + 3 = 3 cents
-        val thresholdProps = AppProperties(
-            llm = LlmProperties(maxCostCents = 3),
-            briefing = BriefingProperties(),
-            episodes = EpisodesProperties(),
-            feed = FeedProperties(),
-            encryption = EncryptionProperties(masterKey = "test-key"),
-            source = SourceProperties(maxArticleAgeDays = 7)
-        )
-        val pipelineExact = LlmPipeline(
-            articleScoreSummarizer, briefingComposer, dialogueComposer, interviewComposer, modelResolver, articleRepository,
-            sourceRepository, postRepository, sourceAggregator, thresholdProps, episodeRepository, ttsProviderFactory
-        )
-
-        val articles = listOf(articleWithBody(4))
-        val scoredArticle = articles[0].copy(relevanceScore = 8, summary = "Summary")
-
-        every { sourceRepository.findByPodcastId("p1") } returns listOf(source)
-        every { modelResolver.resolve(podcast, PipelineStage.FILTER) } returns pricedFilterModel
-        every { modelResolver.resolve(podcast, PipelineStage.COMPOSE) } returns pricedComposeModel
-        every { postRepository.findUnlinkedBySourceIds(listOf("s1"), any()) } returns emptyList()
-        every { articleRepository.findUnscoredBySourceIds(listOf("s1")) } returns articles
-        every { articleScoreSummarizer.scoreSummarize(articles, podcast, pricedFilterModel, mapOf("s1" to "example.com/feed")) } returns listOf(scoredArticle)
-        every { articleRepository.findRelevantUnprocessedBySourceIds(listOf("s1"), 5) } returns listOf(scoredArticle)
-        every { briefingComposer.compose(listOf(scoredArticle), podcast, pricedComposeModel, emptyList(), "") } returns CompositionResult("Script", TokenUsage(500, 200))
-
-        val result = pipelineExact.run(podcast)
-
-        assertNotNull(result)
-        verify { briefingComposer.compose(any(), any(), any(), any(), any()) }
-    }
-
-    @Test
-    fun `cost gate - null pricing bypasses gate`() {
-        // Models without pricing → cost estimate is null → gate bypassed
-        val articles = listOf(articleWithBody(2000))
-        val scoredArticle = articles[0].copy(relevanceScore = 8, summary = "Summary")
-
-        setupCostGateTest(podcast, articles, filterModelDef, composeModelDef)
-        every { articleScoreSummarizer.scoreSummarize(articles, podcast, filterModelDef, mapOf("s1" to "example.com/feed")) } returns listOf(scoredArticle)
-        every { articleRepository.findRelevantUnprocessedBySourceIds(listOf("s1"), 5) } returns listOf(scoredArticle)
-        every { briefingComposer.compose(any(), any(), any(), any(), any()) } returns CompositionResult("Script", TokenUsage(500, 200))
-
-        val result = pipeline.run(podcast)
-
-        assertNotNull(result)
-        verify { briefingComposer.compose(any(), any(), any(), any(), any()) }
-    }
-
-    @Test
-    fun `cost gate - per-podcast override respected`() {
-        // Global threshold is 200 (default). Podcast overrides to 500.
-        // With 100 articles of 10000 chars, the cost will exceed 200 but not 500.
-        // Let's verify: scoring input = 100 * (10000/4) = 250000 tokens, output = 100 * 200 = 20000 tokens
-        // Scoring cost = (250000 * 0.15 + 20000 * 0.60) / 1_000_000 * 100 = 4.95 cents → 5
-        // Composition: input = 100 * 200 = 20000, output = 1950
-        // Composition cost = (20000 * 3.00 + 1950 * 15.00) / 1_000_000 * 100 = 8.925 cents → 9
-        // Total = 5 + 9 = 14 cents → well under 500, also under 200
-        // Need more articles to exceed 200 but not 500... let me use larger bodies.
-        // Actually 14 cents for 100 articles is very low. The default 200¢ won't trigger here.
-        // Let me use a low global threshold with a higher per-podcast override.
-        val lowGlobalProps = AppProperties(
-            llm = LlmProperties(maxCostCents = 1),
-            briefing = BriefingProperties(),
-            episodes = EpisodesProperties(),
-            feed = FeedProperties(),
-            encryption = EncryptionProperties(masterKey = "test-key"),
-            source = SourceProperties(maxArticleAgeDays = 7)
-        )
-        val pipelineWithLowGlobal = LlmPipeline(
-            articleScoreSummarizer, briefingComposer, dialogueComposer, interviewComposer, modelResolver, articleRepository,
-            sourceRepository, postRepository, sourceAggregator, lowGlobalProps, episodeRepository, ttsProviderFactory
-        )
-
-        // Per-podcast override to 500 → the estimate (14¢) is under 500 → passes
-        val podcastWithOverride = podcast.copy(maxLlmCostCents = 500)
-        val articles = (1..100).map { articleWithBody(10000) }
-        val scoredArticles = articles.mapIndexed { i, a -> a.copy(relevanceScore = 8, summary = "Summary $i") }
-
-        every { sourceRepository.findByPodcastId("p1") } returns listOf(source)
-        every { modelResolver.resolve(podcastWithOverride, PipelineStage.FILTER) } returns pricedFilterModel
-        every { modelResolver.resolve(podcastWithOverride, PipelineStage.COMPOSE) } returns pricedComposeModel
-        every { postRepository.findUnlinkedBySourceIds(listOf("s1"), any()) } returns emptyList()
-        every { articleRepository.findUnscoredBySourceIds(listOf("s1")) } returns articles
-        every { articleScoreSummarizer.scoreSummarize(articles, podcastWithOverride, pricedFilterModel, mapOf("s1" to "example.com/feed")) } returns scoredArticles
-        every { articleRepository.findRelevantUnprocessedBySourceIds(listOf("s1"), 5) } returns scoredArticles
-        every { briefingComposer.compose(scoredArticles, podcastWithOverride, pricedComposeModel, emptyList(), "") } returns CompositionResult("Script", TokenUsage(500, 200))
-
-        val result = pipelineWithLowGlobal.run(podcastWithOverride)
-
-        // Without the per-podcast override (global = 1¢), this would be blocked
-        // With override = 500¢, it passes
-        assertNotNull(result)
-        verify { briefingComposer.compose(any(), any(), any(), any(), any()) }
-    }
-
-    // --- Composer selection tests ---
-
-    @Test
-    fun `uses dialogueComposer for dialogue style podcast`() {
-        val dialoguePodcast = podcast.copy(style = PodcastStyle.DIALOGUE, ttsProvider = TtsProviderType.ELEVENLABS, ttsVoices = mapOf("host" to "v1", "cohost" to "v2"))
-        val article = Article(
-            id = 1, sourceId = "s1", title = "AI News", body = "Body",
-            url = "https://example.com/ai", contentHash = "hash1", relevanceScore = 8, summary = "Summary."
-        )
-        val compositionResult = CompositionResult("<host>Hello!</host><cohost>Hi!</cohost>", TokenUsage(500, 200))
-
-        every { sourceRepository.findByPodcastId("p1") } returns listOf(source)
-        every { modelResolver.resolve(dialoguePodcast, PipelineStage.FILTER) } returns filterModelDef
-        every { modelResolver.resolve(dialoguePodcast, PipelineStage.COMPOSE) } returns composeModelDef
-        every { postRepository.findUnlinkedBySourceIds(listOf("s1"), any()) } returns emptyList()
-        every { articleRepository.findUnscoredBySourceIds(listOf("s1")) } returns emptyList()
-        every { articleRepository.findRelevantUnprocessedBySourceIds(listOf("s1"), 5) } returns listOf(article)
-        every { dialogueComposer.compose(listOf(article), dialoguePodcast, composeModelDef, emptyList(), "") } returns compositionResult
-
-        val result = pipeline.run(dialoguePodcast)
-
-        assertNotNull(result)
-        verify { dialogueComposer.compose(any(), any(), any(), any(), any()) }
-        verify(exactly = 0) { briefingComposer.compose(any(), any(), any(), any(), any()) }
-    }
-
-    @Test
-    fun `uses interviewComposer for interview style podcast`() {
-        val interviewPodcast = podcast.copy(style = PodcastStyle.INTERVIEW, ttsProvider = TtsProviderType.ELEVENLABS, ttsVoices = mapOf("interviewer" to "v1", "expert" to "v2"))
-        val article = Article(
-            id = 1, sourceId = "s1", title = "AI News", body = "Body",
-            url = "https://example.com/ai", contentHash = "hash1", relevanceScore = 8, summary = "Summary."
-        )
-        val compositionResult = CompositionResult("<interviewer>Question?</interviewer><expert>Answer.</expert>", TokenUsage(500, 200))
-
-        every { sourceRepository.findByPodcastId("p1") } returns listOf(source)
-        every { modelResolver.resolve(interviewPodcast, PipelineStage.FILTER) } returns filterModelDef
-        every { modelResolver.resolve(interviewPodcast, PipelineStage.COMPOSE) } returns composeModelDef
-        every { postRepository.findUnlinkedBySourceIds(listOf("s1"), any()) } returns emptyList()
-        every { articleRepository.findUnscoredBySourceIds(listOf("s1")) } returns emptyList()
-        every { articleRepository.findRelevantUnprocessedBySourceIds(listOf("s1"), 5) } returns listOf(article)
-        every { interviewComposer.compose(listOf(article), interviewPodcast, composeModelDef, emptyList(), "") } returns compositionResult
-
-        val result = pipeline.run(interviewPodcast)
-
-        assertNotNull(result)
-        verify { interviewComposer.compose(any(), any(), any(), any(), any()) }
-        verify(exactly = 0) { dialogueComposer.compose(any(), any(), any(), any(), any()) }
-        verify(exactly = 0) { briefingComposer.compose(any(), any(), any(), any(), any()) }
-    }
-
-    @Test
-    fun `uses briefingComposer for non-dialogue style podcast`() {
-        val newsBriefingPodcast = podcast.copy(style = PodcastStyle.NEWS_BRIEFING)
-        val article = Article(
-            id = 1, sourceId = "s1", title = "AI News", body = "Body",
-            url = "https://example.com/ai", contentHash = "hash1", relevanceScore = 8, summary = "Summary."
-        )
-        val compositionResult = CompositionResult("Today in tech...", TokenUsage(500, 200))
-
-        every { sourceRepository.findByPodcastId("p1") } returns listOf(source)
-        every { modelResolver.resolve(newsBriefingPodcast, PipelineStage.FILTER) } returns filterModelDef
-        every { modelResolver.resolve(newsBriefingPodcast, PipelineStage.COMPOSE) } returns composeModelDef
-        every { postRepository.findUnlinkedBySourceIds(listOf("s1"), any()) } returns emptyList()
-        every { articleRepository.findUnscoredBySourceIds(listOf("s1")) } returns emptyList()
-        every { articleRepository.findRelevantUnprocessedBySourceIds(listOf("s1"), 5) } returns listOf(article)
-        every { briefingComposer.compose(listOf(article), newsBriefingPodcast, composeModelDef, emptyList(), "") } returns compositionResult
-
-        val result = pipeline.run(newsBriefingPodcast)
-
-        assertNotNull(result)
-        verify { briefingComposer.compose(any(), any(), any(), any(), any()) }
-        verify(exactly = 0) { dialogueComposer.compose(any(), any(), any(), any(), any()) }
-    }
-
-    // --- Episode continuity context tests ---
-
-    @Test
-    fun `passes previous episode recaps to briefing composer`() {
-        val article = Article(
-            id = 1, sourceId = "s1", title = "AI News", body = "Body",
-            url = "https://example.com/ai", contentHash = "hash1", relevanceScore = 8, summary = "Summary."
-        )
-        val previousEpisode = Episode(
-            id = 10, podcastId = "p1", generatedAt = "2026-02-18T10:00:00Z",
-            scriptText = "Previous script", recap = "AI chip shortages. EU regulations."
-        )
-
-        every { sourceRepository.findByPodcastId("p1") } returns listOf(source)
-        every { modelResolver.resolve(podcast, PipelineStage.FILTER) } returns filterModelDef
+    fun `recompose does not pass recaps to composer`() {
+        val article = scoredArticle
         every { modelResolver.resolve(podcast, PipelineStage.COMPOSE) } returns composeModelDef
-        every { postRepository.findUnlinkedBySourceIds(listOf("s1"), any()) } returns emptyList()
-        every { articleRepository.findUnscoredBySourceIds(listOf("s1")) } returns emptyList()
-        every { articleRepository.findRelevantUnprocessedBySourceIds(listOf("s1"), 5) } returns listOf(article)
-        every { episodeRepository.findRecentWithRecapByPodcastId("p1", 7) } returns listOf(previousEpisode)
-        every { briefingComposer.compose(listOf(article), podcast, composeModelDef, listOf("AI chip shortages. EU regulations."), "") } returns CompositionResult("Script with recap", TokenUsage(500, 200))
+        every { modelResolver.resolve(podcast, PipelineStage.FILTER) } returns filterModelDef
+        every { briefingComposer.compose(listOf(article), podcast, composeModelDef, "", emptyMap()) } returns
+            CompositionResult("Recomposed script", TokenUsage(500, 200))
 
-        val result = pipeline.run(podcast)
+        val result = pipeline.recompose(listOf(article), podcast)
 
         assertNotNull(result)
-        verify { briefingComposer.compose(listOf(article), podcast, composeModelDef, listOf("AI chip shortages. EU regulations."), "") }
-    }
-
-    @Test
-    fun `passes empty recap list when no previous episode exists`() {
-        val article = Article(
-            id = 1, sourceId = "s1", title = "AI News", body = "Body",
-            url = "https://example.com/ai", contentHash = "hash1", relevanceScore = 8, summary = "Summary."
-        )
-
-        every { sourceRepository.findByPodcastId("p1") } returns listOf(source)
-        every { modelResolver.resolve(podcast, PipelineStage.FILTER) } returns filterModelDef
-        every { modelResolver.resolve(podcast, PipelineStage.COMPOSE) } returns composeModelDef
-        every { postRepository.findUnlinkedBySourceIds(listOf("s1"), any()) } returns emptyList()
-        every { articleRepository.findUnscoredBySourceIds(listOf("s1")) } returns emptyList()
-        every { articleRepository.findRelevantUnprocessedBySourceIds(listOf("s1"), 5) } returns listOf(article)
-        every { episodeRepository.findRecentWithRecapByPodcastId("p1", 7) } returns emptyList()
-        every { briefingComposer.compose(listOf(article), podcast, composeModelDef, emptyList(), "") } returns CompositionResult("Script without recap", TokenUsage(500, 200))
-
-        val result = pipeline.run(podcast)
-
-        assertNotNull(result)
-        verify { briefingComposer.compose(listOf(article), podcast, composeModelDef, emptyList(), "") }
-    }
-
-    @Test
-    fun `uses per-podcast recap lookback override`() {
-        val podcastWith3 = podcast.copy(recapLookbackEpisodes = 3)
-        val article = Article(
-            id = 1, sourceId = "s1", title = "AI News", body = "Body",
-            url = "https://example.com/ai", contentHash = "hash1", relevanceScore = 8, summary = "Summary."
-        )
-
-        every { sourceRepository.findByPodcastId("p1") } returns listOf(source)
-        every { modelResolver.resolve(podcastWith3, PipelineStage.FILTER) } returns filterModelDef
-        every { modelResolver.resolve(podcastWith3, PipelineStage.COMPOSE) } returns composeModelDef
-        every { postRepository.findUnlinkedBySourceIds(listOf("s1"), any()) } returns emptyList()
-        every { articleRepository.findUnscoredBySourceIds(listOf("s1")) } returns emptyList()
-        every { articleRepository.findRelevantUnprocessedBySourceIds(listOf("s1"), 5) } returns listOf(article)
-        every { episodeRepository.findRecentWithRecapByPodcastId("p1", 3) } returns emptyList()
-        every { briefingComposer.compose(any(), any(), any(), any(), any()) } returns CompositionResult("Script", TokenUsage(500, 200))
-
-        pipeline.run(podcastWith3)
-
-        verify { episodeRepository.findRecentWithRecapByPodcastId("p1", 3) }
-    }
-
-    @Test
-    fun `passes pronunciations to scriptGuidelines`() {
-        val podcastWithPronunciations = podcast.copy(
-            pronunciations = mapOf("Anthropic" to "/ænˈθɹɒpɪk/", "Jarno" to "/jɑrnoː/")
-        )
-        val article = Article(
-            id = 1, sourceId = "s1", title = "AI News", body = "Body",
-            url = "https://example.com/ai", contentHash = "hash1", relevanceScore = 8, summary = "Summary."
-        )
-
-        every { sourceRepository.findByPodcastId("p1") } returns listOf(source)
-        every { modelResolver.resolve(podcastWithPronunciations, PipelineStage.FILTER) } returns filterModelDef
-        every { modelResolver.resolve(podcastWithPronunciations, PipelineStage.COMPOSE) } returns composeModelDef
-        every { postRepository.findUnlinkedBySourceIds(listOf("s1"), any()) } returns emptyList()
-        every { articleRepository.findUnscoredBySourceIds(listOf("s1")) } returns emptyList()
-        every { articleRepository.findRelevantUnprocessedBySourceIds(listOf("s1"), 5) } returns listOf(article)
-        every { briefingComposer.compose(any(), any(), any(), any(), any()) } returns CompositionResult("Script", TokenUsage(500, 200))
-
-        pipeline.run(podcastWithPronunciations)
-
-        verify { ttsProviderMock.scriptGuidelines(PodcastStyle.NEWS_BRIEFING, mapOf("Anthropic" to "/ænˈθɹɒpɪk/", "Jarno" to "/jɑrnoː/")) }
-    }
-
-    @Test
-    fun `passes empty map to scriptGuidelines when no pronunciations`() {
-        val article = Article(
-            id = 1, sourceId = "s1", title = "AI News", body = "Body",
-            url = "https://example.com/ai", contentHash = "hash1", relevanceScore = 8, summary = "Summary."
-        )
-
-        every { sourceRepository.findByPodcastId("p1") } returns listOf(source)
-        every { modelResolver.resolve(podcast, PipelineStage.FILTER) } returns filterModelDef
-        every { modelResolver.resolve(podcast, PipelineStage.COMPOSE) } returns composeModelDef
-        every { postRepository.findUnlinkedBySourceIds(listOf("s1"), any()) } returns emptyList()
-        every { articleRepository.findUnscoredBySourceIds(listOf("s1")) } returns emptyList()
-        every { articleRepository.findRelevantUnprocessedBySourceIds(listOf("s1"), 5) } returns listOf(article)
-        every { briefingComposer.compose(any(), any(), any(), any(), any()) } returns CompositionResult("Script", TokenUsage(500, 200))
-
-        pipeline.run(podcast)
-
-        verify { ttsProviderMock.scriptGuidelines(PodcastStyle.NEWS_BRIEFING, emptyMap()) }
-    }
-
-    @Test
-    fun `passes empty list when previous episodes have no recaps`() {
-        val article = Article(
-            id = 1, sourceId = "s1", title = "AI News", body = "Body",
-            url = "https://example.com/ai", contentHash = "hash1", relevanceScore = 8, summary = "Summary."
-        )
-
-        // findRecentWithRecapByPodcastId already filters out episodes with null recap via the SQL query
-        every { sourceRepository.findByPodcastId("p1") } returns listOf(source)
-        every { modelResolver.resolve(podcast, PipelineStage.FILTER) } returns filterModelDef
-        every { modelResolver.resolve(podcast, PipelineStage.COMPOSE) } returns composeModelDef
-        every { postRepository.findUnlinkedBySourceIds(listOf("s1"), any()) } returns emptyList()
-        every { articleRepository.findUnscoredBySourceIds(listOf("s1")) } returns emptyList()
-        every { articleRepository.findRelevantUnprocessedBySourceIds(listOf("s1"), 5) } returns listOf(article)
-        every { episodeRepository.findRecentWithRecapByPodcastId("p1", 7) } returns emptyList()
-        every { briefingComposer.compose(listOf(article), podcast, composeModelDef, emptyList(), "") } returns CompositionResult("Script without recap", TokenUsage(500, 200))
-
-        val result = pipeline.run(podcast)
-
-        assertNotNull(result)
-        verify { briefingComposer.compose(listOf(article), podcast, composeModelDef, emptyList(), "") }
+        verify { briefingComposer.compose(listOf(article), podcast, composeModelDef, "", emptyMap()) }
     }
 }

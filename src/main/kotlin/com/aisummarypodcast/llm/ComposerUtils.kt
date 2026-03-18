@@ -17,6 +17,25 @@ fun extractDomain(url: String): String =
         url
     }
 
+fun buildArticleSummaryBlock(articles: List<Article>, useFullBody: Boolean, followUpAnnotations: Map<Long, String> = emptyMap()): String {
+    val groupedByFollowUp = mutableMapOf<String?, MutableList<Pair<Int, Article>>>()
+    articles.forEachIndexed { index, article ->
+        val context = article.id?.let { followUpAnnotations[it] }
+        groupedByFollowUp.getOrPut(context) { mutableListOf() }.add(index to article)
+    }
+
+    return groupedByFollowUp.entries.joinToString("\n\n") { (context, articlePairs) ->
+        val header = context?.let { "[FOLLOW-UP: $it]\n" } ?: ""
+        val block = articlePairs.joinToString("\n\n") { (index, article) ->
+            val source = extractDomain(article.url)
+            val authorSuffix = article.author?.let { ", by $it" } ?: ""
+            val content = resolveArticleContent(article, useFullBody)
+            "${index + 1}. [$source$authorSuffix] ${article.title}\n$content"
+        }
+        "$header$block"
+    }
+}
+
 fun extractDomainAndPath(url: String): String =
     try {
         val uri = URI(url)

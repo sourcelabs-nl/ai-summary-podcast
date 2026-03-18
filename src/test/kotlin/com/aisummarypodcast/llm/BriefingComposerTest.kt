@@ -265,36 +265,18 @@ class BriefingComposerTest {
     }
 
     @Test
-    fun `buildPrompt includes recap section when provided`() {
+    fun `buildPrompt includes follow-up annotation for continuation articles`() {
         val podcast = Podcast(id = "p1", userId = "u1", name = "Test", topic = "tech")
-        val recaps = listOf("AI chip shortages continue. New EU regulations proposed.")
-        val prompt = composer.buildPrompt(sampleArticles, podcast, recaps)
-        assertTrue(prompt.contains("Recent episode context:"))
-        assertTrue(prompt.contains("AI chip shortages continue."))
-        assertTrue(prompt.contains("as we discussed last time"))
+        val annotations = mapOf(1L to "Previously covered Gemini 2.5 release and benchmarks")
+        val prompt = composer.buildPrompt(sampleArticles, podcast, followUpAnnotations = annotations)
+        assertTrue(prompt.contains("[FOLLOW-UP: Previously covered Gemini 2.5 release and benchmarks]"))
     }
 
     @Test
-    fun `buildPrompt excludes recap section when empty list`() {
+    fun `buildPrompt excludes follow-up annotation when empty`() {
         val podcast = Podcast(id = "p1", userId = "u1", name = "Test", topic = "tech")
-        val prompt = composer.buildPrompt(sampleArticles, podcast, emptyList())
-        assertFalse(prompt.contains("Recent episode context:"))
-        assertFalse(prompt.contains("as we discussed last time"))
-    }
-
-    @Test
-    fun `buildPrompt includes multiple numbered recaps`() {
-        val podcast = Podcast(id = "p1", userId = "u1", name = "Test", topic = "tech")
-        val recaps = listOf(
-            "AI chip shortages continue.",
-            "EU regulations proposed.",
-            "Quantum computing breakthrough."
-        )
-        val prompt = composer.buildPrompt(sampleArticles, podcast, recaps)
-        assertTrue(prompt.contains("#1 (most recent)"))
-        assertTrue(prompt.contains("#2 (2 episodes ago)"))
-        assertTrue(prompt.contains("#3 (3 episodes ago)"))
-        assertTrue(prompt.contains("Do NOT repeat topics"))
+        val prompt = composer.buildPrompt(sampleArticles, podcast)
+        assertFalse(prompt.contains("[FOLLOW-UP:"))
     }
 
     @Test

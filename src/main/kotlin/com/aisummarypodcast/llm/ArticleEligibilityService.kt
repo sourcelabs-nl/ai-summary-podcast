@@ -1,0 +1,69 @@
+package com.aisummarypodcast.llm
+
+import com.aisummarypodcast.config.AppProperties
+import com.aisummarypodcast.store.Article
+import com.aisummarypodcast.store.ArticleRepository
+import com.aisummarypodcast.store.EpisodeArticleRepository
+import com.aisummarypodcast.store.EpisodeRepository
+import com.aisummarypodcast.store.Podcast
+import org.slf4j.LoggerFactory
+import org.springframework.stereotype.Service
+
+@Service
+class ArticleEligibilityService(
+    private val articleRepository: ArticleRepository,
+    private val episodeRepository: EpisodeRepository,
+    private val episodeArticleRepository: EpisodeArticleRepository,
+    private val appProperties: AppProperties
+) {
+
+    private val log = LoggerFactory.getLogger(javaClass)
+
+    fun findEligibleArticles(sourceIds: List<String>, podcast: Podcast): List<Article> {
+        val threshold = podcast.relevanceThreshold
+        val candidates = articleRepository.findRelevantUnprocessedBySourceIds(sourceIds, threshold)
+        val ageGateCutoff = resolveAgeGateCutoff(podcast)
+
+        if (ageGateCutoff == null) {
+            log.info("[Eligibility] No published episodes for podcast '{}' — no age gate applied, {} candidates", podcast.name, candidates.size)
+            return candidates
+        }
+
+        val filtered = candidates.filter { article ->
+            val articleDate = article.publishedAt ?: return@filter true
+            articleDate >= ageGateCutoff
+        }
+
+        if (filtered.size < candidates.size) {
+            log.info("[Eligibility] Age gate filtered {} → {} articles for podcast '{}' (cutoff: {})",
+                candidates.size, filtered.size, podcast.name, ageGateCutoff)
+        }
+
+        return filtered
+    }
+
+    fun canResetArticle(articleId: Long): Boolean {
+        return !episodeArticleRepository.isArticleLinkedToPublishedEpisode(articleId)
+    }
+
+    fun findHistoricalArticles(podcast: Podcast): List<Article> {
+        val lookback = podcast.recapLookbackEpisodes ?: appProperties.episode.recapLookbackEpisodes
+        val recentEpisodes = episodeRepository.findRecentGeneratedByPodcastId(podcast.id, lookback)
+        if (recentEpisodes.isEmpty()) return emptyList()
+
+        val allArticles = mutableListOf<Article>()
+        for (episode in recentEpisodes) {
+            val links = episodeArticleRepository.findByEpisodeId(episode.id!!)
+            for (link in links) {
+                articleRepository.findById(link.articleId).ifPresent { allArticles.add(it) }
+            }
+        }
+
+        return allArticles.distinctBy { it.id }
+    }
+
+    private fun resolveAgeGateCutoff(podcast: Podcast): String? {
+        val latestPublished = episodeRepository.findLatestPublishedByPodcastId(podcast.id)
+        return latestPublished?.generatedAt
+    }
+}

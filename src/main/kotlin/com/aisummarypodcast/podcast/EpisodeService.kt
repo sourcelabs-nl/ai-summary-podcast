@@ -1,5 +1,6 @@
 package com.aisummarypodcast.podcast
 
+import com.aisummarypodcast.llm.ArticleEligibilityService
 import com.aisummarypodcast.llm.EpisodeRecapGenerator
 import com.aisummarypodcast.llm.ModelResolver
 import com.aisummarypodcast.llm.PipelineResult
@@ -32,6 +33,7 @@ class EpisodeService(
     private val modelResolver: ModelResolver,
     private val postArticleRepository: PostArticleRepository,
     private val episodeSourcesGenerator: EpisodeSourcesGenerator,
+    private val articleEligibilityService: ArticleEligibilityService,
     private val eventPublisher: ApplicationEventPublisher
 ) {
 
@@ -151,9 +153,14 @@ class EpisodeService(
 
         var resetCount = 0
         var deletedCount = 0
+        var skippedCount = 0
         for (link in linkedArticles) {
             articleRepository.findById(link.articleId).ifPresent { article ->
-                val postCount = postArticleRepository.countByArticleId(article.id!!)
+                if (!articleEligibilityService.canResetArticle(article.id!!)) {
+                    skippedCount++
+                    return@ifPresent
+                }
+                val postCount = postArticleRepository.countByArticleId(article.id)
                 if (postCount >= 2) {
                     postArticleRepository.deleteByArticleId(article.id)
                     articleRepository.deleteById(article.id)
@@ -164,7 +171,7 @@ class EpisodeService(
                 }
             }
         }
-        log.info("Episode {} discarded, reset {} articles and deleted {} aggregated articles for reprocessing", episode.id, resetCount, deletedCount)
+        log.info("Episode {} discarded, reset {} articles, deleted {} aggregated articles, skipped {} (linked to published episodes)", episode.id, resetCount, deletedCount, skippedCount)
     }
 
     fun updateScript(episode: Episode, scriptText: String): Episode {
