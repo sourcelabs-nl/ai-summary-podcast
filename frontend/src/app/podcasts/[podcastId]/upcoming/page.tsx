@@ -232,7 +232,7 @@ export default function UpcomingPage() {
   const nextGenerationDate = useMemo(() => {
     if (!podcast?.cron) return null;
     try {
-      const expr = CronExpressionParser.parse(podcast.cron);
+      const expr = CronExpressionParser.parse(podcast.cron, { tz: 'UTC' });
       return expr.next().toDate();
     } catch {
       return null;

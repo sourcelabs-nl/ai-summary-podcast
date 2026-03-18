@@ -187,7 +187,7 @@ export default function EpisodesPage() {
     }
     function computeCountdown() {
       try {
-        const expr = CronExpressionParser.parse(podcast!.cron);
+        const expr = CronExpressionParser.parse(podcast!.cron, { tz: 'UTC' });
         const next = expr.next().toDate();
         const diff = next.getTime() - Date.now();
         if (diff <= 0) { setCountdown(null); return; }

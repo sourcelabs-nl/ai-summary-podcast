@@ -13,7 +13,7 @@ The system SHALL provide a page at `/podcasts/[podcastId]/upcoming` that uses a 
 
 #### Scenario: Next generation schedule
 - **WHEN** the podcast has a cron expression configured
-- **THEN** the header subtitle shows the next generation date and time (e.g., "Will be generated Wed, Mar 4 at 06:00 AM")
+- **THEN** the header subtitle shows the next generation date and time (e.g., "Will be generated Wed, Mar 4 at 06:00 AM"), with the cron expression parsed using `tz: 'UTC'` to match the backend's UTC-based scheduling
 
 #### Scenario: No articles
 - **WHEN** the page loads and there are no upcoming articles or posts

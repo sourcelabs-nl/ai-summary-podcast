@@ -125,6 +125,10 @@ The system SHALL display a list of episodes for a podcast at `/podcasts/{podcast
 - **WHEN** the podcast detail page loads and the podcast has a cron schedule
 - **THEN** the header area displays the cron expression converted to human-readable text inline with the topic, separated by a dot, using the `cronstrue` library
 
+#### Scenario: Countdown timer uses UTC
+- **WHEN** the podcast detail page displays a countdown to the next scheduled generation
+- **THEN** the cron expression SHALL be parsed with `tz: 'UTC'` to match the backend's UTC-based scheduling
+
 ### Requirement: Approve episode
 The system SHALL display an "Approve" button on episodes with status `PENDING_REVIEW`. Clicking the button SHALL call `POST /users/{userId}/podcasts/{podcastId}/episodes/{episodeId}/approve`.
 
