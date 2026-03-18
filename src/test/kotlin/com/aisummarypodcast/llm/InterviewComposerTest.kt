@@ -165,6 +165,27 @@ class InterviewComposerTest {
     }
 
     @Test
+    fun `prompt includes engagement techniques`() {
+        val prompt = composer.buildPrompt(articles, podcast)
+
+        assertTrue(prompt.contains("HOOK OPENING"))
+        assertTrue(prompt.contains("FRONT-LOAD THE BEST STORY"))
+        assertTrue(prompt.contains("CURIOSITY HOOKS"))
+        assertTrue(prompt.contains("MID-ROLL CALLBACKS"))
+        assertTrue(prompt.contains("SHORT SEGMENTS WITH SIGNPOSTING"))
+        assertTrue(prompt.contains("NATURAL INTERRUPTIONS"))
+        assertTrue(prompt.contains("EMPHASIS ON IMPORTANT NEWS"))
+    }
+
+    @Test
+    fun `prompt allows TTS cues inside speaker tags`() {
+        val prompt = composer.buildPrompt(articles, podcast)
+
+        assertTrue(prompt.contains("Inside speaker tags, TTS-supported cues"))
+        assertTrue(prompt.contains("ARE allowed"))
+    }
+
+    @Test
     fun `prompt includes TTS guidelines when provided`() {
         val guidelines = "You MAY include emotion cues in square brackets."
         val prompt = composer.buildPrompt(articles, podcast, ttsScriptGuidelines = guidelines)

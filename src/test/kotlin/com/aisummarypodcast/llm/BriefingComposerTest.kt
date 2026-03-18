@@ -317,6 +317,26 @@ class BriefingComposerTest {
     }
 
     @Test
+    fun `buildPrompt includes engagement techniques`() {
+        val podcast = Podcast(id = "p1", userId = "u1", name = "Test", topic = "tech")
+        val prompt = composer.buildPrompt(sampleArticles, podcast)
+
+        assertTrue(prompt.contains("HOOK OPENING"))
+        assertTrue(prompt.contains("FRONT-LOAD THE BEST STORY"))
+        assertTrue(prompt.contains("SHORT SEGMENTS WITH SIGNPOSTING"))
+        assertTrue(prompt.contains("EMPHASIS ON IMPORTANT NEWS"))
+    }
+
+    @Test
+    fun `buildPrompt allows TTS cues inside content`() {
+        val podcast = Podcast(id = "p1", userId = "u1", name = "Test", topic = "tech")
+        val prompt = composer.buildPrompt(sampleArticles, podcast)
+
+        assertTrue(prompt.contains("TTS-supported cues"))
+        assertTrue(prompt.contains("ARE allowed"))
+    }
+
+    @Test
     fun `buildPrompt handles mixed summary and body articles above threshold`() {
         val podcast = Podcast(id = "p1", userId = "u1", name = "Test", topic = "tech", fullBodyThreshold = 1)
         val articles = listOf(

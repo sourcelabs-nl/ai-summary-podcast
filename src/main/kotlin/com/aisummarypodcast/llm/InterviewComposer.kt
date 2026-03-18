@@ -123,9 +123,20 @@ class InterviewComposer(
             - Target approximately $targetWords words
             - In the introduction, the interviewer should mention the podcast name, its topic, and today's date$sponsorBlock
             - Naturally attribute information to its source and credit original authors when known
-            - Do NOT include any stage directions, sound effects, or non-spoken text outside of tags
+            - Do NOT include any stage directions, sound effects, or non-spoken text outside of speaker tags. Inside speaker tags, TTS-supported cues (described in the TTS formatting section below, if present) ARE allowed
             - Do NOT include any meta-commentary, notes, or disclaimers about the script itself
             - ONLY discuss topics that are present in the article summaries below. Do NOT introduce facts, stories, or claims from outside the provided articles. If only a few articles are provided, produce a shorter script rather than padding with external knowledge
+
+            Engagement techniques:
+            - HOOK OPENING: Do NOT start with a standard welcome. Instead, open with a provocative statement, surprising fact, or compelling question drawn from the most interesting article of the day. Then transition into the regular introduction
+            - FRONT-LOAD THE BEST STORY: Lead with the most compelling or surprising article, not the order they appear in the summaries
+            - CURIOSITY HOOKS: The interviewer should use rhetorical questions and teaser hooks before transitions (e.g., "But here's where it gets really interesting...", "So why should we care?", "You'd think that's the whole story, but..."). Create micro-curiosity loops that pull listeners forward
+            - MID-ROLL CALLBACKS: Reference earlier topics later in the episode to create narrative cohesion (e.g., "Remember that framework we discussed earlier? Well, this connects directly...", "This ties back to what you said about..."). Cross-reference at least once per episode
+            - SHORT SEGMENTS WITH SIGNPOSTING: Keep individual topic segments concise (roughly 60-90 seconds each). Use clear verbal signposts so listeners always know where they are (e.g., "Next up...", "Switching gears...", "Now for something completely different...")
+            - NATURAL INTERRUPTIONS: The interviewer should occasionally interrupt the expert MID-TOPIC — not at the end of a complete explanation, but while the expert is still building their point. Keep each expert turn to 3-5 sentences max, then have the interviewer jump in with a reaction, follow-up question, or interjection (e.g., "Wait — sorry to cut you off, but does that mean...", "Hold on, I need to understand this part first...", "Okay but that sounds like..."). The expert then continues in their NEXT turn. Aim for 3-4 interruptions per episode, spread across different topics
+            - EMPHASIS ON IMPORTANT NEWS: When covering major announcements or surprising developments, convey their significance — use emphatic language, exclamation marks, and brief pauses to let important news land. Not everything is exciting; save the energy for what truly stands out
+
+            Speaker transitions:
             - Speaker transitions must sound natural — do NOT start a turn with a bare name address (e.g., "Jarno, the market..."). Instead, use conversational bridges: reactions, follow-ups, or connectors before transitioning (e.g., "That's a great point. Now I'm curious about...", "Interesting — speaking of which...")
             - When using the other speaker's name, place it mid-sentence or at the end of a question (e.g., "What do you make of this, Jarno?") rather than as the first word of a turn
             - Vary transition patterns — not every handover needs a name, a reaction, or the same phrasing. Mix questions, reactions, bridges, and direct topic shifts

@@ -260,4 +260,56 @@ class PodcastControllerTest {
             .andExpect(jsonPath("$.ttsProvider").value("openai"))
             .andExpect(jsonPath("$.style").value("news-briefing"))
     }
+
+    @Test
+    fun `update podcast clears nullable fields when empty values sent`() {
+        val existing = Podcast(
+            id = podcastId, userId = userId, name = "My Podcast", topic = "tech",
+            customInstructions = "Some instructions",
+            sponsor = mapOf("name" to "Acme", "message" to "hello"),
+            speakerNames = mapOf("host" to "Alice"),
+            pronunciations = mapOf("Jarno" to "/jɑrnoː/")
+        )
+        val updatedSlot = slot<Podcast>()
+        every { userService.findById(userId) } returns user
+        every { podcastService.findById(podcastId) } returns existing
+        every { podcastService.update(podcastId, capture(updatedSlot)) } answers {
+            updatedSlot.captured
+        }
+
+        mockMvc.perform(
+            put("/users/$userId/podcasts/$podcastId")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"name":"My Podcast","topic":"tech","customInstructions":"","sponsor":{},"speakerNames":{},"pronunciations":{}}""")
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.customInstructions").doesNotExist())
+            .andExpect(jsonPath("$.sponsor").doesNotExist())
+            .andExpect(jsonPath("$.speakerNames").doesNotExist())
+            .andExpect(jsonPath("$.pronunciations").doesNotExist())
+    }
+
+    @Test
+    fun `update podcast keeps nullable fields when not sent`() {
+        val existing = Podcast(
+            id = podcastId, userId = userId, name = "My Podcast", topic = "tech",
+            customInstructions = "Some instructions",
+            sponsor = mapOf("name" to "Acme", "message" to "hello")
+        )
+        val updatedSlot = slot<Podcast>()
+        every { userService.findById(userId) } returns user
+        every { podcastService.findById(podcastId) } returns existing
+        every { podcastService.update(podcastId, capture(updatedSlot)) } answers {
+            updatedSlot.captured
+        }
+
+        mockMvc.perform(
+            put("/users/$userId/podcasts/$podcastId")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"name":"My Podcast","topic":"tech"}""")
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.customInstructions").value("Some instructions"))
+            .andExpect(jsonPath("$.sponsor.name").value("Acme"))
+    }
 }

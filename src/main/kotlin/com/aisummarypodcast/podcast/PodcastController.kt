@@ -86,6 +86,22 @@ data class PodcastResponse(
     val lastGeneratedAt: String?
 )
 
+/**
+ * Nullable update helper: absent (null) keeps existing value, empty clears to null, non-empty updates.
+ * Allows clearing nullable fields via the API by sending "" or {}.
+ */
+private fun String?.orKeep(existing: String?): String? = when {
+    this == null -> existing
+    this.isEmpty() -> null
+    else -> this
+}
+
+private fun Map<String, String>?.orKeep(existing: Map<String, String>?): Map<String, String>? = when {
+    this == null -> existing
+    this.isEmpty() -> null
+    else -> this
+}
+
 @RestController
 @RequestMapping("/users/{userId}/podcasts")
 class PodcastController(
@@ -220,22 +236,22 @@ class PodcastController(
                 name = request.name,
                 topic = request.topic,
                 language = request.language ?: existing.language,
-                llmModels = request.llmModels ?: existing.llmModels,
+                llmModels = request.llmModels.orKeep(existing.llmModels),
                 ttsProvider = effectiveTtsProvider,
                 ttsVoices = request.ttsVoices ?: existing.ttsVoices,
-                ttsSettings = request.ttsSettings ?: existing.ttsSettings,
+                ttsSettings = request.ttsSettings.orKeep(existing.ttsSettings),
                 style = effectiveStyle,
                 targetWords = request.targetWords ?: existing.targetWords,
                 cron = request.cron ?: existing.cron,
-                customInstructions = request.customInstructions ?: existing.customInstructions,
+                customInstructions = request.customInstructions.orKeep(existing.customInstructions),
                 relevanceThreshold = request.relevanceThreshold ?: existing.relevanceThreshold,
                 requireReview = request.requireReview ?: existing.requireReview,
                 maxLlmCostCents = request.maxLlmCostCents ?: existing.maxLlmCostCents,
                 maxArticleAgeDays = request.maxArticleAgeDays ?: existing.maxArticleAgeDays,
-                speakerNames = request.speakerNames ?: existing.speakerNames,
+                speakerNames = request.speakerNames.orKeep(existing.speakerNames),
                 fullBodyThreshold = request.fullBodyThreshold ?: existing.fullBodyThreshold,
-                sponsor = request.sponsor ?: existing.sponsor,
-                pronunciations = request.pronunciations ?: existing.pronunciations
+                sponsor = request.sponsor.orKeep(existing.sponsor),
+                pronunciations = request.pronunciations.orKeep(existing.pronunciations)
             )
         ) ?: return ResponseEntity.notFound().build()
         return ResponseEntity.ok(updated.toResponse())
