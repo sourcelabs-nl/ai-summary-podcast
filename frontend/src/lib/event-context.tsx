@@ -58,6 +58,16 @@ const TOAST_EVENTS: Record<string, { message: (data: PodcastEventData) => string
     message: (d) => `Episode #${d.data.episodeNumber ?? d.entityId} unpublished from ${d.data.target ?? "target"}`,
     type: "info",
   },
+  "pipeline.progress": {
+    message: (d) => {
+      const stage = d.data.stage as string;
+      if (stage === "aggregating") return `Aggregating ${d.data.postCount ?? ""} posts...`;
+      if (stage === "scoring") return `Scoring ${d.data.articleCount ?? ""} articles...`;
+      if (stage === "composing") return `Composing episode script...`;
+      return "Generating episode...";
+    },
+    type: "info",
+  },
 };
 
 export function EventProvider({ children }: { children: ReactNode }) {

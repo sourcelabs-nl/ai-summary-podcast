@@ -5,6 +5,7 @@ import com.aisummarypodcast.llm.LlmPipeline
 import com.aisummarypodcast.llm.PreviewResult
 import com.aisummarypodcast.store.*
 import org.slf4j.LoggerFactory
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.nio.file.Files
@@ -31,7 +32,8 @@ class PodcastService(
     private val episodeRepository: EpisodeRepository,
     private val appProperties: AppProperties,
     private val llmPipeline: LlmPipeline,
-    private val episodeService: EpisodeService
+    private val episodeService: EpisodeService,
+    private val eventPublisher: ApplicationEventPublisher
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -103,7 +105,12 @@ class PodcastService(
             return null
         }
 
-        val result = llmPipeline.run(podcast) ?: return null
+        val result = llmPipeline.run(podcast) { stage, detail ->
+            eventPublisher.publishEvent(
+                PodcastEvent(this, podcast.id, "pipeline", 0, "pipeline.progress",
+                    detail + ("stage" to stage))
+            )
+        } ?: return null
 
         return episodeService.createEpisodeFromPipelineResult(podcast, result)
     }

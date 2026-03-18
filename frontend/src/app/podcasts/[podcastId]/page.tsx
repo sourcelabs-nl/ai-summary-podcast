@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import cronstrue from "cronstrue";
-import { Check, ChevronDown, ChevronRight, Settings, Upload, X } from "lucide-react";
+import { CronExpressionParser } from "cron-parser";
+import { Check, ChevronDown, ChevronRight, Clock, Loader2, Settings, Upload, X } from "lucide-react";
 import { useUser } from "@/lib/user-context";
 import { useEventStream } from "@/lib/event-context";
 import type { Podcast, Episode, EpisodePublication, EpisodeArticle } from "@/lib/types";
@@ -25,7 +26,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { PublishWizard } from "@/components/publish-wizard";
+import { PublishWizard, TARGETS } from "@/components/publish-wizard";
 import { PublicationsTab } from "@/components/publications-tab";
 import { SourcesTab } from "@/components/sources-tab";
 import { useTabParam } from "@/hooks/use-tab-param";
@@ -58,14 +59,19 @@ export default function EpisodesPage() {
   const [publishEpisode, setPublishEpisode] = useState<Episode | null>(null);
   const router = useRouter();
   const [publishedEpisodeIds, setPublishedEpisodeIds] = useState<Set<number>>(new Set());
+  const [fullyPublishedEpisodeIds, setFullyPublishedEpisodeIds] = useState<Set<number>>(new Set());
   const [refreshKey, setRefreshKey] = useState(0);
   const [upcomingCount, setUpcomingCount] = useState<number>(0);
+  const [upcomingPostCount, setUpcomingPostCount] = useState<number>(0);
+  const [countdown, setCountdown] = useState<string | null>(null);
+  const [pipelineStage, setPipelineStage] = useState<string | null>(null);
   const [currentTab, setTab] = useTabParam("episodes", TABS);
 
   const fetchPublications = useCallback(
     (episodeList: Episode[]) => {
       if (!selectedUser || episodeList.length === 0) {
         setPublishedEpisodeIds(new Set());
+        setFullyPublishedEpisodeIds(new Set());
         return;
       }
       Promise.all(
@@ -78,12 +84,21 @@ export default function EpisodesPage() {
         )
       ).then((results) => {
         const published = new Set<number>();
+        const fullyPublished = new Set<number>();
+        const targetValues = TARGETS.map((t) => t.value);
         results.forEach((pubs: EpisodePublication[], i) => {
-          if (pubs.some((p) => p.status === "PUBLISHED")) {
+          const publishedTargets = new Set(
+            pubs.filter((p) => p.status === "PUBLISHED").map((p) => p.target)
+          );
+          if (publishedTargets.size > 0) {
             published.add(episodeList[i].id);
+          }
+          if (targetValues.every((t) => publishedTargets.has(t))) {
+            fullyPublished.add(episodeList[i].id);
           }
         });
         setPublishedEpisodeIds(published);
+        setFullyPublishedEpisodeIds(fullyPublished);
       });
     },
     [selectedUser, params.podcastId]
@@ -104,8 +119,15 @@ export default function EpisodesPage() {
       .catch(() => setEpisodes([]));
   }, [selectedUser, params.podcastId, statusFilter, fetchPublications]);
 
-  useEventStream(params.podcastId, useCallback(() => {
-    fetchEpisodes();
+  useEventStream(params.podcastId, useCallback((event: string, data: { data: Record<string, unknown> }) => {
+    if (event === "pipeline.progress") {
+      setPipelineStage(data.data.stage as string);
+    } else {
+      if (event === "episode.created" || event === "episode.generated") {
+        setPipelineStage(null);
+      }
+      fetchEpisodes();
+    }
   }, [fetchEpisodes]));
 
   useEffect(() => {
@@ -127,7 +149,8 @@ export default function EpisodesPage() {
       .then(([podcastData, episodeData, upcomingData]) => {
         setPodcast(podcastData);
         setEpisodes(episodeData);
-        setUpcomingCount((upcomingData.articles as EpisodeArticle[]).length);
+        setUpcomingCount(upcomingData.articleCount ?? 0);
+        setUpcomingPostCount(upcomingData.postCount ?? 0);
         fetchPublications(episodeData);
       })
       .catch(() => {})
@@ -155,6 +178,36 @@ export default function EpisodesPage() {
     } catch {
       return podcast.cron;
     }
+  }, [podcast?.cron]);
+
+  useEffect(() => {
+    if (!podcast?.cron) {
+      setCountdown(null);
+      return;
+    }
+    function computeCountdown() {
+      try {
+        const expr = CronExpressionParser.parse(podcast!.cron);
+        const next = expr.next().toDate();
+        const diff = next.getTime() - Date.now();
+        if (diff <= 0) { setCountdown(null); return; }
+        const h = Math.floor(diff / 3_600_000);
+        const m = Math.floor((diff % 3_600_000) / 60_000);
+        const s = Math.floor((diff % 60_000) / 1_000);
+        setCountdown(
+          h > 0
+            ? `${h}h ${String(m).padStart(2, "0")}m ${String(s).padStart(2, "0")}s`
+            : m > 0
+              ? `${m}m ${String(s).padStart(2, "0")}s`
+              : `${s}s`
+        );
+      } catch {
+        setCountdown(null);
+      }
+    }
+    computeCountdown();
+    const id = setInterval(computeCountdown, 1_000);
+    return () => clearInterval(id);
   }, [podcast?.cron]);
 
   if (userLoading || loading) {
@@ -194,14 +247,35 @@ export default function EpisodesPage() {
 
       <Link
         href={`/podcasts/${params.podcastId}/upcoming`}
-        className="mb-6 flex items-center justify-between rounded-lg border border-border bg-muted/50 px-4 py-3 hover:bg-muted transition-colors"
+        className={`mb-6 flex items-center justify-between rounded-lg border px-4 py-3 transition-colors ${
+          pipelineStage
+            ? "border-primary/50 bg-primary/5"
+            : "border-border bg-muted/50 hover:bg-muted"
+        }`}
       >
-        <span className="text-sm font-medium">
-          Next Episode {upcomingCount > 0
-            ? <>&middot; {upcomingCount} article{upcomingCount !== 1 ? "s" : ""} ready</>
-            : <>&middot; no articles yet</>}
-        </span>
-        <ChevronRight className="size-4 text-muted-foreground" />
+        {pipelineStage ? (
+          <span className="flex items-center gap-2 text-sm font-medium">
+            <Loader2 className="size-4 animate-spin text-primary" />
+            {pipelineStage === "aggregating" && "Aggregating posts..."}
+            {pipelineStage === "scoring" && "Scoring articles..."}
+            {pipelineStage === "composing" && "Composing script..."}
+          </span>
+        ) : (
+          <span className="text-sm font-medium">
+            Next Episode {upcomingCount > 0
+              ? <>&middot; {upcomingCount} article{upcomingCount !== 1 ? "s" : ""}{upcomingPostCount > upcomingCount ? ` / ${upcomingPostCount} posts` : ""} ready</>
+              : <>&middot; no articles yet</>}
+          </span>
+        )}
+        <div className="flex items-center gap-2">
+          {!pipelineStage && countdown && (
+            <span className="flex items-center gap-1 text-xs text-muted-foreground tabular-nums">
+              <Clock className="size-3" />
+              {countdown}
+            </span>
+          )}
+          <ChevronRight className="size-4 text-muted-foreground" />
+        </div>
       </Link>
 
       <Tabs value={currentTab} onValueChange={(v) => setTab(v as typeof TABS[number])}>
@@ -312,6 +386,7 @@ export default function EpisodesPage() {
                         )}
                         {episode.status === "GENERATED" && (
                           <>
+                          {!fullyPublishedEpisodeIds.has(episode.id) && (
                           <Button
                             size="icon-lg"
                             title="Publish episode"
@@ -319,6 +394,7 @@ export default function EpisodesPage() {
                           >
                             <Upload className="size-4" />
                           </Button>
+                          )}
                           {!publishedEpisodeIds.has(episode.id) && (
                           <Button
                             size="icon-lg"

@@ -2,6 +2,7 @@ package com.aisummarypodcast.podcast
 
 import com.aisummarypodcast.config.AppProperties
 import com.aisummarypodcast.llm.LlmPipeline
+import com.aisummarypodcast.source.SourceAggregator
 import com.aisummarypodcast.store.Podcast
 import com.aisummarypodcast.store.User
 import com.aisummarypodcast.user.UserService
@@ -41,6 +42,9 @@ class PodcastControllerLanguageTest {
 
     @MockkBean(relaxed = true)
     private lateinit var articleRepository: com.aisummarypodcast.store.ArticleRepository
+
+    @MockkBean(relaxed = true)
+    private lateinit var sourceAggregator: SourceAggregator
 
     private val userId = "user-1"
     private val user = User(id = userId, name = "Test User")

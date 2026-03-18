@@ -22,6 +22,7 @@ import com.aisummarypodcast.store.SourceRepository
 import com.aisummarypodcast.store.SourceType
 import io.mockk.every
 import io.mockk.mockk
+import org.springframework.context.ApplicationEventPublisher
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -37,6 +38,7 @@ class PodcastServiceTest {
     private val episodeRepository = mockk<EpisodeRepository>()
     private val llmPipeline = mockk<LlmPipeline>()
     private val episodeService = mockk<EpisodeService>()
+    private val eventPublisher = mockk<ApplicationEventPublisher>(relaxed = true)
     private val appProperties = AppProperties(
         llm = LlmProperties(),
         briefing = BriefingProperties(),
@@ -48,7 +50,8 @@ class PodcastServiceTest {
 
     private val podcastService = PodcastService(
         podcastRepository, sourceRepository, articleRepository, postRepository,
-        postArticleRepository, episodeArticleRepository, episodeRepository, appProperties, llmPipeline, episodeService
+        postArticleRepository, episodeArticleRepository, episodeRepository, appProperties, llmPipeline, episodeService,
+        eventPublisher
     )
 
     private val podcast = Podcast(

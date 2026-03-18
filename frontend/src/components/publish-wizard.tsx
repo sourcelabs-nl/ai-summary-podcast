@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { KeyRound, Trash2 } from "lucide-react";
 
-const TARGETS = [
+export const TARGETS = [
   { value: "soundcloud", label: "SoundCloud" },
   { value: "ftp", label: "FTP" },
 ] as const;

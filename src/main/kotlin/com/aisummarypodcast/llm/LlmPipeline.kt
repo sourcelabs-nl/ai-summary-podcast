@@ -49,7 +49,7 @@ class LlmPipeline(
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    fun run(podcast: Podcast): PipelineResult? {
+    fun run(podcast: Podcast, onProgress: (stage: String, detail: Map<String, Any>) -> Unit = { _, _ -> }): PipelineResult? {
         val sources = sourceRepository.findByPodcastId(podcast.id)
         val sourceIds = sources.map { it.id }
         if (sourceIds.isEmpty()) {
@@ -68,6 +68,7 @@ class LlmPipeline(
         val unlinkedPosts = postRepository.findUnlinkedBySourceIds(sourceIds, cutoff)
 
         if (unlinkedPosts.isNotEmpty()) {
+            onProgress("aggregating", mapOf("postCount" to unlinkedPosts.size))
             log.info("[LLM] Aggregating {} unlinked posts for podcast '{}' ({})", unlinkedPosts.size, podcast.name, podcast.id)
             val postsBySource = unlinkedPosts.groupBy { it.sourceId }
             for ((sourceId, posts) in postsBySource) {
@@ -97,6 +98,7 @@ class LlmPipeline(
         // Step 2: Score and summarize unscored articles
         val unscored = allUnscored
         if (unscored.isNotEmpty()) {
+            onProgress("scoring", mapOf("articleCount" to unscored.size))
             log.info("[LLM] Scoring and summarizing {} articles for podcast '{}' ({})", unscored.size, podcast.name, podcast.id)
             val (scoredArticles, scoringDuration) = measureTimedValue {
                 articleScoreSummarizer.scoreSummarize(unscored, podcast, filterModelDef, sourceLabels)
@@ -111,6 +113,8 @@ class LlmPipeline(
             log.info("[LLM] No relevant unprocessed articles for podcast '{}' ({}) — skipping briefing generation", podcast.name, podcast.id)
             return null
         }
+
+        onProgress("composing", mapOf("articleCount" to toCompose.size))
 
         // Fetch previous episode recap for continuity context
         val previousRecap = episodeRepository.findMostRecentByPodcastId(podcast.id)?.recap

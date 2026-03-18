@@ -1,5 +1,6 @@
 package com.aisummarypodcast.podcast
 
+import com.aisummarypodcast.source.SourceAggregator
 import com.aisummarypodcast.store.Podcast
 import com.aisummarypodcast.store.PodcastStyle
 import com.aisummarypodcast.store.TtsProviderType
@@ -91,7 +92,8 @@ class PodcastController(
     private val podcastService: PodcastService,
     private val userService: UserService,
     private val episodeService: EpisodeService,
-    private val objectMapper: ObjectMapper
+    private val objectMapper: ObjectMapper,
+    private val sourceAggregator: SourceAggregator
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -337,9 +339,21 @@ class PodcastController(
         }
 
         val allArticles = (articleResponses + postResponses).sortedByDescending { it.relevanceScore }
+
+        // Pre-calculate effective article count after aggregation:
+        // unlinked posts from aggregatable sources count as 1 article per source
+        val unlinkedPostArticleCount = content.unlinkedPosts
+            .groupBy { it.sourceId }
+            .entries
+            .sumOf { (sourceId, posts) ->
+                val source = sourceMap[sourceId]
+                if (source != null && sourceAggregator.shouldAggregate(source) && posts.size > 1) 1L else posts.size.toLong()
+            }
+        val effectiveArticleCount = content.articles.size + unlinkedPostArticleCount
+
         val response = mapOf(
             "articles" to allArticles,
-            "articleCount" to content.articles.size,
+            "articleCount" to effectiveArticleCount,
             "postCount" to content.totalPostCount
         )
         return ResponseEntity.ok(response)

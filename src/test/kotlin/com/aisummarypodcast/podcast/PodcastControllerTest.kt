@@ -1,6 +1,7 @@
 package com.aisummarypodcast.podcast
 
 import com.aisummarypodcast.config.AppProperties
+import com.aisummarypodcast.source.SourceAggregator
 import com.aisummarypodcast.store.Podcast
 import com.aisummarypodcast.store.User
 import com.aisummarypodcast.user.UserService
@@ -38,6 +39,9 @@ class PodcastControllerTest {
 
     @MockkBean(relaxed = true)
     private lateinit var episodeService: EpisodeService
+
+    @MockkBean(relaxed = true)
+    private lateinit var sourceAggregator: SourceAggregator
 
     private val userId = "user-1"
     private val user = User(id = userId, name = "Test User")
