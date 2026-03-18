@@ -36,7 +36,8 @@ data class CreatePodcastRequest(
     val speakerNames: Map<String, String>? = null,
     @JsonProperty("fullBodyThreshold") val fullBodyThreshold: Int? = null,
     val sponsor: Map<String, String>? = null,
-    val pronunciations: Map<String, String>? = null
+    val pronunciations: Map<String, String>? = null,
+    @JsonProperty("recapLookbackEpisodes") val recapLookbackEpisodes: Int? = null
 )
 
 data class UpdatePodcastRequest(
@@ -58,7 +59,8 @@ data class UpdatePodcastRequest(
     val speakerNames: Map<String, String>? = null,
     @JsonProperty("fullBodyThreshold") val fullBodyThreshold: Int? = null,
     val sponsor: Map<String, String>? = null,
-    val pronunciations: Map<String, String>? = null
+    val pronunciations: Map<String, String>? = null,
+    @JsonProperty("recapLookbackEpisodes") val recapLookbackEpisodes: Int? = null
 )
 
 data class PodcastResponse(
@@ -83,6 +85,7 @@ data class PodcastResponse(
     val fullBodyThreshold: Int?,
     val sponsor: Map<String, String>?,
     val pronunciations: Map<String, String>?,
+    val recapLookbackEpisodes: Int?,
     val lastGeneratedAt: String?
 )
 
@@ -182,7 +185,8 @@ class PodcastController(
                 speakerNames = request.speakerNames,
                 fullBodyThreshold = request.fullBodyThreshold,
                 sponsor = request.sponsor,
-                pronunciations = request.pronunciations
+                pronunciations = request.pronunciations,
+                recapLookbackEpisodes = request.recapLookbackEpisodes
             )
         )
         return ResponseEntity.created(URI.create("/users/$userId/podcasts/${podcast.id}"))
@@ -251,7 +255,8 @@ class PodcastController(
                 speakerNames = request.speakerNames.orKeep(existing.speakerNames),
                 fullBodyThreshold = request.fullBodyThreshold,
                 sponsor = request.sponsor.orKeep(existing.sponsor),
-                pronunciations = request.pronunciations.orKeep(existing.pronunciations)
+                pronunciations = request.pronunciations.orKeep(existing.pronunciations),
+                recapLookbackEpisodes = request.recapLookbackEpisodes
             )
         ) ?: return ResponseEntity.notFound().build()
         return ResponseEntity.ok(updated.toResponse())
@@ -452,6 +457,6 @@ class PodcastController(
         requireReview = requireReview, maxLlmCostCents = maxLlmCostCents,
         maxArticleAgeDays = maxArticleAgeDays, speakerNames = speakerNames,
         fullBodyThreshold = fullBodyThreshold, sponsor = sponsor, pronunciations = pronunciations,
-        lastGeneratedAt = lastGeneratedAt
+        recapLookbackEpisodes = recapLookbackEpisodes, lastGeneratedAt = lastGeneratedAt
     )
 }

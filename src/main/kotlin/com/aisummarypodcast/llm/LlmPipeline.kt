@@ -116,21 +116,21 @@ class LlmPipeline(
 
         onProgress("composing", mapOf("articleCount" to toCompose.size))
 
-        // Fetch previous episode recap for continuity context
-        val previousRecap = episodeRepository.findMostRecentByPodcastId(podcast.id)?.recap
-        if (previousRecap != null) {
-            log.info("[LLM] Previous episode recap found for podcast '{}' ({}) — passing to composer", podcast.name, podcast.id)
+        // Fetch recent episode recaps for continuity context and topic deduplication
+        val previousRecaps = fetchRecentRecaps(podcast)
+        if (previousRecaps.isNotEmpty()) {
+            log.info("[LLM] {} recent episode recap(s) found for podcast '{}' ({}) — passing to composer", previousRecaps.size, podcast.name, podcast.id)
         } else {
-            log.info("[LLM] No previous episode recap for podcast '{}' ({}) — composing without continuity context", podcast.name, podcast.id)
+            log.info("[LLM] No previous episode recaps for podcast '{}' ({}) — composing without continuity context", podcast.name, podcast.id)
         }
 
         val ttsProvider = ttsProviderFactory.resolve(podcast)
         val ttsScriptGuidelines = ttsProvider.scriptGuidelines(podcast.style, podcast.pronunciations ?: emptyMap())
 
         val compositionResult = when (podcast.style) {
-            PodcastStyle.DIALOGUE -> dialogueComposer.compose(toCompose, podcast, composeModelDef, previousRecap, ttsScriptGuidelines)
-            PodcastStyle.INTERVIEW -> interviewComposer.compose(toCompose, podcast, composeModelDef, previousRecap, ttsScriptGuidelines)
-            else -> briefingComposer.compose(toCompose, podcast, composeModelDef, previousRecap, ttsScriptGuidelines)
+            PodcastStyle.DIALOGUE -> dialogueComposer.compose(toCompose, podcast, composeModelDef, previousRecaps, ttsScriptGuidelines)
+            PodcastStyle.INTERVIEW -> interviewComposer.compose(toCompose, podcast, composeModelDef, previousRecaps, ttsScriptGuidelines)
+            else -> briefingComposer.compose(toCompose, podcast, composeModelDef, previousRecaps, ttsScriptGuidelines)
         }
 
         val processedArticleIds = toCompose.mapNotNull { it.id }
@@ -155,16 +155,18 @@ class LlmPipeline(
         )
     }
 
-    fun recompose(articles: List<Article>, podcast: Podcast): PipelineResult {
+    fun recompose(articles: List<Article>, podcast: Podcast, onProgress: (stage: String, detail: Map<String, Any>) -> Unit = { _, _ -> }): PipelineResult {
         val composeModelDef = modelResolver.resolve(podcast, PipelineStage.COMPOSE)
-        val previousRecap = episodeRepository.findMostRecentByPodcastId(podcast.id)?.recap
+        val previousRecaps = fetchRecentRecaps(podcast)
         val ttsProvider = ttsProviderFactory.resolve(podcast)
         val ttsScriptGuidelines = ttsProvider.scriptGuidelines(podcast.style, podcast.pronunciations ?: emptyMap())
 
+        onProgress("composing", mapOf("articleCount" to articles.size))
+
         val compositionResult = when (podcast.style) {
-            PodcastStyle.DIALOGUE -> dialogueComposer.compose(articles, podcast, composeModelDef, previousRecap, ttsScriptGuidelines)
-            PodcastStyle.INTERVIEW -> interviewComposer.compose(articles, podcast, composeModelDef, previousRecap, ttsScriptGuidelines)
-            else -> briefingComposer.compose(articles, podcast, composeModelDef, previousRecap, ttsScriptGuidelines)
+            PodcastStyle.DIALOGUE -> dialogueComposer.compose(articles, podcast, composeModelDef, previousRecaps, ttsScriptGuidelines)
+            PodcastStyle.INTERVIEW -> interviewComposer.compose(articles, podcast, composeModelDef, previousRecaps, ttsScriptGuidelines)
+            else -> briefingComposer.compose(articles, podcast, composeModelDef, previousRecaps, ttsScriptGuidelines)
         }
 
         val filterModelDef = modelResolver.resolve(podcast, PipelineStage.FILTER)
@@ -226,14 +228,14 @@ class LlmPipeline(
 
         onProgress("composing", mapOf("articleCount" to toCompose.size))
 
-        val previousRecap = episodeRepository.findMostRecentByPodcastId(podcast.id)?.recap
+        val previousRecaps = fetchRecentRecaps(podcast)
         val ttsProvider = ttsProviderFactory.resolve(podcast)
         val ttsScriptGuidelines = ttsProvider.scriptGuidelines(podcast.style, podcast.pronunciations ?: emptyMap())
 
         val compositionResult = when (podcast.style) {
-            PodcastStyle.DIALOGUE -> dialogueComposer.compose(toCompose, podcast, composeModelDef, previousRecap, ttsScriptGuidelines)
-            PodcastStyle.INTERVIEW -> interviewComposer.compose(toCompose, podcast, composeModelDef, previousRecap, ttsScriptGuidelines)
-            else -> briefingComposer.compose(toCompose, podcast, composeModelDef, previousRecap, ttsScriptGuidelines)
+            PodcastStyle.DIALOGUE -> dialogueComposer.compose(toCompose, podcast, composeModelDef, previousRecaps, ttsScriptGuidelines)
+            PodcastStyle.INTERVIEW -> interviewComposer.compose(toCompose, podcast, composeModelDef, previousRecaps, ttsScriptGuidelines)
+            else -> briefingComposer.compose(toCompose, podcast, composeModelDef, previousRecaps, ttsScriptGuidelines)
         }
 
         log.info("[LLM Preview] Preview complete for podcast '{}' ({}): {} articles composed", podcast.name, podcast.id, toCompose.size)
@@ -241,5 +243,11 @@ class LlmPipeline(
             script = compositionResult.script,
             articleIds = toCompose.mapNotNull { it.id }
         )
+    }
+
+    private fun fetchRecentRecaps(podcast: Podcast): List<String> {
+        val lookback = podcast.recapLookbackEpisodes ?: appProperties.episode.recapLookbackEpisodes
+        return episodeRepository.findRecentWithRecapByPodcastId(podcast.id, lookback)
+            .mapNotNull { it.recap }
     }
 }

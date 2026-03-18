@@ -267,19 +267,34 @@ class BriefingComposerTest {
     @Test
     fun `buildPrompt includes recap section when provided`() {
         val podcast = Podcast(id = "p1", userId = "u1", name = "Test", topic = "tech")
-        val recap = "AI chip shortages continue. New EU regulations proposed."
-        val prompt = composer.buildPrompt(sampleArticles, podcast, recap)
-        assertTrue(prompt.contains("Previous episode context:"))
+        val recaps = listOf("AI chip shortages continue. New EU regulations proposed.")
+        val prompt = composer.buildPrompt(sampleArticles, podcast, recaps)
+        assertTrue(prompt.contains("Recent episode context:"))
         assertTrue(prompt.contains("AI chip shortages continue."))
         assertTrue(prompt.contains("as we discussed last time"))
     }
 
     @Test
-    fun `buildPrompt excludes recap section when null`() {
+    fun `buildPrompt excludes recap section when empty list`() {
         val podcast = Podcast(id = "p1", userId = "u1", name = "Test", topic = "tech")
-        val prompt = composer.buildPrompt(sampleArticles, podcast, null)
-        assertFalse(prompt.contains("Previous episode context:"))
+        val prompt = composer.buildPrompt(sampleArticles, podcast, emptyList())
+        assertFalse(prompt.contains("Recent episode context:"))
         assertFalse(prompt.contains("as we discussed last time"))
+    }
+
+    @Test
+    fun `buildPrompt includes multiple numbered recaps`() {
+        val podcast = Podcast(id = "p1", userId = "u1", name = "Test", topic = "tech")
+        val recaps = listOf(
+            "AI chip shortages continue.",
+            "EU regulations proposed.",
+            "Quantum computing breakthrough."
+        )
+        val prompt = composer.buildPrompt(sampleArticles, podcast, recaps)
+        assertTrue(prompt.contains("#1 (most recent)"))
+        assertTrue(prompt.contains("#2 (2 episodes ago)"))
+        assertTrue(prompt.contains("#3 (3 episodes ago)"))
+        assertTrue(prompt.contains("Do NOT repeat topics"))
     }
 
     @Test

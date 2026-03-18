@@ -60,7 +60,8 @@ class PodcastService(
             speakerNames = podcast?.speakerNames,
             fullBodyThreshold = podcast?.fullBodyThreshold,
             sponsor = podcast?.sponsor,
-            pronunciations = podcast?.pronunciations
+            pronunciations = podcast?.pronunciations,
+            recapLookbackEpisodes = podcast?.recapLookbackEpisodes
         )
         return podcastRepository.save(newPodcast)
     }
@@ -90,7 +91,8 @@ class PodcastService(
             speakerNames = updates.speakerNames,
             fullBodyThreshold = updates.fullBodyThreshold,
             sponsor = updates.sponsor,
-            pronunciations = updates.pronunciations
+            pronunciations = updates.pronunciations,
+            recapLookbackEpisodes = updates.recapLookbackEpisodes
         )
         return podcastRepository.save(updated)
     }
@@ -124,7 +126,12 @@ class PodcastService(
             throw IllegalStateException("No articles found for episode ${sourceEpisode.id}")
         }
 
-        val result = llmPipeline.recompose(articles, podcast)
+        val result = llmPipeline.recompose(articles, podcast) { stage, detail ->
+            eventPublisher.publishEvent(
+                PodcastEvent(this, podcast.id, "pipeline", 0, "pipeline.progress",
+                    detail + ("stage" to stage))
+            )
+        }
         return episodeService.createEpisodeFromPipelineResult(
             podcast,
             result,

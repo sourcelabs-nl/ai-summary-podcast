@@ -120,28 +120,30 @@ class DialogueComposerTest {
 
     @Test
     fun `prompt includes recap section when provided`() {
-        val recap = "AI chip shortages continue. New EU regulations proposed."
-        val prompt = composer.buildPrompt(articles, podcast, recap)
+        val recaps = listOf("AI chip shortages continue. New EU regulations proposed.")
+        val prompt = composer.buildPrompt(articles, podcast, recaps)
 
-        assertTrue(prompt.contains("Previous episode context:"))
+        assertTrue(prompt.contains("Recent episode context:"))
         assertTrue(prompt.contains("AI chip shortages continue."))
-        assertTrue(prompt.contains("remember last time we talked about"))
+        assertTrue(prompt.contains("last time we talked about"))
     }
 
     @Test
-    fun `prompt excludes recap section when null`() {
-        val prompt = composer.buildPrompt(articles, podcast, null)
+    fun `prompt excludes recap section when empty list`() {
+        val prompt = composer.buildPrompt(articles, podcast, emptyList())
 
-        assertFalse(prompt.contains("Previous episode context:"))
-        assertFalse(prompt.contains("remember last time"))
+        assertFalse(prompt.contains("Recent episode context:"))
+        assertFalse(prompt.contains("last time"))
     }
 
     @Test
-    fun `recap instructs host to mention previous episode`() {
-        val recap = "Cloud computing costs dropping."
-        val prompt = composer.buildPrompt(articles, podcast, recap)
+    fun `prompt includes multiple numbered recaps`() {
+        val recaps = listOf("AI chip shortages continue.", "Cloud computing costs dropping.")
+        val prompt = composer.buildPrompt(articles, podcast, recaps)
 
-        assertTrue(prompt.contains("the host should briefly mention the previous episode"))
+        assertTrue(prompt.contains("#1 (most recent)"))
+        assertTrue(prompt.contains("#2 (2 episodes ago)"))
+        assertTrue(prompt.contains("Do NOT repeat topics"))
     }
 
     @Test

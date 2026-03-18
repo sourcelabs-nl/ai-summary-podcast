@@ -1,15 +1,25 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { Check, Upload, X } from "lucide-react";
+import { Check, RefreshCw, Upload, X } from "lucide-react";
 import { useUser } from "@/lib/user-context";
 import { useEventStream } from "@/lib/event-context";
 import type { Podcast, Episode, EpisodePublication } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { ScriptContent } from "@/components/script-viewer";
 import { ArticlesTab } from "@/components/articles-tab";
 import { PublicationsTab } from "@/components/publications-tab";
@@ -29,6 +39,7 @@ const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "
 
 export default function EpisodeDetailPage() {
   const params = useParams<{ podcastId: string; episodeId: string }>();
+  const router = useRouter();
   const { selectedUser, loading: userLoading } = useUser();
   const [podcast, setPodcast] = useState<Podcast | null>(null);
   const [episode, setEpisode] = useState<Episode | null>(null);
@@ -37,6 +48,9 @@ export default function EpisodeDetailPage() {
   const [published, setPublished] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [regenerating, setRegenerating] = useState(false);
+  const [confirmRegenerate, setConfirmRegenerate] = useState(false);
+  const [sameDayPublished, setSameDayPublished] = useState(false);
   const [currentTab, setTab] = useTabParam("script", TABS);
 
   const fetchPublished = useCallback((userId: string, podcastId: string, episodeId: string) => {
@@ -61,6 +75,28 @@ export default function EpisodeDetailPage() {
     }
   }, [params.episodeId, fetchEpisode]));
 
+  const checkSameDayPublished = useCallback((userId: string, podcastId: string, currentEpisode: Episode) => {
+    const episodeDate = new Date(currentEpisode.generatedAt).toLocaleDateString();
+    fetch(`/api/users/${userId}/podcasts/${podcastId}/episodes`)
+      .then((res) => (res.ok ? res.json() : []))
+      .then((allEpisodes: Episode[]) => {
+        const sameDayEpisodes = allEpisodes.filter(
+          (ep) => new Date(ep.generatedAt).toLocaleDateString() === episodeDate
+        );
+        return Promise.all(
+          sameDayEpisodes.map((ep) =>
+            fetch(`/api/users/${userId}/podcasts/${podcastId}/episodes/${ep.id}/publications`)
+              .then((res) => (res.ok ? res.json() : []))
+              .catch(() => [] as EpisodePublication[])
+          )
+        );
+      })
+      .then((results) => {
+        setSameDayPublished(results.some((pubs: EpisodePublication[]) => pubs.some((p) => p.status === "PUBLISHED")));
+      })
+      .catch(() => setSameDayPublished(false));
+  }, []);
+
   useEffect(() => {
     if (!selectedUser) return;
     setLoading(true);
@@ -72,10 +108,29 @@ export default function EpisodeDetailPage() {
         setPodcast(podcastData);
         setEpisode(episodeData);
         fetchPublished(selectedUser.id, params.podcastId, params.episodeId);
+        checkSameDayPublished(selectedUser.id, params.podcastId, episodeData);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [selectedUser, params.podcastId, params.episodeId, fetchPublished]);
+  }, [selectedUser, params.podcastId, params.episodeId, fetchPublished, checkSameDayPublished]);
+
+  async function handleRegenerateConfirmed() {
+    if (!selectedUser || !episode) return;
+    setConfirmRegenerate(false);
+    setRegenerating(true);
+    try {
+      const res = await fetch(
+        `/api/users/${selectedUser.id}/podcasts/${params.podcastId}/episodes/${episode.id}/regenerate`,
+        { method: "POST" }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        router.push(`/podcasts/${params.podcastId}/episodes/${data.episodeId}`);
+      }
+    } finally {
+      setRegenerating(false);
+    }
+  }
 
   async function handleAction(action: "approve" | "discard") {
     if (!selectedUser || !episode) return;
@@ -159,6 +214,16 @@ export default function EpisodeDetailPage() {
               <Button size="icon-lg" title="Approve episode" onClick={() => handleAction("approve")}>
                 <Check className="size-4" />
               </Button>
+              {!sameDayPublished && (
+              <Button
+                size="icon-lg"
+                title="Regenerate episode"
+                disabled={regenerating}
+                onClick={() => setConfirmRegenerate(true)}
+              >
+                <RefreshCw className={`size-4 ${regenerating ? "animate-spin" : ""}`} />
+              </Button>
+              )}
               <Button
                 size="icon-lg"
                 variant="destructive"
@@ -185,6 +250,16 @@ export default function EpisodeDetailPage() {
             </Button>
             )}
             </>
+          )}
+          {episode.status === "DISCARDED" && !sameDayPublished && (
+            <Button
+              size="icon-lg"
+              title="Regenerate episode"
+              disabled={regenerating}
+              onClick={() => setConfirmRegenerate(true)}
+            >
+              <RefreshCw className={`size-4 ${regenerating ? "animate-spin" : ""}`} />
+            </Button>
           )}
         </div>
       </div>
@@ -260,6 +335,21 @@ export default function EpisodeDetailPage() {
           onPublished={handlePublished}
         />
       )}
+
+      <AlertDialog open={confirmRegenerate} onOpenChange={setConfirmRegenerate}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Regenerate episode?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will re-compose the script from the same articles using the current podcast settings. A new episode will be created.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleRegenerateConfirmed}>Regenerate</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

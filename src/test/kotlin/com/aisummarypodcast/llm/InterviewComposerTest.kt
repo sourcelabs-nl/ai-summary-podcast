@@ -117,19 +117,30 @@ class InterviewComposerTest {
 
     @Test
     fun `prompt includes continuity context when provided`() {
-        val recap = "AI chip shortages continue. New EU regulations proposed."
-        val prompt = composer.buildPrompt(articles, podcast, recap)
+        val recaps = listOf("AI chip shortages continue. New EU regulations proposed.")
+        val prompt = composer.buildPrompt(articles, podcast, recaps)
 
-        assertTrue(prompt.contains("Previous episode context:"))
+        assertTrue(prompt.contains("Recent episode context:"))
         assertTrue(prompt.contains("AI chip shortages continue."))
-        assertTrue(prompt.contains("We talked about this last time"))
+        assertTrue(prompt.contains("Last time we discussed"))
     }
 
     @Test
-    fun `prompt excludes continuity context when null`() {
-        val prompt = composer.buildPrompt(articles, podcast, null)
+    fun `prompt excludes continuity context when empty list`() {
+        val prompt = composer.buildPrompt(articles, podcast, emptyList())
 
-        assertFalse(prompt.contains("Previous episode context:"))
+        assertFalse(prompt.contains("Recent episode context:"))
+    }
+
+    @Test
+    fun `prompt includes multiple numbered recaps`() {
+        val recaps = listOf("AI chip shortages continue.", "EU regulations proposed.", "Quantum breakthrough.")
+        val prompt = composer.buildPrompt(articles, podcast, recaps)
+
+        assertTrue(prompt.contains("#1 (most recent)"))
+        assertTrue(prompt.contains("#2 (2 episodes ago)"))
+        assertTrue(prompt.contains("#3 (3 episodes ago)"))
+        assertTrue(prompt.contains("Do NOT repeat topics"))
     }
 
     @Test

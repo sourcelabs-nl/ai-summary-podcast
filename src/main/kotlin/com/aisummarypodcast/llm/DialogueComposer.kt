@@ -22,15 +22,15 @@ class DialogueComposer(
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    fun compose(articles: List<Article>, podcast: Podcast, previousEpisodeRecap: String? = null, ttsScriptGuidelines: String = ""): CompositionResult {
+    fun compose(articles: List<Article>, podcast: Podcast, previousEpisodeRecaps: List<String> = emptyList(), ttsScriptGuidelines: String = ""): CompositionResult {
         val composeModelDef = modelResolver.resolve(podcast, PipelineStage.COMPOSE)
-        return compose(articles, podcast, composeModelDef, previousEpisodeRecap, ttsScriptGuidelines)
+        return compose(articles, podcast, composeModelDef, previousEpisodeRecaps, ttsScriptGuidelines)
     }
 
-    fun compose(articles: List<Article>, podcast: Podcast, composeModelDef: ModelDefinition, previousEpisodeRecap: String? = null, ttsScriptGuidelines: String = ""): CompositionResult {
+    fun compose(articles: List<Article>, podcast: Podcast, composeModelDef: ModelDefinition, previousEpisodeRecaps: List<String> = emptyList(), ttsScriptGuidelines: String = ""): CompositionResult {
         log.info("[LLM] Composing dialogue from {} articles for podcast '{}' ({})", articles.size, podcast.name, podcast.id)
         val chatClient = chatClientFactory.createForModel(podcast.userId, composeModelDef)
-        val prompt = buildPrompt(articles, podcast, previousEpisodeRecap, ttsScriptGuidelines)
+        val prompt = buildPrompt(articles, podcast, previousEpisodeRecaps, ttsScriptGuidelines)
 
         val (result, elapsed) = measureTimedValue {
             val chatResponse = chatClient.prompt()
@@ -50,7 +50,7 @@ class DialogueComposer(
         return result
     }
 
-    internal fun buildPrompt(articles: List<Article>, podcast: Podcast, previousEpisodeRecap: String? = null, ttsScriptGuidelines: String = ""): String {
+    internal fun buildPrompt(articles: List<Article>, podcast: Podcast, previousEpisodeRecaps: List<String> = emptyList(), ttsScriptGuidelines: String = ""): String {
         val targetWords = podcast.targetWords ?: appProperties.briefing.targetWords
         val speakerRoles = podcast.ttsVoices?.keys?.toList() ?: listOf("host", "cohost")
         val tagExamples = speakerRoles.joinToString("\n            ") { role -> "<$role>Example text</$role>" }
@@ -95,15 +95,20 @@ class DialogueComposer(
             "\n\n            TTS script formatting:\n            $ttsScriptGuidelines"
         } else ""
 
-        val recapBlock = previousEpisodeRecap?.let {
+        val recapBlock = if (previousEpisodeRecaps.isNotEmpty()) {
+            val numberedRecaps = previousEpisodeRecaps.mapIndexed { index, recap ->
+                "#${index + 1} (${if (index == 0) "most recent" else "${index + 1} episodes ago"}): $recap"
+            }.joinToString("\n            ")
             """
 
-            Previous episode context:
-            $it
+            Recent episode context:
+            $numberedRecaps
 
-            - When today's topics relate to the previous episode, the speakers should naturally reference it in conversation (e.g., "remember last time we talked about...", "following up on what we discussed...")
-            - When today's topics are unrelated, the ${speakerRoles.first()} should briefly mention the previous episode in the opening before moving to today's topics"""
-        } ?: ""
+            - Do NOT repeat topics already covered in any recent episode unless there is a genuinely new development
+            - If a topic was covered recently and there is new information, reference it briefly (e.g., "remember we talked about this recently...") rather than presenting it as new
+            - If a topic was covered and there is no new development, skip it entirely
+            - For the most recent episode (#1), the ${speakerRoles.first()} may naturally reference it in conversation (e.g., "last time we talked about...")"""
+        } else ""
 
         return """
             You are writing a dialogue script for a podcast with multiple speakers. Create a natural, engaging conversation between the speakers about the topics below.

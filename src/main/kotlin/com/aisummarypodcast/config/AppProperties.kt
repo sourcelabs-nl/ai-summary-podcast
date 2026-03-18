@@ -13,7 +13,8 @@ data class AppProperties(
     val source: SourceProperties = SourceProperties(),
     val tts: TtsProperties = TtsProperties(),
     val soundcloud: SoundCloudProperties = SoundCloudProperties(),
-    val x: XProperties = XProperties()
+    val x: XProperties = XProperties(),
+    val episode: EpisodeProperties = EpisodeProperties()
 )
 
 data class EncryptionProperties(
@@ -92,4 +93,8 @@ data class SoundCloudProperties(
 data class XProperties(
     val clientId: String? = null,
     val clientSecret: String? = null
+)
+
+data class EpisodeProperties(
+    val recapLookbackEpisodes: Int = 7
 )

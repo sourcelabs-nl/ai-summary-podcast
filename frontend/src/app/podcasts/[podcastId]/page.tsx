@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import cronstrue from "cronstrue";
 import { CronExpressionParser } from "cron-parser";
-import { Check, ChevronDown, ChevronRight, Clock, Loader2, Settings, Upload, X } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Clock, Loader2, RefreshCw, Settings, Upload, X } from "lucide-react";
 import { useUser } from "@/lib/user-context";
 import { useEventStream } from "@/lib/event-context";
 import type { Podcast, Episode, EpisodePublication, EpisodeArticle } from "@/lib/types";
@@ -26,6 +26,16 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { PublishWizard, TARGETS } from "@/components/publish-wizard";
 import { PublicationsTab } from "@/components/publications-tab";
 import { SourcesTab } from "@/components/sources-tab";
@@ -65,7 +75,19 @@ export default function EpisodesPage() {
   const [upcomingPostCount, setUpcomingPostCount] = useState<number>(0);
   const [countdown, setCountdown] = useState<string | null>(null);
   const [pipelineStage, setPipelineStage] = useState<string | null>(null);
+  const [regeneratingId, setRegeneratingId] = useState<number | null>(null);
+  const [confirmRegenerateId, setConfirmRegenerateId] = useState<number | null>(null);
   const [currentTab, setTab] = useTabParam("episodes", TABS);
+
+  const publishedDates = useMemo(() => {
+    const dates = new Set<string>();
+    for (const ep of episodes) {
+      if (publishedEpisodeIds.has(ep.id)) {
+        dates.add(new Date(ep.generatedAt).toLocaleDateString());
+      }
+    }
+    return dates;
+  }, [episodes, publishedEpisodeIds]);
 
   const fetchPublications = useCallback(
     (episodeList: Episode[]) => {
@@ -156,6 +178,25 @@ export default function EpisodesPage() {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [selectedUser, params.podcastId, statusFilter, fetchPublications]);
+
+  async function handleRegenerateConfirmed() {
+    if (!selectedUser || confirmRegenerateId === null) return;
+    const episodeId = confirmRegenerateId;
+    setConfirmRegenerateId(null);
+    setRegeneratingId(episodeId);
+    try {
+      const res = await fetch(
+        `/api/users/${selectedUser.id}/podcasts/${params.podcastId}/episodes/${episodeId}/regenerate`,
+        { method: "POST" }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        router.push(`/podcasts/${params.podcastId}/episodes/${data.episodeId}`);
+      }
+    } finally {
+      setRegeneratingId(null);
+    }
+  }
 
   async function handleAction(episodeId: number, action: "approve" | "discard") {
     if (!selectedUser) return;
@@ -374,6 +415,16 @@ export default function EpisodesPage() {
                             >
                               <Check className="size-4" />
                             </Button>
+                            {!publishedDates.has(new Date(episode.generatedAt).toLocaleDateString()) && (
+                            <Button
+                              size="icon-lg"
+                              title="Regenerate episode"
+                              disabled={regeneratingId === episode.id}
+                              onClick={() => setConfirmRegenerateId(episode.id)}
+                            >
+                              <RefreshCw className={`size-4 ${regeneratingId === episode.id ? "animate-spin" : ""}`} />
+                            </Button>
+                            )}
                             <Button
                               size="icon-lg"
                               variant="destructive"
@@ -406,6 +457,16 @@ export default function EpisodesPage() {
                           </Button>
                           )}
                           </>
+                        )}
+                        {episode.status === "DISCARDED" && !publishedDates.has(new Date(episode.generatedAt).toLocaleDateString()) && (
+                          <Button
+                            size="icon-lg"
+                            title="Regenerate episode"
+                            disabled={regeneratingId === episode.id}
+                            onClick={() => setConfirmRegenerateId(episode.id)}
+                          >
+                            <RefreshCw className={`size-4 ${regeneratingId === episode.id ? "animate-spin" : ""}`} />
+                          </Button>
                         )}
                         <Button
                           size="icon-lg"
@@ -455,6 +516,21 @@ export default function EpisodesPage() {
           onPublished={handlePublished}
         />
       )}
+
+      <AlertDialog open={confirmRegenerateId !== null} onOpenChange={(open) => { if (!open) setConfirmRegenerateId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Regenerate episode?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will re-compose the script from the same articles using the current podcast settings. A new episode will be created.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleRegenerateConfirmed}>Regenerate</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

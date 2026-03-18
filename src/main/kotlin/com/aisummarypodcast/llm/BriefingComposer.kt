@@ -35,15 +35,15 @@ class BriefingComposer(
         PodcastStyle.EXECUTIVE_SUMMARY to "You are creating a concise executive summary. Be fact-focused with minimal commentary. Get straight to the point."
     )
 
-    fun compose(articles: List<Article>, podcast: Podcast, previousEpisodeRecap: String? = null, ttsScriptGuidelines: String = ""): CompositionResult {
+    fun compose(articles: List<Article>, podcast: Podcast, previousEpisodeRecaps: List<String> = emptyList(), ttsScriptGuidelines: String = ""): CompositionResult {
         val composeModelDef = modelResolver.resolve(podcast, PipelineStage.COMPOSE)
-        return compose(articles, podcast, composeModelDef, previousEpisodeRecap, ttsScriptGuidelines)
+        return compose(articles, podcast, composeModelDef, previousEpisodeRecaps, ttsScriptGuidelines)
     }
 
-    fun compose(articles: List<Article>, podcast: Podcast, composeModelDef: ModelDefinition, previousEpisodeRecap: String? = null, ttsScriptGuidelines: String = ""): CompositionResult {
+    fun compose(articles: List<Article>, podcast: Podcast, composeModelDef: ModelDefinition, previousEpisodeRecaps: List<String> = emptyList(), ttsScriptGuidelines: String = ""): CompositionResult {
         log.info("[LLM] Composing briefing from {} articles for podcast '{}' ({}) (style: {})", articles.size, podcast.name, podcast.id, podcast.style)
         val chatClient = chatClientFactory.createForModel(podcast.userId, composeModelDef)
-        val prompt = buildPrompt(articles, podcast, previousEpisodeRecap, ttsScriptGuidelines)
+        val prompt = buildPrompt(articles, podcast, previousEpisodeRecaps, ttsScriptGuidelines)
 
         val (result, elapsed) = measureTimedValue {
             val chatResponse = chatClient.prompt()
@@ -64,7 +64,7 @@ class BriefingComposer(
         return result
     }
 
-    internal fun buildPrompt(articles: List<Article>, podcast: Podcast, previousEpisodeRecap: String? = null, ttsScriptGuidelines: String = ""): String {
+    internal fun buildPrompt(articles: List<Article>, podcast: Podcast, previousEpisodeRecaps: List<String> = emptyList(), ttsScriptGuidelines: String = ""): String {
         val targetWords = podcast.targetWords ?: appProperties.briefing.targetWords
         val stylePrompt = stylePrompts[podcast.style] ?: stylePrompts[PodcastStyle.NEWS_BRIEFING]!!
 
@@ -107,15 +107,20 @@ class BriefingComposer(
             "\n            - It's Friday! Feel free to adopt a slightly more casual and lighthearted tone. Sprinkle in a few nuanced, witty jokes or observations related to the topics — but keep it subtle and don't overdo it."
         } else ""
 
-        val recapBlock = previousEpisodeRecap?.let {
+        val recapBlock = if (previousEpisodeRecaps.isNotEmpty()) {
+            val numberedRecaps = previousEpisodeRecaps.mapIndexed { index, recap ->
+                "#${index + 1} (${if (index == 0) "most recent" else "${index + 1} episodes ago"}): $recap"
+            }.joinToString("\n            ")
             """
 
-            Previous episode context:
-            $it
+            Recent episode context:
+            $numberedRecaps
 
-            - When today's topics relate to the previous episode, weave in specific references (e.g., "as we discussed last time...", "following up on what we covered previously...")
-            - When today's topics are unrelated, include a brief one-liner referencing the previous episode in the introduction (e.g., "last episode we covered X and Y, today we're looking at...")"""
-        } ?: ""
+            - Do NOT repeat topics already covered in any recent episode unless there is a genuinely new development
+            - If a topic was covered recently and there is new information, reference it briefly (e.g., "following up on what we covered recently...") rather than presenting it as new
+            - If a topic was covered and there is no new development, skip it entirely
+            - For the most recent episode (#1), you may weave in natural references (e.g., "as we discussed last time...")"""
+        } else ""
 
         return """
             $stylePrompt

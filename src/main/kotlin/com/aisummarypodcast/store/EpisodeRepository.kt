@@ -16,4 +16,7 @@ interface EpisodeRepository : CrudRepository<Episode, Long> {
 
     @Query("SELECT * FROM episodes WHERE podcast_id = :podcastId ORDER BY generated_at DESC LIMIT 1")
     fun findMostRecentByPodcastId(podcastId: String): Episode?
+
+    @Query("SELECT * FROM episodes WHERE podcast_id = :podcastId AND recap IS NOT NULL AND status = 'GENERATED' ORDER BY generated_at DESC LIMIT :limit")
+    fun findRecentWithRecapByPodcastId(podcastId: String, limit: Int): List<Episode>
 }
