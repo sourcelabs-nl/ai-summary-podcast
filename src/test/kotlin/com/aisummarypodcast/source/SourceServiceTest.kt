@@ -1,6 +1,7 @@
 package com.aisummarypodcast.source
 
 import com.aisummarypodcast.store.ArticleRepository
+import com.aisummarypodcast.store.Post
 import com.aisummarypodcast.store.PostRepository
 import com.aisummarypodcast.store.Source
 import com.aisummarypodcast.store.SourceRepository
@@ -12,6 +13,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.jdbc.core.RowMapper
 import java.util.Optional
@@ -25,8 +27,10 @@ class SourceServiceTest {
     private val articleRepository = mockk<ArticleRepository>()
     private val postRepository = mockk<PostRepository>()
     private val jdbcTemplate = mockk<JdbcTemplate>()
+    private val rssFeedFetcher = mockk<RssFeedFetcher>()
+    private val websiteFetcher = mockk<WebsiteFetcher>()
 
-    private val service = SourceService(sourceRepository, articleRepository, postRepository, jdbcTemplate)
+    private val service = SourceService(sourceRepository, articleRepository, postRepository, jdbcTemplate, rssFeedFetcher, websiteFetcher)
 
     @Test
     fun `re-enabling a disabled source clears failure tracking`() {
@@ -97,5 +101,79 @@ class SourceServiceTest {
 
         val result = service.getArticleCounts(listOf("s1"), 5)
         assertEquals(emptyMap<String, SourceArticleCounts>(), result)
+    }
+
+    // --- URL validation tests ---
+
+    private fun post(title: String = "Test", body: String = "Content") = Post(
+        sourceId = "validation", title = title, body = body, url = "https://example.com",
+        contentHash = "hash", createdAt = ""
+    )
+
+    @Test
+    fun `validateUrl passes for RSS source with items`() {
+        every { rssFeedFetcher.fetch("https://example.com/feed", "validation", null, null) } returns listOf(post())
+
+        service.validateUrl(SourceType.RSS, "https://example.com/feed")
+    }
+
+    @Test
+    fun `validateUrl throws for RSS source with no items`() {
+        every { rssFeedFetcher.fetch("https://example.com/feed", "validation", null, null) } returns emptyList()
+
+        val ex = assertThrows<IllegalArgumentException> {
+            service.validateUrl(SourceType.RSS, "https://example.com/feed")
+        }
+        assertTrue(ex.message!!.contains("returned no items"))
+    }
+
+    @Test
+    fun `validateUrl throws for RSS source with fetch error`() {
+        every { rssFeedFetcher.fetch("https://bad.com/feed", "validation", null, null) } throws RuntimeException("Connection refused")
+
+        val ex = assertThrows<IllegalArgumentException> {
+            service.validateUrl(SourceType.RSS, "https://bad.com/feed")
+        }
+        assertTrue(ex.message!!.contains("Could not reach URL"))
+    }
+
+    @Test
+    fun `validateUrl throws for RSS source with invalid XML`() {
+        every { rssFeedFetcher.fetch("https://bad.com/html", "validation", null, null) } throws RuntimeException("Content is not allowed in prolog")
+
+        val ex = assertThrows<IllegalArgumentException> {
+            service.validateUrl(SourceType.RSS, "https://bad.com/html")
+        }
+        assertTrue(ex.message!!.contains("not appear to be a valid RSS"))
+    }
+
+    @Test
+    fun `validateUrl passes for website source with content`() {
+        every { websiteFetcher.fetch("https://example.com", "validation") } returns post(body = "Some article text")
+
+        service.validateUrl(SourceType.WEBSITE, "https://example.com")
+    }
+
+    @Test
+    fun `validateUrl throws for website source with empty content`() {
+        every { websiteFetcher.fetch("https://empty.com", "validation") } returns null
+
+        val ex = assertThrows<IllegalArgumentException> {
+            service.validateUrl(SourceType.WEBSITE, "https://empty.com")
+        }
+        assertTrue(ex.message!!.contains("no extractable content"))
+    }
+
+    @Test
+    fun `validateUrl skips validation for Twitter sources`() {
+        service.validateUrl(SourceType.TWITTER, "https://x.com/user")
+        // No exception — validation skipped
+    }
+
+    @Test
+    fun `validateUrl passes category filter to RSS fetcher`() {
+        every { rssFeedFetcher.fetch("https://example.com/feed", "validation", null, "tech") } returns listOf(post())
+
+        service.validateUrl(SourceType.RSS, "https://example.com/feed", "tech")
     }
 }

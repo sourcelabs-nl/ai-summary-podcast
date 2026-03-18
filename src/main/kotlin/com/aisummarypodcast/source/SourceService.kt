@@ -23,12 +23,15 @@ class SourceService(
     private val sourceRepository: SourceRepository,
     private val articleRepository: ArticleRepository,
     private val postRepository: PostRepository,
-    private val jdbcTemplate: JdbcTemplate
+    private val jdbcTemplate: JdbcTemplate,
+    private val rssFeedFetcher: RssFeedFetcher,
+    private val websiteFetcher: WebsiteFetcher
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
     fun create(podcastId: String, type: SourceType, url: String, pollIntervalMinutes: Int = 30, enabled: Boolean = true, aggregate: Boolean? = null, maxFailures: Int? = null, maxBackoffHours: Int? = null, pollDelaySeconds: Int? = null, categoryFilter: String? = null, label: String? = null): Source {
+        validateUrl(type, url, categoryFilter)
         val source = Source(
             id = UUID.randomUUID().toString(),
             podcastId = podcastId,
@@ -45,6 +48,50 @@ class SourceService(
             createdAt = Instant.now().toString()
         )
         return sourceRepository.save(source)
+    }
+
+    internal fun validateUrl(type: SourceType, url: String, categoryFilter: String? = null) {
+        when (type) {
+            SourceType.RSS -> validateRssUrl(url, categoryFilter)
+            SourceType.WEBSITE -> validateWebsiteUrl(url)
+            else -> {} // Twitter, Reddit, YouTube — skip validation
+        }
+    }
+
+    private fun validateRssUrl(url: String, categoryFilter: String?) {
+        try {
+            val posts = rssFeedFetcher.fetch(url, "validation", null, categoryFilter)
+            if (posts.isEmpty()) {
+                throw IllegalArgumentException("RSS feed at $url returned no items")
+            }
+        } catch (e: IllegalArgumentException) {
+            throw e
+        } catch (e: Exception) {
+            val message = when {
+                e.message?.contains("Invalid XML", ignoreCase = true) == true ||
+                    e.message?.contains("Content is not allowed in prolog", ignoreCase = true) == true ->
+                    "URL does not appear to be a valid RSS/Atom feed"
+                e.message?.contains("UnknownHost", ignoreCase = true) == true ||
+                    e.message?.contains("Connection refused", ignoreCase = true) == true ||
+                    e.message?.contains("connect timed out", ignoreCase = true) == true ->
+                    "Could not reach URL: ${e.message}"
+                else -> "RSS feed at $url returned no content: ${e.message}"
+            }
+            throw IllegalArgumentException(message)
+        }
+    }
+
+    private fun validateWebsiteUrl(url: String) {
+        try {
+            val post = websiteFetcher.fetch(url, "validation")
+            if (post == null || post.body.isBlank()) {
+                throw IllegalArgumentException("Website at $url returned no extractable content")
+            }
+        } catch (e: IllegalArgumentException) {
+            throw e
+        } catch (e: Exception) {
+            throw IllegalArgumentException("Could not fetch website at $url: ${e.message}")
+        }
     }
 
     fun findByPodcastId(podcastId: String): List<Source> = sourceRepository.findByPodcastId(podcastId)

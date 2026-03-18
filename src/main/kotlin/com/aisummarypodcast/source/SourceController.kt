@@ -70,16 +70,20 @@ class SourceController(
         @PathVariable userId: String,
         @PathVariable podcastId: String,
         @RequestBody request: CreateSourceRequest
-    ): ResponseEntity<SourceResponse> {
+    ): ResponseEntity<Any> {
         userService.findById(userId) ?: return ResponseEntity.notFound().build()
         val podcast = podcastService.findById(podcastId) ?: return ResponseEntity.notFound().build()
         if (podcast.userId != userId) return ResponseEntity.notFound().build()
 
         val sourceType = SourceType.fromValue(request.type)
             ?: return ResponseEntity.badRequest().build()
-        val source = sourceService.create(podcastId, sourceType, request.url, request.pollIntervalMinutes, request.enabled, request.aggregate, request.maxFailures, request.maxBackoffHours, request.pollDelaySeconds, request.categoryFilter, request.label)
-        return ResponseEntity.created(URI.create("/users/$userId/podcasts/$podcastId/sources/${source.id}"))
-            .body(source.toResponse())
+        return try {
+            val source = sourceService.create(podcastId, sourceType, request.url, request.pollIntervalMinutes, request.enabled, request.aggregate, request.maxFailures, request.maxBackoffHours, request.pollDelaySeconds, request.categoryFilter, request.label)
+            ResponseEntity.created(URI.create("/users/$userId/podcasts/$podcastId/sources/${source.id}"))
+                .body(source.toResponse())
+        } catch (e: IllegalArgumentException) {
+            ResponseEntity.unprocessableEntity().body(mapOf("error" to e.message))
+        }
     }
 
     @GetMapping
