@@ -50,10 +50,11 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-function FieldGroup({ label, children }: { label: string; children: React.ReactNode }) {
+function FieldGroup({ label, description, children }: { label: string; description?: string; children: React.ReactNode }) {
   return (
     <div className="space-y-2">
       <FieldLabel>{label}</FieldLabel>
+      {description && <p className="text-xs text-muted-foreground">{description}</p>}
       {children}
     </div>
   );
@@ -412,7 +413,7 @@ export default function PodcastSettingsPage() {
                   </div>
                 </div>
               </div>
-              <FieldGroup label="Name">
+              <FieldGroup label="Name" description="Display name for the podcast, used in the feed and episode titles.">
                 <input
                   type="text"
                   value={form.name}
@@ -420,7 +421,7 @@ export default function PodcastSettingsPage() {
                   className={inputClass}
                 />
               </FieldGroup>
-              <FieldGroup label="Topic">
+              <FieldGroup label="Topic" description="Subject area used by the LLM to filter and score articles for relevance.">
                 <input
                   type="text"
                   value={form.topic}
@@ -428,7 +429,7 @@ export default function PodcastSettingsPage() {
                   className={inputClass}
                 />
               </FieldGroup>
-              <FieldGroup label="Language">
+              <FieldGroup label="Language" description="ISO language code (e.g. en, nl, de). Controls the script language and TTS pronunciation.">
                 <input
                   type="text"
                   value={form.language}
@@ -436,7 +437,7 @@ export default function PodcastSettingsPage() {
                   className={inputClass}
                 />
               </FieldGroup>
-              <FieldGroup label="Style">
+              <FieldGroup label="Style" description="Script format: news-briefing (anchor), casual (friendly chat), deep-dive (analysis), executive-summary (concise), dialogue (two hosts), interview (interviewer + expert).">
                 <Select value={form.style} onValueChange={(v) => update("style", v)}>
                   <SelectTrigger className="w-full">
                     <SelectValue />
@@ -450,7 +451,7 @@ export default function PodcastSettingsPage() {
                   </SelectContent>
                 </Select>
               </FieldGroup>
-              <FieldGroup label="Cron Schedule">
+              <FieldGroup label="Cron Schedule" description="When to auto-generate episodes. Standard cron format: second minute hour day month weekday (e.g. '0 0 6 * * *' = daily at 6:00 UTC).">
                 <input
                   type="text"
                   value={form.cron}
@@ -480,7 +481,7 @@ export default function PodcastSettingsPage() {
               <CardTitle>LLM Settings</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <FieldGroup label="LLM Models">
+              <FieldGroup label="LLM Models" description="Override the LLM model per pipeline stage. Keys: 'filter' (scoring/summarization, cheap model) and 'compose' (script writing, capable model). Values: OpenRouter model IDs.">
                 <KeyValueEditor
                   value={form.llmModels}
                   onChange={(v) => update("llmModels", v ?? undefined)}
@@ -493,7 +494,7 @@ export default function PodcastSettingsPage() {
                   </p>
                 )}
               </FieldGroup>
-              <FieldGroup label="Relevance Threshold">
+              <FieldGroup label="Relevance Threshold" description="Minimum relevance score (1-10) an article must receive to be included in the episode. Higher = stricter filtering, fewer articles. Default: 5.">
                 <input
                   type="number"
                   value={form.relevanceThreshold ?? ""}
@@ -501,7 +502,7 @@ export default function PodcastSettingsPage() {
                   className={inputClass}
                 />
               </FieldGroup>
-              <FieldGroup label="Max LLM Cost (cents)">
+              <FieldGroup label="Max LLM Cost (cents)" description="Cost gate: if the estimated LLM cost for a pipeline run exceeds this value (in cents), the run is skipped. Leave empty for system default.">
                 <input
                   type="number"
                   value={form.maxLlmCostCents ?? ""}
@@ -510,7 +511,7 @@ export default function PodcastSettingsPage() {
                   className={inputClass}
                 />
               </FieldGroup>
-              <FieldGroup label="Custom Instructions">
+              <FieldGroup label="Custom Instructions" description="Additional instructions appended to the LLM composition prompt. Use this for tone, structure, engagement techniques, or topic-specific guidance.">
                 <textarea
                   value={form.customInstructions ?? ""}
                   onChange={(e) => update("customInstructions", e.target.value || undefined)}
@@ -527,7 +528,7 @@ export default function PodcastSettingsPage() {
               <CardTitle>TTS Settings</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <FieldGroup label="TTS Provider">
+              <FieldGroup label="TTS Provider" description="Text-to-speech engine: openai (OpenAI TTS), elevenlabs (ElevenLabs), inworld (Inworld AI TTS with expressive markup).">
                 <Select
                   value={form.ttsProvider}
                   onValueChange={(v) => update("ttsProvider", v)}
@@ -544,7 +545,7 @@ export default function PodcastSettingsPage() {
                   </SelectContent>
                 </Select>
               </FieldGroup>
-              <FieldGroup label="TTS Voices">
+              <FieldGroup label="TTS Voices" description="Voice assignment per role. For monologue styles use key 'default'. For dialogue/interview use role keys (e.g. 'interviewer', 'expert', 'host', 'cohost'). Values are provider-specific voice IDs.">
                 <KeyValueEditor
                   value={form.ttsVoices}
                   onChange={(v) => update("ttsVoices", v ?? undefined)}
@@ -552,7 +553,7 @@ export default function PodcastSettingsPage() {
                   valuePlaceholder="Voice ID"
                 />
               </FieldGroup>
-              <FieldGroup label="TTS Settings">
+              <FieldGroup label="TTS Settings" description="Provider-specific settings. Common keys: 'model' (TTS model ID), 'speed' (speaking rate, e.g. 1.0), 'temperature' (expressiveness, 0.0-1.0).">
                 <KeyValueEditor
                   value={form.ttsSettings}
                   onChange={(v) => update("ttsSettings", v ?? undefined)}
@@ -560,7 +561,7 @@ export default function PodcastSettingsPage() {
                   valuePlaceholder="Value"
                 />
               </FieldGroup>
-              <FieldGroup label="Speaker Names">
+              <FieldGroup label="Speaker Names" description="Display names for speakers in dialogue/interview styles. Keys match TTS voice roles (e.g. 'interviewer', 'expert'). Used in the script for natural conversation.">
                 <KeyValueEditor
                   value={form.speakerNames}
                   onChange={(v) => update("speakerNames", v ?? undefined)}
@@ -578,7 +579,7 @@ export default function PodcastSettingsPage() {
               <CardTitle>Content Settings</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <FieldGroup label="Target Words">
+              <FieldGroup label="Target Words" description="Approximate word count for the generated script. The LLM aims for this length but may vary based on content.">
                 <input
                   type="number"
                   value={form.targetWords ?? ""}
@@ -587,7 +588,7 @@ export default function PodcastSettingsPage() {
                   className={inputClass}
                 />
               </FieldGroup>
-              <FieldGroup label="Full Body Threshold">
+              <FieldGroup label="Full Body Threshold" description="When the number of articles is at or below this threshold, the full article body is sent to the composer instead of just the summary. Produces richer scripts for small batches.">
                 <input
                   type="number"
                   value={form.fullBodyThreshold ?? ""}
@@ -596,7 +597,7 @@ export default function PodcastSettingsPage() {
                   className={inputClass}
                 />
               </FieldGroup>
-              <FieldGroup label="Max Article Age (days)">
+              <FieldGroup label="Max Article Age (days)" description="Articles older than this many days are excluded from the pipeline. Prevents stale content from being included in new episodes.">
                 <input
                   type="number"
                   value={form.maxArticleAgeDays ?? ""}
@@ -605,7 +606,7 @@ export default function PodcastSettingsPage() {
                   className={inputClass}
                 />
               </FieldGroup>
-              <FieldGroup label="Sponsor">
+              <FieldGroup label="Sponsor" description="Sponsor message injected into the script. Keys: 'name' (sponsor name) and 'message' (tagline). Both required for the sponsor mention to appear.">
                 <KeyValueEditor
                   value={form.sponsor}
                   onChange={(v) => update("sponsor", v ?? undefined)}
@@ -613,7 +614,7 @@ export default function PodcastSettingsPage() {
                   valuePlaceholder="Value"
                 />
               </FieldGroup>
-              <FieldGroup label="Pronunciations">
+              <FieldGroup label="Pronunciations" description="IPA pronunciation overrides for proper nouns. Keys: the word as written. Values: IPA notation (e.g. '/jɑrnoː/'). Applied on first occurrence in the script.">
                 <KeyValueEditor
                   value={form.pronunciations}
                   onChange={(v) => update("pronunciations", v ?? undefined)}
