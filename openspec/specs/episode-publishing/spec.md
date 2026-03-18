@@ -17,12 +17,35 @@ The system SHALL define an `EpisodePublisher` interface with a `publish(episode,
 - **WHEN** `PublisherRegistry.getPublisher("youtube")` is called and no publisher is registered for `"youtube"`
 - **THEN** the registry returns null
 
+### Requirement: Publisher update interface
+The `EpisodePublisher` interface SHALL include an `update(episode, podcast, userId, externalId)` method that updates an already-published episode's metadata on the external platform. The default implementation SHALL throw `UnsupportedOperationException`. Publishers that support metadata updates SHALL override this method.
+
+#### Scenario: Publisher supports update
+- **WHEN** `SoundCloudPublisher.update()` is called with an episode and its external track ID
+- **THEN** the track's description is updated on SoundCloud and a `PublishResult` is returned
+
+#### Scenario: Publisher does not support update
+- **WHEN** `update()` is called on a publisher that has not overridden the default
+- **THEN** an `UnsupportedOperationException` is thrown and the endpoint returns HTTP 400
+
 ### Requirement: Publish episode to target endpoint
-The system SHALL provide a `POST /users/{userId}/podcasts/{podcastId}/episodes/{episodeId}/publish/{target}` endpoint. The endpoint SHALL look up the publisher by target name, verify the episode exists with status `GENERATED` and has an audio file, then delegate to the publisher. On success, it SHALL return HTTP 200 with the publication record. On failure, it SHALL return an appropriate error.
+The system SHALL provide a `POST /users/{userId}/podcasts/{podcastId}/episodes/{episodeId}/publish/{target}` endpoint. The endpoint SHALL look up the publisher by target name, verify the episode exists with status `GENERATED` and has an audio file, verify that the podcast has an **enabled** `podcast_publication_targets` entry for the requested target, then delegate to the publisher. When the episode has no existing publication for the target, the endpoint SHALL create a new publication. When the episode already has a `PUBLISHED` record for the target, the endpoint SHALL update the existing external resource's metadata and return HTTP 200 with the updated publication record. After the publish operation completes (success or failure), the service SHALL publish a `PodcastEvent` to notify connected clients. On success, it SHALL return HTTP 200 with the publication record. On failure, it SHALL return an appropriate error.
 
 #### Scenario: Successful publish
-- **WHEN** a `POST /users/{userId}/podcasts/{podcastId}/episodes/{episodeId}/publish/soundcloud` request is received for a GENERATED episode with an audio file and the user has a connected SoundCloud account
-- **THEN** the system uploads the episode to SoundCloud, creates an `episode_publications` record with status `PUBLISHED`, and returns HTTP 200 with the publication details (external ID, external URL)
+- **WHEN** a `POST /users/{userId}/podcasts/{podcastId}/episodes/{episodeId}/publish/soundcloud` request is received for a GENERATED episode with an audio file, the user has a connected SoundCloud account, and the podcast has an enabled SoundCloud publication target
+- **THEN** the system uploads the episode to SoundCloud, creates an `episode_publications` record with status `PUBLISHED`, publishes an `episode.published` event, and returns HTTP 200 with the publication details
+
+#### Scenario: Publish failure
+- **WHEN** the publish operation fails for any reason (network error, API error)
+- **THEN** the system updates the publication record to status `FAILED` with `error_message`, publishes an `episode.publish.failed` event, and returns an error response
+
+#### Scenario: Republish updates existing publication
+- **WHEN** a `POST .../publish/soundcloud` request is received for an episode that already has a `PUBLISHED` record for `"soundcloud"` with `externalId` `"12345"`
+- **THEN** the system calls the publisher's update method with the external ID, updates the publication record's `publishedAt` timestamp, and returns HTTP 200 with the updated publication details
+
+#### Scenario: Republish to SoundCloud updates track description
+- **WHEN** a `POST .../publish/soundcloud` request is received for an already-published episode that now has show notes
+- **THEN** the SoundCloud track description is updated to the episode's current show notes (or recap/script fallback)
 
 #### Scenario: Episode not in GENERATED status
 - **WHEN** a `POST .../publish/soundcloud` request is received for an episode with status `PENDING_REVIEW`
@@ -36,13 +59,42 @@ The system SHALL provide a `POST /users/{userId}/podcasts/{podcastId}/episodes/{
 - **WHEN** a `POST .../publish/youtube` request is received and no publisher is registered for `"youtube"`
 - **THEN** the system returns HTTP 400 indicating the target is not supported
 
-#### Scenario: Episode already published to target
-- **WHEN** a `POST .../publish/soundcloud` request is received for an episode that already has a `PUBLISHED` record for `"soundcloud"`
-- **THEN** the system returns HTTP 409 indicating the episode is already published to this target
+#### Scenario: Target not enabled on podcast
+- **WHEN** a `POST .../publish/ftp` request is received but the podcast has no enabled `podcast_publication_targets` entry for `"ftp"`
+- **THEN** the system returns HTTP 400 indicating the publication target is not configured or not enabled for this podcast
+
+### Requirement: Publish button hidden when fully published
+The episode list publish button SHALL only be visible when the episode has NOT been published to all configured publish targets. An episode is considered fully published when it has a publication with status `PUBLISHED` for every target in the TARGETS list.
+
+#### Scenario: Fully published episode hides publish button
+- **WHEN** an episode has PUBLISHED publications for all targets (soundcloud and ftp)
+- **THEN** the publish (upload) button is not rendered in the episode actions column
+
+#### Scenario: Partially published episode shows publish button
+- **WHEN** an episode has PUBLISHED status for soundcloud but no publication for ftp
+- **THEN** the publish (upload) button is rendered in the episode actions column
 
 #### Scenario: Episode not found
 - **WHEN** a `POST .../publish/soundcloud` request is received for an episode ID that does not exist or does not belong to the specified podcast
 - **THEN** the system returns HTTP 404
+
+### Requirement: Same-day publication replacement
+When publishing an episode to a target, the system SHALL check for existing publications from other episodes in the same podcast on the same target that share the same `generatedAt` date (YYYY-MM-DD). For each such publication, the system SHALL unpublish the old content from the external platform (e.g. delete the SoundCloud track) and delete the publication record before proceeding with the new publication.
+
+#### Scenario: Publish regenerated episode replaces original
+- **WHEN** episode 45 (generatedAt 2026-03-16) is published to SoundCloud, and episode 41 (generatedAt 2026-03-16) is already published to SoundCloud
+- **THEN** the system deletes episode 41's SoundCloud track, removes its publication record, and publishes episode 45 as a new track
+
+#### Scenario: Publish episode does not replace different-day episodes
+- **WHEN** episode 45 (generatedAt 2026-03-16) is published to SoundCloud, and episode 32 (generatedAt 2026-03-05) is published to SoundCloud
+- **THEN** episode 32's publication is not affected
+
+#### Scenario: Unpublish failure does not block new publication
+- **WHEN** unpublishing the old track fails (e.g. already deleted on SoundCloud)
+- **THEN** the system logs a warning, deletes the old publication record, and proceeds with publishing the new episode
+
+### Requirement: Unpublish support on publisher interface
+The `EpisodePublisher` interface SHALL provide an `unpublish(userId, externalId)` method with a default implementation that throws `UnsupportedOperationException`. Publishers that support unpublishing (e.g. SoundCloud) SHALL override this method.
 
 ### Requirement: Publication status tracking
 The system SHALL store publication records in an `episode_publications` table with columns: `id` (INTEGER, auto-increment PK), `episode_id` (INTEGER, FK to episodes), `target` (TEXT, NOT NULL), `status` (TEXT, NOT NULL — PENDING, PUBLISHED, FAILED, UNPUBLISHED), `external_id` (TEXT, nullable), `external_url` (TEXT, nullable), `error_message` (TEXT, nullable), `published_at` (TEXT, nullable — ISO-8601), `created_at` (TEXT, NOT NULL — ISO-8601). A unique constraint SHALL exist on `(episode_id, target)`.
@@ -59,6 +111,10 @@ The system SHALL store publication records in an `episode_publications` table wi
 - **WHEN** the SoundCloud upload fails
 - **THEN** the record is updated to status `FAILED` with `error_message` containing the failure reason
 
+#### Scenario: Publication record updated on unpublish
+- **WHEN** a user unpublishes an episode from a target
+- **THEN** the record is updated to status `UNPUBLISHED` and `external_id` is cleared
+
 ### Requirement: List episode publications endpoint
 The system SHALL provide a `GET /users/{userId}/podcasts/{podcastId}/episodes/{episodeId}/publications` endpoint that returns all publication records for the specified episode as a JSON array.
 
@@ -73,21 +129,6 @@ The system SHALL provide a `GET /users/{userId}/podcasts/{podcastId}/episodes/{e
 #### Scenario: Episode not found
 - **WHEN** a `GET .../publications` request is received for an episode that does not exist
 - **THEN** the system returns HTTP 404
-
-### Requirement: SoundCloud playlist ID storage on podcast
-The `podcasts` table SHALL have a nullable `soundcloud_playlist_id` column (TEXT) that stores the SoundCloud playlist ID associated with the podcast. The `Podcast` entity SHALL include a `soundcloudPlaylistId` field. A database migration SHALL add this column.
-
-#### Scenario: New podcast has no playlist ID
-- **WHEN** a new podcast is created
-- **THEN** the `soundcloud_playlist_id` column is null
-
-#### Scenario: Playlist ID stored after first SoundCloud publish
-- **WHEN** the first episode of a podcast is published to SoundCloud and a playlist is created
-- **THEN** the `soundcloud_playlist_id` column is updated with the SoundCloud playlist ID
-
-#### Scenario: Playlist ID updated when playlist is recreated
-- **WHEN** a publish detects a stale playlist (404) and creates a new one
-- **THEN** the `soundcloud_playlist_id` column is updated with the new playlist ID
 
 ### Requirement: Cascade delete publications with episode
 When an episode is deleted (e.g., during cleanup or podcast deletion), all of its publication records SHALL be automatically deleted via `ON DELETE CASCADE` on the `episode_publications.episode_id` foreign key. Application code SHALL NOT manually delete publication records before deleting an episode — the database cascade handles this.
@@ -105,11 +146,11 @@ The system SHALL provide a `DELETE /users/{userId}/podcasts/{podcastId}/episodes
 
 #### Scenario: Successful unpublish from SoundCloud
 - **WHEN** a `DELETE .../publications/soundcloud` request is received for an episode with a PUBLISHED SoundCloud publication
-- **THEN** the system deletes the track from SoundCloud, rebuilds the playlist, updates the publication status to `UNPUBLISHED`, clears `external_id`, publishes an `episode.unpublished` SSE event, and returns HTTP 200
+- **THEN** the system deletes the track from SoundCloud, rebuilds the playlist, updates the publication status to `UNPUBLISHED`, clears `external_id`, publishes an `episode.unpublished` SSE event, and returns HTTP 200 with the updated publication record
 
 #### Scenario: Successful unpublish from FTP
 - **WHEN** a `DELETE .../publications/ftp` request is received for an episode with a PUBLISHED FTP publication
-- **THEN** the system deletes the MP3 file from the FTP server, regenerates feed.xml, updates the publication status to `UNPUBLISHED`, clears `external_id`, and returns HTTP 200
+- **THEN** the system deletes the MP3 file from the FTP server, regenerates and uploads feed.xml, updates the publication status to `UNPUBLISHED`, clears `external_id`, publishes an `episode.unpublished` SSE event, and returns HTTP 200
 
 #### Scenario: Episode not published to target
 - **WHEN** a `DELETE .../publications/soundcloud` request is received for an episode that is not PUBLISHED to SoundCloud
@@ -118,3 +159,25 @@ The system SHALL provide a `DELETE /users/{userId}/podcasts/{podcastId}/episodes
 #### Scenario: Unknown target
 - **WHEN** a `DELETE .../publications/youtube` request is received for an unsupported target
 - **THEN** the system returns HTTP 400
+
+#### Scenario: Episode not found
+- **WHEN** a `DELETE .../publications/soundcloud` request is received for an episode that does not exist
+- **THEN** the system returns HTTP 404
+
+### Requirement: FTP unpublish implementation
+The `FtpPublisher` SHALL implement the `unpublish()` method. It SHALL connect to the FTP server, delete the episode's MP3 file from the remote episodes directory, and regenerate the feed.xml to exclude the unpublished episode.
+
+#### Scenario: FTP file deletion
+- **WHEN** `FtpPublisher.unpublish()` is called with a valid externalId
+- **THEN** the system connects to the FTP server, deletes the MP3 file at the episode's remote path, and regenerates feed.xml
+
+#### Scenario: FTP file already deleted
+- **WHEN** the MP3 file does not exist on the FTP server
+- **THEN** the system logs a warning and continues without error
+
+### Requirement: SoundCloud playlist rebuild on unpublish
+After unpublishing a SoundCloud track, the system SHALL rebuild the SoundCloud playlist to exclude the deleted track.
+
+#### Scenario: Playlist rebuilt after unpublish
+- **WHEN** a SoundCloud track is unpublished
+- **THEN** the system rebuilds the playlist with all remaining published tracks

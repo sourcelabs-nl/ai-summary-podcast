@@ -16,8 +16,19 @@ The system SHALL provide a page at `/podcasts/[podcastId]/upcoming` that uses a 
 - **THEN** the header subtitle shows the next generation date and time (e.g., "Will be generated Wed, Mar 4 at 06:00 AM")
 
 #### Scenario: No articles
-- **WHEN** the page loads and there are no upcoming articles
+- **WHEN** the page loads and there are no upcoming articles or posts
 - **THEN** the Articles tab displays a message indicating no content has been collected yet
+
+### Requirement: Always-visible upcoming episode link
+The podcast detail page SHALL always display the "Next Episode" navigation link, regardless of whether articles are available.
+
+#### Scenario: Articles available
+- **WHEN** the podcast detail page loads and there are upcoming articles
+- **THEN** the "Next Episode" link SHALL display with the article count (e.g., "Next Episode · 5 articles ready")
+
+#### Scenario: No articles available
+- **WHEN** the podcast detail page loads and there are no upcoming articles
+- **THEN** the "Next Episode" link SHALL display with the text "Next Episode · no articles yet"
 
 ### Requirement: Articles tab
 The Articles tab (default) SHALL display all articles collected for the next episode, grouped by source with collapsible sections.

@@ -138,19 +138,19 @@ The `SoundCloudClient` SHALL provide an `addTrackToPlaylist` method that adds a 
 - **THEN** the method throws an exception indicating the playlist was not found (HTTP 404)
 
 ### Requirement: Automatic playlist management during publish
-The `SoundCloudPublisher` SHALL manage playlists automatically during the publish flow. After uploading a track, the publisher SHALL check the podcast's `soundcloudPlaylistId`. If no playlist ID exists, the publisher SHALL create a new playlist containing the uploaded track and store the playlist ID on the podcast. If a playlist ID exists, the publisher SHALL fetch the existing playlist's current track IDs via `getPlaylist`, append the new track ID to the list, and update the playlist via `addTrackToPlaylist` with the complete track list (existing + new). If fetching or updating the existing playlist fails with a 404 (playlist deleted), the publisher SHALL create a new playlist and update the stored ID.
+The `SoundCloudPublisher` SHALL manage playlists automatically during the publish flow. After uploading a track, the publisher SHALL read the podcast's SoundCloud playlist ID from the `podcast_publication_targets` table (target `"soundcloud"`, config field `playlistId`). If no playlist ID exists, the publisher SHALL create a new playlist containing the uploaded track and store the playlist ID back to the target's config. If a playlist ID exists, the publisher SHALL fetch the existing playlist's current track IDs via `getPlaylist`, append the new track ID to the list, and update the playlist via `addTrackToPlaylist` with the complete track list (existing + new). If fetching or updating the existing playlist fails with a 404 (playlist deleted), the publisher SHALL create a new playlist and update the stored config.
 
 #### Scenario: First publish for podcast creates playlist
-- **WHEN** an episode is published to SoundCloud for a podcast with no `soundcloudPlaylistId`
-- **THEN** the publisher uploads the track, creates a new SoundCloud playlist containing the track, stores the playlist ID on the podcast, and returns the publish result
+- **WHEN** an episode is published to SoundCloud for a podcast whose `podcast_publication_targets` SoundCloud config has no `playlistId`
+- **THEN** the publisher uploads the track, creates a new SoundCloud playlist containing the track, stores the playlist ID in the target's config, and returns the publish result
 
 #### Scenario: Subsequent publish appends to existing playlist
-- **WHEN** an episode is published to SoundCloud for a podcast with an existing `soundcloudPlaylistId` that contains tracks [100, 200]
+- **WHEN** an episode is published to SoundCloud for a podcast whose SoundCloud target config has `playlistId` pointing to a playlist with tracks [100, 200]
 - **THEN** the publisher fetches the current playlist tracks, calls `addTrackToPlaylist` with the full list [100, 200, newTrackId], and the existing tracks are preserved
 
 #### Scenario: Stale playlist ID triggers recreation
 - **WHEN** an episode is published and fetching the existing playlist fails with HTTP 404
-- **THEN** the publisher creates a new playlist containing the track, updates the podcast's `soundcloudPlaylistId`, and returns the publish result successfully
+- **THEN** the publisher creates a new playlist containing the track, updates the target config's `playlistId`, and returns the publish result successfully
 
 ### Requirement: SoundCloud get playlist
 The `SoundCloudClient` SHALL provide a `getPlaylist` method that fetches an existing playlist's details via `GET https://api.soundcloud.com/playlists/{playlistId}` with the user's access token as a Bearer token. The response SHALL include the playlist's track list. The method SHALL return the playlist ID and the list of track IDs currently in the playlist.
@@ -175,19 +175,19 @@ The `SoundCloudClient` SHALL provide an `updateTrack` method that updates a trac
 - **THEN** the SoundCloud API updates the track's permalink and returns the updated track
 
 ### Requirement: SoundCloud playlist rebuild
-The `SoundCloudPublisher` SHALL provide a `rebuildPlaylist(podcast, userId, trackIds)` method that replaces the SoundCloud playlist contents with the given list of track IDs. If the podcast has an existing `soundcloudPlaylistId`, the method SHALL call `addTrackToPlaylist` with the full list of track IDs. If no playlist ID exists, the method SHALL create a new playlist with all track IDs and store the playlist ID on the podcast. If the existing playlist returns 404, the method SHALL create a new playlist and update the stored ID.
+The `SoundCloudPublisher` SHALL provide a `rebuildPlaylist(podcast, userId, trackIds)` method that replaces the SoundCloud playlist contents with the given list of track IDs. The playlist ID SHALL be read from and written to the `podcast_publication_targets` table (target `"soundcloud"`, config field `playlistId`). If the podcast has an existing playlist ID in the target config, the method SHALL call `addTrackToPlaylist` with the full list of track IDs. If no playlist ID exists, the method SHALL create a new playlist with all track IDs and store the playlist ID in the target config. If the existing playlist returns 404, the method SHALL create a new playlist and update the target config.
 
 #### Scenario: Rebuild existing playlist
-- **WHEN** `rebuildPlaylist` is called for a podcast with an existing playlist containing tracks [100, 200] and trackIds is [100, 200, 300]
+- **WHEN** `rebuildPlaylist` is called for a podcast whose SoundCloud target config has `playlistId` and trackIds is [100, 200, 300]
 - **THEN** `addTrackToPlaylist` is called with [100, 200, 300] and no new playlist is created
 
 #### Scenario: Rebuild creates new playlist when none exists
-- **WHEN** `rebuildPlaylist` is called for a podcast with no `soundcloudPlaylistId`
-- **THEN** a new playlist is created with all track IDs and the playlist ID is stored on the podcast
+- **WHEN** `rebuildPlaylist` is called for a podcast whose SoundCloud target config has no `playlistId`
+- **THEN** a new playlist is created with all track IDs and the playlist ID is stored in the target config
 
 #### Scenario: Rebuild creates new playlist when existing is deleted
 - **WHEN** `rebuildPlaylist` is called and `addTrackToPlaylist` returns 404
-- **THEN** a new playlist is created with all track IDs and the podcast's `soundcloudPlaylistId` is updated
+- **THEN** a new playlist is created with all track IDs and the target config's `playlistId` is updated
 
 ### Requirement: Update track permalinks during rebuild
 The `SoundCloudPublisher` SHALL provide an `updateTrackPermalinks(podcast, userId, episodes, publications)` method that updates the permalink of each published SoundCloud track. For each publication, the method SHALL look up the corresponding episode, derive the episode date from `generatedAt`, compute the permalink slug using the same `buildPermalink` logic as the publish flow (podcast name + date, lowercased, non-alphanumeric replaced with hyphens), and call `SoundCloudClient.updateTrack` with the track ID and new permalink. The playlist rebuild endpoint SHALL call `updateTrackPermalinks` before rebuilding the playlist.
@@ -199,6 +199,9 @@ The `SoundCloudPublisher` SHALL provide an `updateTrackPermalinks(podcast, userI
 #### Scenario: Publication with missing episode is skipped
 - **WHEN** `updateTrackPermalinks` is called and a publication references an episode ID not in the provided episodes list
 - **THEN** that publication is skipped without error
+
+### Requirement: Playlist rebuild ordering
+When rebuilding a SoundCloud playlist, tracks SHALL be ordered newest-first (descending by episode `generatedAt`). This matches standard podcast convention where the latest episode appears at the top.
 
 ### Requirement: Playlist rebuild admin endpoint
 The system SHALL provide a `POST /users/{userId}/podcasts/{podcastId}/playlist/rebuild` endpoint that rebuilds the podcast's SoundCloud playlist from all published episode publications. The endpoint SHALL query all `episode_publications` with `status = 'PUBLISHED'` and `target = 'soundcloud'` for episodes belonging to the podcast, collect their `externalId` values as SoundCloud track IDs, and call `SoundCloudPublisher.rebuildPlaylist()` to replace the playlist contents with the full list of track IDs. If no published SoundCloud tracks exist, the endpoint SHALL return HTTP 400. On success, the endpoint SHALL return the list of track IDs that were set on the playlist.
@@ -287,15 +290,19 @@ The publish wizard SHALL display contextual recovery actions based on the error 
 - **THEN** the wizard returns to the confirm step so the user can retry publishing
 
 ### Requirement: SoundCloud application configuration
-The system SHALL require SoundCloud OAuth application credentials configured via `app.soundcloud.client-id` and `app.soundcloud.client-secret` application properties (environment variables: `APP_SOUNDCLOUD_CLIENT_ID`, `APP_SOUNDCLOUD_CLIENT_SECRET`). The redirect URI SHALL be derived from `app.feed.base-url` + `/oauth/soundcloud/callback`.
+The system SHALL resolve SoundCloud OAuth application credentials (`clientId`, `clientSecret`, `callbackUri`) by first checking `user_provider_configs` (category `PUBLISHING`, provider `soundcloud`) for the current user. If found, the encrypted JSON SHALL be decrypted and parsed. If not found, the system SHALL fall back to `app.soundcloud.client-id` and `app.soundcloud.client-secret` application properties (environment variables: `APP_SOUNDCLOUD_CLIENT_ID`, `APP_SOUNDCLOUD_CLIENT_SECRET`), with the callback URI derived from `app.feed.base-url` + `/oauth/soundcloud/callback`. If neither source provides credentials, the endpoints SHALL return HTTP 400 indicating SoundCloud credentials must be configured.
 
-#### Scenario: SoundCloud credentials configured
-- **WHEN** the application starts with `APP_SOUNDCLOUD_CLIENT_ID` and `APP_SOUNDCLOUD_CLIENT_SECRET` set
-- **THEN** the SoundCloud OAuth endpoints are available and functional
+#### Scenario: SoundCloud credentials from user_provider_configs
+- **WHEN** the SoundCloud OAuth flow is initiated and the user has a `PUBLISHING/soundcloud` config with `{"clientId":"abc","clientSecret":"xyz","callbackUri":"https://example.com/callback"}`
+- **THEN** the system uses `clientId=abc`, `clientSecret=xyz`, and `callbackUri=https://example.com/callback`
 
-#### Scenario: SoundCloud credentials not configured
-- **WHEN** the application starts without SoundCloud credentials
-- **THEN** the SoundCloud OAuth and publishing endpoints SHALL return HTTP 503 indicating SoundCloud integration is not configured
+#### Scenario: SoundCloud credentials from env var fallback
+- **WHEN** the SoundCloud OAuth flow is initiated, the user has no DB config, but `APP_SOUNDCLOUD_CLIENT_ID` and `APP_SOUNDCLOUD_CLIENT_SECRET` are set
+- **THEN** the system uses the env var values and derives the callback URI from `app.feed.base-url`
+
+#### Scenario: SoundCloud credentials not configured anywhere
+- **WHEN** the SoundCloud OAuth flow is initiated and neither DB config nor env vars are available
+- **THEN** the system returns HTTP 400 indicating SoundCloud integration is not configured
 
 ### Requirement: SoundCloudClient uses Spring-managed RestTemplate
 The `SoundCloudClient` SHALL use a `RestTemplate` built from Spring Boot's `RestTemplateBuilder` instead of a plain `RestTemplate()` constructor. This ensures proper auto-configured message converters (Jackson 3) are available.

@@ -7,15 +7,15 @@ Review workflow for episode scripts — status lifecycle, script editing, approv
 ## Requirements
 
 ### Requirement: Episode status lifecycle
-Each episode SHALL have a `status` field with one of the following values: `PENDING_REVIEW`, `APPROVED`, `GENERATED`, `FAILED`, `DISCARDED`. The status determines where the episode is in the review-to-audio pipeline.
+Each episode SHALL have a `status` field with one of the following values: `PENDING_REVIEW`, `APPROVED`, `GENERATED`, `FAILED`, `DISCARDED`. The status determines where the episode is in the review-to-audio pipeline. After each status transition, the service SHALL publish a `PodcastEvent` via `ApplicationEventPublisher` to notify connected clients.
 
 #### Scenario: New episode created with review enabled
 - **WHEN** the pipeline generates a script for a podcast with `requireReview = true`
-- **THEN** an episode is created with status `PENDING_REVIEW`, the `scriptText` populated, and `audioFilePath` and `durationSeconds` set to null
+- **THEN** an episode is created with status `PENDING_REVIEW`, the `scriptText` populated, `audioFilePath` and `durationSeconds` set to null, and an `episode.created` event is published
 
 #### Scenario: New episode created without review
 - **WHEN** the pipeline generates a script for a podcast with `requireReview = false`
-- **THEN** the episode is created with status `GENERATED` after TTS completes, with all fields populated (current behavior)
+- **THEN** the episode is created with status `GENERATED` after TTS completes, with all fields populated, and an `episode.generated` event is published
 
 ### Requirement: List episodes for a podcast
 The system SHALL provide an endpoint to list episodes for a podcast, with optional status filtering.
@@ -33,11 +33,11 @@ The system SHALL provide an endpoint to list episodes for a podcast, with option
 - **THEN** the system returns HTTP 404
 
 ### Requirement: Get single episode
-The system SHALL provide an endpoint to retrieve a single episode by ID, including its script text.
+The system SHALL provide an endpoint to retrieve a single episode by ID, including its script text and show notes.
 
 #### Scenario: Get existing episode
 - **WHEN** a `GET /users/{userId}/podcasts/{podcastId}/episodes/{episodeId}` request is received for an existing episode belonging to the podcast
-- **THEN** the system returns HTTP 200 with the episode details including `id`, `status`, `scriptText`, `audioFilePath`, `durationSeconds`, and `generatedAt`
+- **THEN** the system returns HTTP 200 with the episode details including `id`, `status`, `scriptText`, `showNotes`, `audioFilePath`, `durationSeconds`, and `generatedAt`
 
 #### Scenario: Get non-existing episode
 - **WHEN** a `GET /users/{userId}/podcasts/{podcastId}/episodes/{episodeId}` request is received for an episode that does not exist or belongs to a different podcast
@@ -55,33 +55,37 @@ The system SHALL allow editing the script text of an episode that is in `PENDING
 - **THEN** the system returns HTTP 409 (Conflict) with an error message indicating the episode is not in a reviewable state
 
 ### Requirement: Approve episode script
-The system SHALL allow approving an episode script, which triggers async TTS generation.
+The system SHALL allow approving an episode script, which triggers async TTS generation. Each status transition during the approval and generation flow SHALL publish a corresponding event.
 
 #### Scenario: Approve pending episode
 - **WHEN** a `POST /users/{userId}/podcasts/{podcastId}/episodes/{episodeId}/approve` request is received and the episode status is `PENDING_REVIEW`
-- **THEN** the system updates the episode status to `APPROVED`, triggers TTS generation asynchronously, and returns HTTP 202 (Accepted)
+- **THEN** the system updates the episode status to `APPROVED`, publishes an `episode.approved` event, triggers TTS generation asynchronously, and returns HTTP 202 (Accepted)
 
 #### Scenario: Approve non-pending episode
 - **WHEN** a `POST /users/{userId}/podcasts/{podcastId}/episodes/{episodeId}/approve` request is received and the episode status is not `PENDING_REVIEW`
 - **THEN** the system returns HTTP 409 (Conflict) with an error message
 
+#### Scenario: TTS generation starts
+- **WHEN** the async TTS pipeline begins generating audio for an approved episode
+- **THEN** an `episode.audio.started` event is published
+
 #### Scenario: TTS generation succeeds after approval
 - **WHEN** the async TTS pipeline completes successfully for an approved episode
-- **THEN** the episode status is updated to `GENERATED` and `audioFilePath` and `durationSeconds` are populated
+- **THEN** the episode status is updated to `GENERATED`, `audioFilePath` and `durationSeconds` are populated, and an `episode.generated` event is published
 
 #### Scenario: TTS generation fails after approval
 - **WHEN** the async TTS pipeline fails for an approved episode
-- **THEN** the episode status is updated to `FAILED` and `errorMessage` is populated with the failure reason
+- **THEN** the episode status is updated to `FAILED` and an `episode.failed` event is published
 
 ### Requirement: Retry failed episode
 The system SHALL allow re-triggering TTS for a `FAILED` episode by approving it again.
 
 #### Scenario: Approve failed episode
 - **WHEN** a `POST /users/{userId}/podcasts/{podcastId}/episodes/{episodeId}/approve` request is received and the episode status is `FAILED`
-- **THEN** the system updates the episode status to `APPROVED`, clears `errorMessage`, triggers TTS generation asynchronously, and returns HTTP 202
+- **THEN** the system updates the episode status to `APPROVED`, publishes an `episode.approved` event, triggers TTS generation asynchronously, and returns HTTP 202
 
 ### Requirement: Discard episode script
-The system SHALL allow discarding an episode script that is in `PENDING_REVIEW` or `GENERATED` status. Episodes that are published to any target SHALL NOT be discardable. When an episode is discarded, the system SHALL handle linked articles differently based on whether they are aggregated:
+The system SHALL allow discarding an episode script that is in `PENDING_REVIEW` or `GENERATED` status. Episodes that are published to any target SHALL NOT be discardable. When an episode is discarded, the service SHALL publish an `episode.discarded` event. The system SHALL handle linked articles differently based on whether they are aggregated:
 
 - **Non-aggregated articles** (0 or 1 linked posts in `post_articles`): The system SHALL reset the article's `is_processed` flag to `false`, preserving the article's score and summary for reuse.
 - **Aggregated articles** (2+ linked posts in `post_articles`): The system SHALL delete all `post_articles` entries for the article, then delete the article itself. This makes the original posts unlinked and eligible for re-aggregation on the next pipeline run.
@@ -115,3 +119,10 @@ The system SHALL look up linked articles via the `episode_articles` table. If no
 #### Scenario: Discard published episode blocked
 - **WHEN** a `POST /users/{userId}/podcasts/{podcastId}/episodes/{episodeId}/discard` request is received and the episode has a PUBLISHED publication to any target
 - **THEN** the system returns HTTP 409 (Conflict) indicating the episode must be unpublished first
+
+### Requirement: Episode creation from pipeline result
+`createEpisodeFromPipelineResult` SHALL accept an optional `overrideGeneratedAt` parameter. When provided, the episode's `generatedAt` field SHALL use this value instead of the current time.
+
+`createEpisodeFromPipelineResult` SHALL accept an optional `updateLastGenerated` parameter (default: `true`). When `false`, the method SHALL skip updating the podcast's `lastGeneratedAt` timestamp.
+
+Existing callers that do not pass these parameters SHALL behave identically to before (defaults preserve current behavior).
