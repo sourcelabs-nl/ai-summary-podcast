@@ -58,7 +58,9 @@ Sources are defined in YAML/JSON with fields: `id`, `type` (rss/website/twitter/
 
 Controllers validate input, delegate to services, and map responses — no business logic. Never duplicate logic that already exists in a service. For the full set of architectural review rules (controller hygiene, service layer, Spring Data JDBC, database consistency, testing, Jackson 3.x), see the `code-review` skill or run `/code-review`.
 
-**Concurrency:** Use Kotlin coroutines for async/background work — never use `ExecutorService` or `java.util.concurrent` thread pools directly.
+**Concurrency:** Use Kotlin coroutines for async/background work — never use `ExecutorService` or `java.util.concurrent` thread pools directly. Use `Dispatchers.IO` for I/O-bound coroutine scopes (HTTP requests, database calls, file I/O) — never `Dispatchers.Default`, which is sized to CPU cores and meant for computation only.
+
+**Transactions:** Any function that performs multiple writes across tables (or multiple writes that must be atomic) must be annotated with `@Transactional`. Remember that `@Transactional` only works on public methods called through the Spring proxy (not on private methods or internal self-calls).
 
 **Post-implementation check:** After every code change, validate that the architecture guidelines are respected — especially controller hygiene (no business logic, no direct repository access) and proper service layer delegation. Fix violations before considering the change complete.
 

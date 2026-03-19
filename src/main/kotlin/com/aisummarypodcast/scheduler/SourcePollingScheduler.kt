@@ -22,7 +22,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.supervisorScope
-import kotlinx.coroutines.withContext
 import java.net.URI
 import java.time.Instant
 import java.time.temporal.ChronoUnit
@@ -41,7 +40,7 @@ class SourcePollingScheduler(
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
-    private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     @EventListener(ApplicationReadyEvent::class)
     fun start() {
@@ -65,9 +64,7 @@ class SourcePollingScheduler(
     suspend fun pollSources() {
         cleanupOldArticles()
 
-        val allSources = withContext(Dispatchers.IO) {
-            sourceRepository.findAll()
-        }.filter { it.enabled }
+        val allSources = sourceRepository.findAll().filter { it.enabled }
         log.info("[Polling] Checking {} enabled sources", allSources.count())
 
         val jitteredSources = applyStartupJitter(allSources)
@@ -82,9 +79,7 @@ class SourcePollingScheduler(
         supervisorScope {
             hostGroups.map { (host, sources) ->
                 async {
-                    withContext(Dispatchers.IO) {
-                        pollHostGroup(host, sources, sourcesByPodcast)
-                    }
+                    pollHostGroup(host, sources, sourcesByPodcast)
                 }
             }.forEach { deferred ->
                 try {
@@ -125,7 +120,7 @@ class SourcePollingScheduler(
             val jitterMinutes = Random.nextInt(0, source.pollIntervalMinutes + 1)
             val syntheticLastPolled = now.minus(jitterMinutes.toLong(), ChronoUnit.MINUTES)
             val updated = source.copy(lastPolled = syntheticLastPolled.toString())
-            withContext(Dispatchers.IO) { sourceRepository.save(updated) }
+            sourceRepository.save(updated)
             log.info("[Polling] Applied startup jitter to source {}: synthetic lastPolled = {} ({} min ago)",
                 source.id, syntheticLastPolled, jitterMinutes)
             updated
@@ -152,11 +147,9 @@ class SourcePollingScheduler(
             null
         }
 
-    private suspend fun cleanupOldArticles() {
+    private fun cleanupOldArticles() {
         val cutoff = Instant.now().minus(appProperties.source.maxArticleAgeDays.toLong(), ChronoUnit.DAYS)
-        withContext(Dispatchers.IO) {
-            articleRepository.deleteOldUnprocessedArticles(cutoff.toString())
-            postRepository.deleteOldUnlinkedPosts(cutoff.toString())
-        }
+        articleRepository.deleteOldUnprocessedArticles(cutoff.toString())
+        postRepository.deleteOldUnlinkedPosts(cutoff.toString())
     }
 }

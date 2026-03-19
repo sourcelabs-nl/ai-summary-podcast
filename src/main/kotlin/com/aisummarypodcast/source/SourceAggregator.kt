@@ -9,6 +9,7 @@ import com.aisummarypodcast.store.Source
 import com.aisummarypodcast.store.SourceType
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
+import org.springframework.transaction.annotation.Transactional
 import java.net.URI
 import java.security.MessageDigest
 import java.time.Instant
@@ -27,6 +28,7 @@ class SourceAggregator(
     private val dateFormatter = DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.ENGLISH)
         .withZone(ZoneOffset.UTC)
 
+    @Transactional
     fun aggregateAndPersist(posts: List<Post>, source: Source): List<Article> {
         if (posts.isEmpty()) return emptyList()
 

@@ -31,7 +31,7 @@ class BriefingGenerationScheduler(
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
-    private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     companion object {
         val STALENESS_WINDOW: Duration = Duration.ofMinutes(30)
