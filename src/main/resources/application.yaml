@@ -37,8 +37,8 @@ app:
       opus:
         provider: openrouter
         model: anthropic/claude-opus-4.6
-        input-cost-per-mtok: 15.00
-        output-cost-per-mtok: 75.00
+        input-cost-per-mtok: 5.00
+        output-cost-per-mtok: 25.00
     defaults:
       filter: cheap
       compose: capable
