@@ -232,9 +232,11 @@ class PublishingService(
         val trackIds = sortedPublications.mapNotNull { it.externalId?.toLongOrNull() }
         require(trackIds.isNotEmpty()) { "No valid SoundCloud track IDs found" }
 
-        soundCloudPublisher.updateTrackPermalinks(podcast, userId, episodes, publications)
-        soundCloudPublisher.rebuildPlaylist(podcast, userId, trackIds)
-        log.info("Updated permalinks and rebuilt SoundCloud playlist for podcast {} with {} tracks", podcast.id, trackIds.size)
+        val staleTrackIds = soundCloudPublisher.updateTrackPermalinks(podcast, userId, episodes, publications)
+        val activeTrackIds = trackIds.filter { it !in staleTrackIds }
+        require(activeTrackIds.isNotEmpty()) { "No active SoundCloud tracks found after filtering stale tracks" }
+        soundCloudPublisher.rebuildPlaylist(podcast, userId, activeTrackIds)
+        log.info("Updated permalinks and rebuilt SoundCloud playlist for podcast {} with {} tracks ({} stale skipped)", podcast.id, activeTrackIds.size, staleTrackIds.size)
         return trackIds
     }
 }

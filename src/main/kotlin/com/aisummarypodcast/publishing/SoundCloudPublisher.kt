@@ -105,9 +105,10 @@ class SoundCloudPublisher(
         targetService.upsert(podcastId, "soundcloud", objectMapper.writeValueAsString(config), target?.enabled ?: true)
     }
 
-    fun updateTrackPermalinks(podcast: Podcast, userId: String, episodes: List<Episode>, publications: List<com.aisummarypodcast.store.EpisodePublication>) {
+    fun updateTrackPermalinks(podcast: Podcast, userId: String, episodes: List<Episode>, publications: List<com.aisummarypodcast.store.EpisodePublication>): Set<Long> {
         val accessToken = tokenManager.getValidAccessToken(userId)
         val episodeById = episodes.associateBy { it.id }
+        val staleTrackIds = mutableSetOf<Long>()
 
         for (publication in publications) {
             val episode = episodeById[publication.episodeId] ?: continue
@@ -118,8 +119,14 @@ class SoundCloudPublisher(
             )
             val permalink = buildPermalink(podcast.name, episodeDate)
             val description = episode.showNotes ?: episode.recap ?: episode.scriptText.take(500)
-            soundCloudClient.updateTrack(accessToken, trackId, permalink = permalink, description = description)
+            try {
+                soundCloudClient.updateTrack(accessToken, trackId, permalink = permalink, description = description)
+            } catch (e: HttpClientErrorException.NotFound) {
+                log.warn("SoundCloud track {} not found (404), skipping permalink update", trackId)
+                staleTrackIds.add(trackId)
+            }
         }
+        return staleTrackIds
     }
 
     fun rebuildPlaylist(podcast: Podcast, userId: String, trackIds: List<Long>) {

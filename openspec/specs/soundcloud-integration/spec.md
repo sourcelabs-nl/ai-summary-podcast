@@ -101,11 +101,11 @@ The system SHALL check the access token's `expires_at` before each SoundCloud AP
 - **THEN** the system returns an error indicating the SoundCloud connection needs to be re-authorized
 
 ### Requirement: SoundCloud track upload
-The `SoundCloudPublisher` SHALL implement the `EpisodePublisher` interface. It SHALL upload the episode's MP3 file to SoundCloud via `POST https://api.soundcloud.com/tracks` with `multipart/form-data` containing: `track[title]` (podcast name + episode date), `track[description]` (the episode's `recap` field if available, falling back to the first 500 characters of script text), `track[tag_list]` (derived from podcast topic, space-separated, multi-word tags quoted), `track[sharing]` set to `"public"`, `track[permalink]` (URL-safe slug derived from podcast name and episode date), and `track[asset_data]` (the MP3 file). The permalink slug SHALL be computed by concatenating the podcast name and date with a hyphen, converting to lowercase, replacing non-alphanumeric characters (except hyphens) with hyphens, collapsing consecutive hyphens, and trimming leading/trailing hyphens. The upload SHALL use the user's decrypted OAuth access token as a Bearer token. After a successful upload, the publisher SHALL add the track to the podcast's SoundCloud playlist (creating one if it does not yet exist).
+The `SoundCloudPublisher` SHALL implement the `EpisodePublisher` interface. It SHALL upload the episode's MP3 file to SoundCloud via `POST https://api.soundcloud.com/tracks` with `multipart/form-data` containing: `track[title]` (podcast name + episode date), `track[description]` (the episode's `recap` field if available, falling back to the first 500 characters of script text), `track[tag_list]` (derived from podcast topic, space-separated, multi-word tags quoted), `track[sharing]` set to `"public"`, `track[permalink]` (URL-safe slug derived from podcast name and episode date), and `track[asset_data]` (the MP3 file). The permalink slug SHALL be computed by concatenating the podcast name and date with a hyphen, converting to lowercase, replacing non-alphanumeric characters (except hyphens) with hyphens, collapsing consecutive hyphens, and trimming leading/trailing hyphens. The upload SHALL use the user's decrypted OAuth access token as a Bearer token. The publisher SHALL NOT manage playlist membership directly; playlist ordering is handled exclusively by the playlist rebuild in `PublishingService`.
 
 #### Scenario: Successful upload with permalink
 - **WHEN** the publisher uploads an episode for a podcast named "Tech News" generated on 2026-02-13
-- **THEN** the SoundCloud track is created with title "Tech News - 2026-02-13", permalink `"tech-news-2026-02-13"`, description from the script, tags from the topic, the track is added to the podcast's playlist, and the system returns a `PublishResult` with the SoundCloud track ID and permalink URL
+- **THEN** the SoundCloud track is created with title "Tech News - 2026-02-13", permalink `"tech-news-2026-02-13"`, description from the script, tags from the topic, and the system returns a `PublishResult` with the SoundCloud track ID and permalink URL
 
 #### Scenario: Upload fails due to SoundCloud API error
 - **WHEN** the upload request returns a non-2xx response from SoundCloud
@@ -137,20 +137,16 @@ The `SoundCloudClient` SHALL provide an `addTrackToPlaylist` method that adds a 
 - **WHEN** `addTrackToPlaylist` is called with a playlist ID that no longer exists on SoundCloud
 - **THEN** the method throws an exception indicating the playlist was not found (HTTP 404)
 
-### Requirement: Automatic playlist management during publish
-The `SoundCloudPublisher` SHALL manage playlists automatically during the publish flow. After uploading a track, the publisher SHALL read the podcast's SoundCloud playlist ID from the `podcast_publication_targets` table (target `"soundcloud"`, config field `playlistId`). If no playlist ID exists, the publisher SHALL create a new playlist containing the uploaded track and store the playlist ID back to the target's config. If a playlist ID exists, the publisher SHALL fetch the existing playlist's current track IDs via `getPlaylist`, append the new track ID to the list, and update the playlist via `addTrackToPlaylist` with the complete track list (existing + new). If fetching or updating the existing playlist fails with a 404 (playlist deleted), the publisher SHALL create a new playlist and update the stored config.
+### Requirement: Playlist management via rebuild only
+The `SoundCloudPublisher` SHALL NOT manage playlist membership during the publish flow. Playlist ordering is handled exclusively by `PublishingService.rebuildSoundCloudPlaylist()`, which is called after every publish, republish, and unpublish operation. This ensures a single playlist PUT with the correct newest-first ordering, avoiding race conditions from multiple rapid playlist updates.
 
-#### Scenario: First publish for podcast creates playlist
-- **WHEN** an episode is published to SoundCloud for a podcast whose `podcast_publication_targets` SoundCloud config has no `playlistId`
-- **THEN** the publisher uploads the track, creates a new SoundCloud playlist containing the track, stores the playlist ID in the target's config, and returns the publish result
+#### Scenario: Publish does not touch playlist directly
+- **WHEN** an episode is published to SoundCloud
+- **THEN** the publisher uploads the track and returns the publish result without modifying the playlist; the calling `PublishingService` triggers a full playlist rebuild afterward
 
-#### Scenario: Subsequent publish appends to existing playlist
-- **WHEN** an episode is published to SoundCloud for a podcast whose SoundCloud target config has `playlistId` pointing to a playlist with tracks [100, 200]
-- **THEN** the publisher fetches the current playlist tracks, calls `addTrackToPlaylist` with the full list [100, 200, newTrackId], and the existing tracks are preserved
-
-#### Scenario: Stale playlist ID triggers recreation
-- **WHEN** an episode is published and fetching the existing playlist fails with HTTP 404
-- **THEN** the publisher creates a new playlist containing the track, updates the target config's `playlistId`, and returns the publish result successfully
+#### Scenario: Republish triggers playlist rebuild
+- **WHEN** an already-published episode is republished (metadata update) on SoundCloud
+- **THEN** the `PublishingService` triggers a full playlist rebuild after the update completes
 
 ### Requirement: SoundCloud get playlist
 The `SoundCloudClient` SHALL provide a `getPlaylist` method that fetches an existing playlist's details via `GET https://api.soundcloud.com/playlists/{playlistId}` with the user's access token as a Bearer token. The response SHALL include the playlist's track list. The method SHALL return the playlist ID and the list of track IDs currently in the playlist.
@@ -190,15 +186,23 @@ The `SoundCloudPublisher` SHALL provide a `rebuildPlaylist(podcast, userId, trac
 - **THEN** a new playlist is created with all track IDs and the target config's `playlistId` is updated
 
 ### Requirement: Update track permalinks during rebuild
-The `SoundCloudPublisher` SHALL provide an `updateTrackPermalinks(podcast, userId, episodes, publications)` method that updates the permalink of each published SoundCloud track. For each publication, the method SHALL look up the corresponding episode, derive the episode date from `generatedAt`, compute the permalink slug using the same `buildPermalink` logic as the publish flow (podcast name + date, lowercased, non-alphanumeric replaced with hyphens), and call `SoundCloudClient.updateTrack` with the track ID and new permalink. The playlist rebuild endpoint SHALL call `updateTrackPermalinks` before rebuilding the playlist.
+The `SoundCloudPublisher` SHALL provide an `updateTrackPermalinks(podcast, userId, episodes, publications)` method that updates the permalink of each published SoundCloud track and returns the set of stale (deleted) track IDs. For each publication, the method SHALL look up the corresponding episode, derive the episode date from `generatedAt`, compute the permalink slug using the same `buildPermalink` logic as the publish flow (podcast name + date, lowercased, non-alphanumeric replaced with hyphens), and call `SoundCloudClient.updateTrack` with the track ID and new permalink. If a track returns HTTP 404, the method SHALL log a warning, add the track ID to the stale set, and continue processing remaining tracks. The playlist rebuild SHALL call `updateTrackPermalinks` before rebuilding the playlist and exclude stale track IDs from the rebuild.
 
 #### Scenario: Update permalinks for two published tracks
 - **WHEN** `updateTrackPermalinks` is called with a podcast named "Tech News" and two episodes (2026-02-13, 2026-02-14) with SoundCloud track IDs 100 and 200
-- **THEN** `updateTrack` is called with track 100 and permalink `"tech-news-2026-02-13"`, and track 200 and permalink `"tech-news-2026-02-14"`
+- **THEN** `updateTrack` is called with track 100 and permalink `"tech-news-2026-02-13"`, and track 200 and permalink `"tech-news-2026-02-14"`, and the method returns an empty stale set
 
 #### Scenario: Publication with missing episode is skipped
 - **WHEN** `updateTrackPermalinks` is called and a publication references an episode ID not in the provided episodes list
 - **THEN** that publication is skipped without error
+
+#### Scenario: Stale track (deleted on SoundCloud) is skipped
+- **WHEN** `updateTrackPermalinks` is called and a track returns HTTP 404 from SoundCloud
+- **THEN** the track ID is added to the returned stale set, a warning is logged, and remaining tracks continue to be updated
+
+#### Scenario: Stale tracks excluded from playlist rebuild
+- **WHEN** `rebuildSoundCloudPlaylist` is called and `updateTrackPermalinks` returns stale track IDs
+- **THEN** the stale track IDs are excluded from the track list passed to `rebuildPlaylist`
 
 ### Requirement: Playlist rebuild ordering
 When rebuilding a SoundCloud playlist, tracks SHALL be ordered newest-first (descending by episode `generatedAt`). This matches standard podcast convention where the latest episode appears at the top.

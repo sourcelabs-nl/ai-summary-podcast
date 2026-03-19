@@ -47,6 +47,10 @@ The system SHALL provide a `POST /users/{userId}/podcasts/{podcastId}/episodes/{
 - **WHEN** a `POST .../publish/soundcloud` request is received for an already-published episode that now has show notes
 - **THEN** the SoundCloud track description is updated to the episode's current show notes (or recap/script fallback)
 
+#### Scenario: Republish to SoundCloud rebuilds playlist
+- **WHEN** a `POST .../publish/soundcloud` request is received for an already-published episode
+- **THEN** the system rebuilds the SoundCloud playlist after the metadata update to maintain newest-first ordering
+
 #### Scenario: Episode not in GENERATED status
 - **WHEN** a `POST .../publish/soundcloud` request is received for an episode with status `PENDING_REVIEW`
 - **THEN** the system returns HTTP 400 indicating the episode must be in GENERATED status
@@ -175,8 +179,16 @@ The `FtpPublisher` SHALL implement the `unpublish()` method. It SHALL connect to
 - **WHEN** the MP3 file does not exist on the FTP server
 - **THEN** the system logs a warning and continues without error
 
-### Requirement: SoundCloud playlist rebuild on unpublish
-After unpublishing a SoundCloud track, the system SHALL rebuild the SoundCloud playlist to exclude the deleted track.
+### Requirement: SoundCloud playlist rebuild on every publish operation
+After every SoundCloud publish, republish (metadata update), or unpublish operation, the system SHALL rebuild the SoundCloud playlist. This ensures the playlist always reflects the correct newest-first ordering and excludes deleted tracks.
+
+#### Scenario: Playlist rebuilt after publish
+- **WHEN** a new episode is published to SoundCloud
+- **THEN** the system rebuilds the playlist with all published tracks in newest-first order
+
+#### Scenario: Playlist rebuilt after republish
+- **WHEN** an already-published episode's metadata is updated on SoundCloud
+- **THEN** the system rebuilds the playlist with all published tracks in newest-first order
 
 #### Scenario: Playlist rebuilt after unpublish
 - **WHEN** a SoundCloud track is unpublished
