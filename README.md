@@ -9,9 +9,10 @@ flowchart LR
     A[Source Poller] --> B[Posts Table]
     B --> C[Aggregator]
     C --> D[Score + Summarize]
-    D --> E[Briefing Composer]
-    E --> F[TTS + FFmpeg]
-    F --> G[RSS Feed]
+    D --> E[Topic Dedup Filter]
+    E --> F[Briefing Composer]
+    F --> G[TTS + FFmpeg]
+    G --> H[RSS Feed]
 ```
 
 1. **Source Poller** — Periodically fetches new content from configured RSS feeds, websites, and X (Twitter) accounts. Individual items (tweets, RSS entries, scraped pages) are stored as **posts** in a dedicated table. Posts older than a configurable threshold (default 7 days) are automatically discarded.
@@ -164,9 +165,9 @@ The dashboard provides:
 - **Podcast settings** — edit all podcast configuration (general, LLM, TTS, content) via a tabbed settings page with key-value editors for JSON map fields
 - **Episode management** — view episodes with status filtering, approve/discard/regenerate pending reviews. Click any episode row to open the detail page. Shows the generation schedule in human-readable form
 - **Episode detail page** — dedicated page per episode with tabs for Script (chat-bubble rendering), Articles (grouped by source with relevance scores and collapsible sections), and Publications. Shows episode metadata, recap, and contextual action buttons
-- **Upcoming episode preview** — see collected articles for the next episode, preview the script via Server-Sent Events with real-time progress stages (aggregating, scoring, composing), and trigger episode generation on demand. Shows next scheduled generation time
+- **Upcoming episode preview** — see collected articles for the next episode, preview the script via Server-Sent Events with real-time progress stages (aggregating, scoring, deduplicating, composing), and trigger episode generation on demand. Shows next scheduled generation time
 - **Source export** — download all configured sources as a markdown file from the Sources tab
-- **Publish wizard** — publish generated episodes to SoundCloud via a step-by-step wizard with automatic quota detection and recovery (re-authorize on OAuth expiry, remove oldest track on quota exceeded)
+- **Publish wizard** — publish generated episodes to FTP or SoundCloud via a step-by-step wizard with automatic quota detection and recovery (re-authorize on OAuth expiry, remove oldest track on quota exceeded)
 - **Publications tab** — view all publications with track/playlist links, republish with confirmation
 
 The frontend proxies API calls to `http://localhost:8085` via Next.js rewrites.
@@ -193,6 +194,8 @@ Each podcast can be tailored to your preferences via the following settings:
 | `fullBodyThreshold` | `5` | When the number of relevant articles is below this threshold, the composer uses full article bodies instead of summaries for richer content |
 | `requireReview` | `false` | When `true`, generated scripts pause for review before TTS — see [Episode Review](#episode-review) below |
 | `maxLlmCostCents` | `null` | Per-podcast LLM cost threshold in cents — see [Cost Gate](#cost-gate) below |
+| `maxArticleAgeDays` | `null` | Maximum age of articles to include (default: 7 days). Articles older than this are skipped during ingestion |
+| `sponsor` | `null` | Sponsor configuration — e.g. `{"name": "Acme Corp", "message": "building the future"}`. Adds a sponsor message after the introduction and in the sign-off |
 | `pronunciations` | `null` | IPA pronunciation dictionary — maps terms to phonemes (e.g. `{"Anthropic": "/ænˈθɹɒpɪk/"}`) for correct TTS pronunciation. Currently supported by Inworld TTS |
 | `recapLookbackEpisodes` | `null` | Number of recent episodes to check for topic overlap (default: 7). The dedup filter uses article titles and summaries from these episodes to prevent repeating previously covered topics |
 
@@ -232,15 +235,18 @@ app:
     models:
       cheap:
         provider: openrouter
-        model: openai/gpt-4o-mini
+        model: openai/gpt-5.4-nano
       capable:
         provider: openrouter
         model: anthropic/claude-sonnet-4.6
+      opus:
+        provider: openrouter
+        model: anthropic/claude-opus-4.6
       local:
         provider: ollama
         model: llama3
     defaults:
-      filter: cheap      # used for scoring and summarization
+      filter: cheap      # used for scoring, summarization, and dedup filter
       compose: capable    # used for briefing composition
 ```
 
@@ -284,7 +290,7 @@ Cost fields are `null` when pricing is not configured or when usage metadata is 
 
 ### Cost Gate
 
-Before making any LLM API calls, the pipeline estimates the total cost (scoring + composition) and compares it against a configurable threshold. If the estimated cost exceeds the threshold, the entire pipeline run is skipped and a warning is logged.
+Before making any LLM API calls, the pipeline estimates the total cost (scoring + dedup filter + composition) and compares it against a configurable threshold. If the estimated cost exceeds the threshold, the entire pipeline run is skipped and a warning is logged.
 
 The global default threshold is configured in `application.yaml`:
 
@@ -310,9 +316,39 @@ app:
 
 When not set, the static feed uses the same `app.feed.base-url` as the dynamic endpoint. The dynamic HTTP feed at `/users/{userId}/podcasts/{podcastId}/feed.xml` remains available regardless.
 
-### Publishing to SoundCloud
+### Publishing
 
-Episodes can be published to SoundCloud after generation. This requires a SoundCloud OAuth app and a connected user account.
+Episodes can be published to multiple targets after generation. Supported targets: **FTP** and **SoundCloud**. Publication targets are configured per-podcast via the API, and each episode tracks its publication status (PENDING, PUBLISHED, FAILED) independently per target. Episodes can also be unpublished from any target.
+
+#### Publishing to FTP
+
+FTP publishing uploads the episode audio file and updates the static feed.xml on a remote server. Configure an FTP publication target on a podcast:
+
+```bash
+curl -X PUT http://localhost:8085/users/{userId}/podcasts/{podcastId}/publication-targets/ftp \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "host": "ftp.example.com",
+    "port": 21,
+    "username": "user",
+    "password": "pass",
+    "useTls": true,
+    "remotePath": "/podcast",
+    "publicUrl": "https://podcast.example.com"
+  }'
+```
+
+You can test the FTP connection before publishing:
+
+```bash
+curl -X POST http://localhost:8085/users/{userId}/publishing/test/ftp \
+  -H 'Content-Type: application/json' \
+  -d '{"host": "ftp.example.com", "port": 21, "username": "user", "password": "pass", "useTls": true}'
+```
+
+#### Publishing to SoundCloud
+
+SoundCloud publishing requires a SoundCloud OAuth app and a connected user account.
 
 1. **Register a SoundCloud app** at https://soundcloud.com/you/apps (you must be logged in to SoundCloud). During registration, set the **redirect URI** to match your app's base URL:
 
@@ -456,8 +492,13 @@ GET    /users/{userId}/podcasts                      — List podcasts
 GET    /users/{userId}/podcasts/{podcastId}          — Get podcast
 PUT    /users/{userId}/podcasts/{podcastId}          — Update podcast
 DELETE /users/{userId}/podcasts/{podcastId}          — Delete podcast (cascades)
-POST   /users/{userId}/podcasts/{podcastId}/generate — Manually trigger episode generation
-GET    /users/{userId}/podcasts/{podcastId}/feed.xml — RSS 2.0 feed for podcast apps
+POST   /users/{userId}/podcasts/{podcastId}/generate            — Manually trigger episode generation
+GET    /users/{userId}/podcasts/{podcastId}/feed.xml            — RSS 2.0 feed for podcast apps
+GET    /users/{userId}/podcasts/{podcastId}/upcoming-articles   — Articles collected for next episode
+GET    /users/{userId}/podcasts/{podcastId}/preview             — Preview script (SSE stream)
+POST   /users/{userId}/podcasts/{podcastId}/image               — Upload podcast image
+GET    /users/{userId}/podcasts/{podcastId}/image               — Retrieve podcast image
+DELETE /users/{userId}/podcasts/{podcastId}/image               — Delete podcast image
 ```
 
 ### Episodes
@@ -469,6 +510,7 @@ PUT    /users/{userId}/podcasts/{podcastId}/episodes/{episodeId}/script  — Edi
 POST   /users/{userId}/podcasts/{podcastId}/episodes/{episodeId}/approve    — Approve and trigger TTS generation
 POST   /users/{userId}/podcasts/{podcastId}/episodes/{episodeId}/discard    — Discard episode
 POST   /users/{userId}/podcasts/{podcastId}/episodes/{episodeId}/regenerate — Re-compose script from same articles
+GET    /users/{userId}/podcasts/{podcastId}/episodes/{episodeId}/articles   — List articles used in episode
 ```
 
 Episode statuses: `PENDING_REVIEW` → `APPROVED` → `GENERATED` (or `FAILED`). Episodes can also be `DISCARDED`. The review endpoints are only relevant when `requireReview` is enabled on the podcast.
@@ -482,7 +524,7 @@ PUT    /users/{userId}/podcasts/{podcastId}/sources/{sourceId}  — Update sourc
 DELETE /users/{userId}/podcasts/{podcastId}/sources/{sourceId}  — Delete source
 ```
 
-Sources can be of type `rss`, `website`, or `twitter`. Each source has a configurable `pollIntervalMinutes` and can be toggled with `enabled`. Twitter sources require an X OAuth connection (see below). An optional `aggregate` field (boolean) controls whether posts are merged into a single digest article at briefing generation time — useful for short-form sources like tweets. When `null` (default), aggregation is auto-detected for `twitter` type sources and nitter.net RSS feeds.
+Sources can be of type `rss`, `website`, or `twitter`. Each source has a configurable `pollIntervalMinutes` and can be toggled with `enabled`. Twitter sources require an X OAuth connection (see below). An optional `aggregate` field (boolean) controls whether posts are merged into a single digest article at briefing generation time — useful for short-form sources like tweets. When `null` (default), aggregation is auto-detected for `twitter` type sources and nitter.net RSS feeds. An optional `categoryFilter` field (comma-separated terms) filters RSS entries by category tags. An optional `label` field provides a display name for the source in the dashboard.
 
 When adding a source, the URL is validated by performing a test fetch — RSS feeds must return valid XML with at least one item, and websites must return extractable content. Invalid URLs are rejected with HTTP 422 and a descriptive error message. Twitter sources skip URL validation (they use OAuth).
 
@@ -497,8 +539,19 @@ Sources sharing the same host are polled sequentially with a configurable delay 
 ### Publishing
 
 ```
-POST   /users/{userId}/podcasts/{podcastId}/episodes/{episodeId}/publish/{target} — Publish episode to target
-GET    /users/{userId}/podcasts/{podcastId}/episodes/{episodeId}/publications     — List publications for episode
+POST   /users/{userId}/podcasts/{podcastId}/episodes/{episodeId}/publish/{target}       — Publish episode to target
+DELETE /users/{userId}/podcasts/{podcastId}/episodes/{episodeId}/publications/{target}   — Unpublish episode from target
+GET    /users/{userId}/podcasts/{podcastId}/episodes/{episodeId}/publications            — List publications for episode
+```
+
+### Publication Targets
+
+```
+GET    /users/{userId}/podcasts/{podcastId}/publication-targets              — List configured targets
+PUT    /users/{userId}/podcasts/{podcastId}/publication-targets/{target}     — Configure target (ftp, soundcloud)
+DELETE /users/{userId}/podcasts/{podcastId}/publication-targets/{target}     — Remove target configuration
+POST   /users/{userId}/publishing/test/ftp                                  — Test FTP connection
+POST   /users/{userId}/publishing/test/soundcloud                           — Test SoundCloud connection
 ```
 
 ### SoundCloud OAuth
@@ -518,6 +571,12 @@ GET    /users/{userId}/oauth/x/authorize  — Get X authorization URL
 GET    /oauth/x/callback                  — OAuth callback (handled automatically)
 GET    /users/{userId}/oauth/x/status      — Check connection status
 DELETE /users/{userId}/oauth/x             — Disconnect X account
+```
+
+### Real-Time Events
+
+```
+GET    /users/{userId}/events                  — SSE event stream (pipeline progress, episode updates)
 ```
 
 ### Voices
