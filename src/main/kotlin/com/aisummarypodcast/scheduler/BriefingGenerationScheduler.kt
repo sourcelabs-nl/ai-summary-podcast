@@ -97,12 +97,16 @@ class BriefingGenerationScheduler(
         log.info("[Pipeline] Starting briefing generation for podcast '{}' ({})", podcast.name, podcast.id)
         val mark = TimeSource.Monotonic.markNow()
 
-        val episode = podcastService.generateBriefing(podcast)
-        if (episode == null) {
+        val result = podcastService.generateBriefing(podcast)
+        if (result.failed) {
+            log.error("[Pipeline] Briefing generation failed for podcast '{}' ({}): {} — total {}", podcast.name, podcast.id, result.errorMessage, mark.elapsedNow())
+            return
+        }
+        if (result.episode == null) {
             log.info("[Pipeline] No briefing generated for podcast '{}' ({}) — skipped or no articles ({})", podcast.name, podcast.id, mark.elapsedNow())
             return
         }
 
-        log.info("[Pipeline] Briefing generation complete for podcast '{}' ({}): episode {} — total {}", podcast.name, podcast.id, episode.id, mark.elapsedNow())
+        log.info("[Pipeline] Briefing generation complete for podcast '{}' ({}): episode {} — total {}", podcast.name, podcast.id, result.episode.id, mark.elapsedNow())
     }
 }

@@ -200,6 +200,25 @@ class EpisodeService(
         generateAudioAsync(episode.id, podcast.id)
     }
 
+    fun createFailedEpisode(podcast: Podcast, errorMessage: String): Episode {
+        val episode = episodeRepository.save(
+            Episode(
+                podcastId = podcast.id,
+                generatedAt = Instant.now().toString(),
+                scriptText = "",
+                status = EpisodeStatus.FAILED,
+                errorMessage = errorMessage
+            )
+        )
+        podcastRepository.save(podcast.copy(lastGeneratedAt = Instant.now().toString()))
+        eventPublisher.publishEvent(
+            PodcastEvent(this, podcast.id, "episode", episode.id!!, "episode.failed",
+                mapOf("episodeNumber" to episode.id, "error" to errorMessage))
+        )
+        log.info("[Pipeline] Created FAILED episode {} for podcast '{}' ({}): {}", episode.id, podcast.name, podcast.id, errorMessage)
+        return episode
+    }
+
     fun findById(episodeId: Long): Episode? = episodeRepository.findById(episodeId).orElse(null)
 
     fun hasPendingOrApprovedEpisode(podcastId: String): Boolean {

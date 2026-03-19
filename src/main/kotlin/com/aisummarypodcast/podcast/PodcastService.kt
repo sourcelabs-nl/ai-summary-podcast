@@ -14,6 +14,12 @@ import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.UUID
 
+data class GenerateBriefingResult(
+    val episode: Episode?,
+    val failed: Boolean = false,
+    val errorMessage: String? = null
+)
+
 data class UpcomingContent(
     val articles: List<Article>,
     val unlinkedPosts: List<Post>,
@@ -101,20 +107,27 @@ class PodcastService(
         return llmPipeline.preview(podcast, onProgress)
     }
 
-    fun generateBriefing(podcast: Podcast): Episode? {
+    fun generateBriefing(podcast: Podcast): GenerateBriefingResult {
         if (podcast.requireReview && episodeService.hasPendingOrApprovedEpisode(podcast.id)) {
             log.info("Podcast '{}' ({}) has a pending/approved episode — skipping generation", podcast.name, podcast.id)
-            return null
+            return GenerateBriefingResult(episode = null)
         }
 
-        val result = llmPipeline.run(podcast) { stage, detail ->
-            eventPublisher.publishEvent(
-                PodcastEvent(this, podcast.id, "pipeline", 0, "pipeline.progress",
-                    detail + ("stage" to stage))
-            )
-        } ?: return null
+        return try {
+            val result = llmPipeline.run(podcast) { stage, detail ->
+                eventPublisher.publishEvent(
+                    PodcastEvent(this, podcast.id, "pipeline", 0, "pipeline.progress",
+                        detail + ("stage" to stage))
+                )
+            } ?: return GenerateBriefingResult(episode = null)
 
-        return episodeService.createEpisodeFromPipelineResult(podcast, result)
+            val episode = episodeService.createEpisodeFromPipelineResult(podcast, result)
+            GenerateBriefingResult(episode = episode)
+        } catch (e: Exception) {
+            log.error("[Pipeline] Briefing generation failed for podcast '{}' ({}): {}", podcast.name, podcast.id, e.message, e)
+            val failedEpisode = episodeService.createFailedEpisode(podcast, e.message ?: "Unknown error")
+            GenerateBriefingResult(episode = failedEpisode, failed = true, errorMessage = e.message)
+        }
     }
 
     fun regenerateEpisode(sourceEpisode: Episode, podcast: Podcast): Episode {

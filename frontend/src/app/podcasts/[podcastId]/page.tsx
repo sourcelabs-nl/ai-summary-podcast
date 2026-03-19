@@ -145,7 +145,7 @@ export default function EpisodesPage() {
     if (event === "pipeline.progress") {
       setPipelineStage(data.data.stage as string);
     } else {
-      if (event === "episode.created" || event === "episode.generated") {
+      if (event === "episode.created" || event === "episode.generated" || event === "episode.failed") {
         setPipelineStage(null);
       }
       fetchEpisodes();
@@ -167,12 +167,16 @@ export default function EpisodesPage() {
       fetch(`/api/users/${selectedUser.id}/podcasts/${params.podcastId}/upcoming-articles`)
         .then((res) => (res.ok ? res.json() : { articles: [], postCount: 0 }))
         .catch(() => ({ articles: [], postCount: 0 })),
+      fetch(`/api/users/${selectedUser.id}/podcasts/${params.podcastId}/pipeline-status`)
+        .then((res) => (res.ok ? res.json() : { stage: null }))
+        .catch(() => ({ stage: null })),
     ])
-      .then(([podcastData, episodeData, upcomingData]) => {
+      .then(([podcastData, episodeData, upcomingData, pipelineData]) => {
         setPodcast(podcastData);
         setEpisodes(episodeData);
         setUpcomingCount(upcomingData.articleCount ?? 0);
         setUpcomingPostCount(upcomingData.postCount ?? 0);
+        setPipelineStage(pipelineData.stage ?? null);
         fetchPublications(episodeData);
       })
       .catch(() => {})

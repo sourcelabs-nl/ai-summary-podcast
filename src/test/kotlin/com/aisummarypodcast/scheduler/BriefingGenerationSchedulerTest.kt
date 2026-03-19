@@ -1,5 +1,6 @@
 package com.aisummarypodcast.scheduler
 
+import com.aisummarypodcast.podcast.GenerateBriefingResult
 import com.aisummarypodcast.podcast.PodcastService
 import com.aisummarypodcast.store.Episode
 import com.aisummarypodcast.store.EpisodeStatus
@@ -40,7 +41,7 @@ class BriefingGenerationSchedulerTest {
     fun `skips generation when podcastService returns null`() {
         val podcast = duePodcast(requireReview = true)
         every { podcastRepository.findAll() } returns listOf(podcast)
-        every { podcastService.generateBriefing(podcast) } returns null
+        every { podcastService.generateBriefing(podcast) } returns GenerateBriefingResult(episode = null)
 
         scheduler.checkAndGenerate()
 
@@ -53,7 +54,7 @@ class BriefingGenerationSchedulerTest {
         val episode = Episode(id = 10, podcastId = "p1", generatedAt = Instant.now().toString(), scriptText = "Generated script")
 
         every { podcastRepository.findAll() } returns listOf(podcast)
-        every { podcastService.generateBriefing(podcast) } returns episode
+        every { podcastService.generateBriefing(podcast) } returns GenerateBriefingResult(episode = episode)
 
         scheduler.checkAndGenerate()
 
@@ -66,7 +67,7 @@ class BriefingGenerationSchedulerTest {
         val episode = Episode(id = 7, podcastId = "p1", generatedAt = Instant.now().toString(), scriptText = "Script", status = EpisodeStatus.PENDING_REVIEW)
 
         every { podcastRepository.findAll() } returns listOf(podcast)
-        every { podcastService.generateBriefing(podcast) } returns episode
+        every { podcastService.generateBriefing(podcast) } returns GenerateBriefingResult(episode = episode)
 
         scheduler.checkAndGenerate()
 
@@ -77,7 +78,7 @@ class BriefingGenerationSchedulerTest {
     fun `handles null result from generateBriefing`() {
         val podcast = duePodcast(requireReview = false)
         every { podcastRepository.findAll() } returns listOf(podcast)
-        every { podcastService.generateBriefing(podcast) } returns null
+        every { podcastService.generateBriefing(podcast) } returns GenerateBriefingResult(episode = null)
 
         scheduler.checkAndGenerate()
 
@@ -96,7 +97,7 @@ class BriefingGenerationSchedulerTest {
         val episode = Episode(id = 1, podcastId = "p1", generatedAt = now.toString(), scriptText = "Script")
 
         every { podcastRepository.findAll() } returns listOf(podcast)
-        every { podcastService.generateBriefing(podcast) } returns episode
+        every { podcastService.generateBriefing(podcast) } returns GenerateBriefingResult(episode = episode)
 
         schedulerWithClock(now).checkAndGenerate()
 

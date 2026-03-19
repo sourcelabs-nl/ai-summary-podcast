@@ -112,7 +112,8 @@ class PodcastController(
     private val userService: UserService,
     private val episodeService: EpisodeService,
     private val objectMapper: ObjectMapper,
-    private val sourceAggregator: SourceAggregator
+    private val sourceAggregator: SourceAggregator,
+    private val pipelineStateTracker: PipelineStateTracker
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -271,6 +272,16 @@ class PodcastController(
         return ResponseEntity.noContent().build()
     }
 
+    @GetMapping("/{podcastId}/pipeline-status")
+    fun pipelineStatus(@PathVariable userId: String, @PathVariable podcastId: String): ResponseEntity<Any> {
+        userService.findById(userId) ?: return ResponseEntity.notFound().build()
+        val podcast = podcastService.findById(podcastId) ?: return ResponseEntity.notFound().build()
+        if (podcast.userId != userId) return ResponseEntity.notFound().build()
+
+        val stage = pipelineStateTracker.getStage(podcastId)
+        return ResponseEntity.ok(mapOf("stage" to stage))
+    }
+
     @PostMapping("/{podcastId}/generate")
     fun generate(@PathVariable userId: String, @PathVariable podcastId: String): ResponseEntity<Any> {
         userService.findById(userId) ?: return ResponseEntity.notFound().build()
@@ -283,7 +294,11 @@ class PodcastController(
             return ResponseEntity.status(409).body(mapOf("error" to "A pending or approved episode already exists — approve or discard it first"))
         }
 
-        val episode = podcastService.generateBriefing(podcast)
+        val result = podcastService.generateBriefing(podcast)
+        if (result.failed) {
+            return ResponseEntity.status(500).body(mapOf("error" to (result.errorMessage ?: "Briefing generation failed"), "episodeId" to result.episode?.id))
+        }
+        val episode = result.episode
             ?: return ResponseEntity.ok(mapOf("message" to "No relevant articles to process"))
 
         return if (podcast.requireReview) {
