@@ -128,3 +128,18 @@ The system SHALL allow triggering briefing generation for a specific podcast via
 #### Scenario: Manual briefing with no relevant articles
 - **WHEN** a `POST /users/{userId}/podcasts/{podcastId}/generate` request is received but the podcast has no relevant unprocessed articles
 - **THEN** the system returns HTTP 200 with a message indicating no relevant articles to process
+
+### Requirement: Failed episode creation on generation errors
+When the briefing generation pipeline throws an exception (e.g., invalid model configuration, LLM API errors), the system SHALL create an episode with status `FAILED` and store the error message in the `errorMessage` field. The podcast's `lastGeneratedAt` SHALL be updated to prevent the scheduler from retrying the same failed trigger indefinitely. An `episode.failed` event SHALL be published so connected clients are notified. `PodcastService.generateBriefing()` SHALL return a `GenerateBriefingResult` containing the episode (or null), a `failed` flag, and an optional error message.
+
+#### Scenario: Pipeline error creates failed episode (scheduler)
+- **WHEN** the scheduler triggers briefing generation for a podcast and the LLM pipeline throws an exception (e.g., unknown model name)
+- **THEN** a FAILED episode is created with the error message, `lastGeneratedAt` is updated, an `episode.failed` event is published, and the scheduler logs the failure without retrying
+
+#### Scenario: Pipeline error creates failed episode (manual trigger)
+- **WHEN** a `POST /users/{userId}/podcasts/{podcastId}/generate` request is received and the LLM pipeline throws an exception
+- **THEN** a FAILED episode is created with the error message, and the endpoint returns HTTP 500 with the error message and the failed episode ID
+
+#### Scenario: Failed episode is visible in UI
+- **WHEN** a FAILED episode is created due to a pipeline error
+- **THEN** the episode appears in the episode list with status `FAILED` and the error message is visible on the episode detail page

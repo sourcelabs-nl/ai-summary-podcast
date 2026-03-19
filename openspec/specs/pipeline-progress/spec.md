@@ -27,8 +27,30 @@ The podcast detail page "Next Episode" card SHALL display the current pipeline s
 - **THEN** the "Next Episode" card shows a spinner icon with "Scoring articles..." text and a primary-colored border
 
 #### Scenario: Progress cleared after generation completes
-- **WHEN** an `episode.created` or `episode.generated` event is received after pipeline progress
+- **WHEN** an `episode.created`, `episode.generated`, or `episode.failed` event is received after pipeline progress
 - **THEN** the "Next Episode" card returns to its default state showing article counts and countdown
+
+### Requirement: Pipeline status endpoint
+The system SHALL provide a `GET /users/{userId}/podcasts/{podcastId}/pipeline-status` endpoint that returns the current pipeline stage for a podcast. An in-memory `PipelineStateTracker` component SHALL listen to `PodcastEvent` instances: it records the stage from `pipeline.progress` events and clears state on `episode.created`, `episode.generated`, or `episode.failed` events.
+
+#### Scenario: Pipeline status when generation is active
+- **WHEN** a `GET /users/{userId}/podcasts/{podcastId}/pipeline-status` request is received while the LLM pipeline is in the "composing" stage
+- **THEN** the system returns HTTP 200 with `{"stage": "composing"}`
+
+#### Scenario: Pipeline status when idle
+- **WHEN** a `GET /users/{userId}/podcasts/{podcastId}/pipeline-status` request is received and no pipeline is running
+- **THEN** the system returns HTTP 200 with `{"stage": null}`
+
+### Requirement: Pipeline status fetched on page load
+The podcast detail page SHALL fetch the pipeline status endpoint on initial page load alongside other data fetches (podcast, episodes, upcoming articles). If a non-null stage is returned, the "Next Episode" card SHALL immediately display the active pipeline stage with a spinner, without waiting for an SSE event.
+
+#### Scenario: Page load during active generation
+- **WHEN** the podcast detail page loads while the pipeline is in the "composing" stage
+- **THEN** the "Next Episode" card immediately shows a spinner with "Composing script..." text and a primary-colored border
+
+#### Scenario: Page load when idle
+- **WHEN** the podcast detail page loads and no pipeline is running
+- **THEN** the "Next Episode" card shows its default state with article counts and countdown
 
 ### Requirement: Toast notifications for pipeline progress
 The system SHALL show toast notifications for `pipeline.progress` events with stage-specific messages: "Aggregating N posts...", "Scoring N articles...", "Composing episode script...".
