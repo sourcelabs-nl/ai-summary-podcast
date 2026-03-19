@@ -142,6 +142,13 @@ class PublishingService(
             )
             log.info("Episode {} updated on {} (externalId={})", episode.id, existing.target, existing.externalId)
             publisher.postPublish(podcast, userId)
+            if (existing.target == "soundcloud") {
+                try {
+                    rebuildSoundCloudPlaylist(podcast, userId)
+                } catch (e: Exception) {
+                    log.warn("Failed to rebuild SoundCloud playlist after update: {}", e.message)
+                }
+            }
             staticFeedExporter.export(podcast)
             updated
         } catch (e: UnsupportedOperationException) {
