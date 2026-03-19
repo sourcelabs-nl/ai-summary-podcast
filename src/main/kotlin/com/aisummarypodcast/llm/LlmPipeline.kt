@@ -141,10 +141,6 @@ class LlmPipeline(
 
         val processedArticleIds = toCompose.mapNotNull { it.id }
 
-        for (article in toCompose) {
-            articleRepository.save(article.copy(isProcessed = true))
-        }
-
         val dedupCostCents = CostEstimator.estimateLlmCostCents(
             dedupResult.usage.inputTokens, dedupResult.usage.outputTokens, filterModelDef
         )

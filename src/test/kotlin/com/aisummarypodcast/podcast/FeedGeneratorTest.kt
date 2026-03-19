@@ -94,7 +94,7 @@ class FeedGeneratorTest {
 
         val xml = feedGenerator.generate(podcast, user, publicUrl = "https://podcast.example.com/shows/tech/")
         assertTrue(xml.contains("Today's recap summary."), "Expected recap in description")
-        assertTrue(xml.contains("Sources: https://podcast.example.com/shows/tech/episodes/briefing-20250101-000000-sources.txt"), "Expected sources link")
+        assertTrue(xml.contains("Sources: https://podcast.example.com/shows/tech/episodes/briefing-20250101-000000-sources.html"), "Expected sources link")
     }
 
     @Test
@@ -111,7 +111,7 @@ class FeedGeneratorTest {
 
         val xml = feedGenerator.generate(podcast, user)
         assertTrue(xml.contains("Today's recap summary."), "Expected recap in description")
-        assertTrue(xml.contains("Sources: http://localhost:8085/data/p1/episodes/briefing-20250101-000000-sources.txt"), "Expected local sources link")
+        assertTrue(xml.contains("Sources: http://localhost:8085/data/p1/episodes/briefing-20250101-000000-sources.html"), "Expected local sources link")
     }
 
     @Test

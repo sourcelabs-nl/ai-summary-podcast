@@ -74,6 +74,7 @@ class EpisodeService(
         }
 
         saveEpisodeArticleLinks(episode, result)
+        markArticlesAsProcessed(result.processedArticleIds)
         val recapEpisode = generateAndStoreRecap(episode, podcast)
         val finalEpisode = generateAndStoreShowNotes(recapEpisode)
         generateSourcesFile(finalEpisode, podcast)
@@ -93,6 +94,14 @@ class EpisodeService(
     private fun saveEpisodeArticleLinks(episode: Episode, result: PipelineResult) {
         for (articleId in result.processedArticleIds) {
             episodeArticleRepository.save(EpisodeArticle(episodeId = episode.id!!, articleId = articleId))
+        }
+    }
+
+    private fun markArticlesAsProcessed(articleIds: List<Long>) {
+        for (articleId in articleIds) {
+            articleRepository.findById(articleId).ifPresent { article ->
+                articleRepository.save(article.copy(isProcessed = true))
+            }
         }
     }
 
@@ -217,6 +226,13 @@ class EpisodeService(
         )
         log.info("[Pipeline] Created FAILED episode {} for podcast '{}' ({}): {}", episode.id, podcast.name, podcast.id, errorMessage)
         return episode
+    }
+
+    fun regenerateRecap(episode: Episode, podcast: Podcast): Episode {
+        val recapEpisode = generateAndStoreRecap(episode, podcast)
+        val finalEpisode = generateAndStoreShowNotes(recapEpisode)
+        generateSourcesFile(finalEpisode, podcast)
+        return finalEpisode
     }
 
     fun findById(episodeId: Long): Episode? = episodeRepository.findById(episodeId).orElse(null)

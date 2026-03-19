@@ -49,3 +49,4 @@ build/
 
 ### Frontend build artifacts ###
 *.tsbuildinfo
+/frontend/npm-debug.log

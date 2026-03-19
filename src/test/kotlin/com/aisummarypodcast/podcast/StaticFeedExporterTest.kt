@@ -128,7 +128,7 @@ class StaticFeedExporterTest {
         exporter.export(podcast)
 
         val content = Files.readString(tempDir.resolve("p1/feed.xml"))
-        assertTrue(content.contains("Sources: https://podcast.example.com/shows/tech/episodes/briefing-20250101-000000-sources.txt"))
+        assertTrue(content.contains("Sources: https://podcast.example.com/shows/tech/episodes/briefing-20250101-000000-sources.html"))
     }
 
     @Test

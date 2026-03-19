@@ -36,7 +36,10 @@ class EpisodeServiceTest {
     private val episodeArticleRepository = mockk<EpisodeArticleRepository> {
         every { save(any()) } answers { firstArg() }
     }
-    private val articleRepository = mockk<ArticleRepository>()
+    private val articleRepository = mockk<ArticleRepository> {
+        every { findById(any<Long>()) } returns Optional.empty()
+        every { save(any()) } answers { firstArg() }
+    }
     private val episodeRecapGenerator = mockk<EpisodeRecapGenerator>()
     private val modelResolver = mockk<ModelResolver>()
     private val postArticleRepository = mockk<PostArticleRepository>()
@@ -164,6 +167,28 @@ class EpisodeServiceTest {
         episodeService.createEpisodeFromPipelineResult(reviewPodcast, result)
 
         verify { podcastRepository.save(match { it.lastGeneratedAt != null }) }
+    }
+
+    @Test
+    fun `marks articles as processed after linking`() {
+        val reviewPodcast = podcast.copy(requireReview = true)
+        val result = PipelineResult(
+            script = "Script", filterModel = "filter", composeModel = "compose",
+            processedArticleIds = listOf(10L, 20L)
+        )
+        val article1 = Article(id = 10L, sourceId = "src-1", title = "A1", body = "body", url = "https://example.com/1", contentHash = "h1")
+        val article2 = Article(id = 20L, sourceId = "src-1", title = "A2", body = "body", url = "https://example.com/2", contentHash = "h2")
+        every { episodeRepository.save(any()) } answers { firstArg<Episode>().copy(id = 5) }
+        every { podcastRepository.save(any()) } answers { firstArg() }
+        every { articleRepository.findById(10L) } returns Optional.of(article1)
+        every { articleRepository.findById(20L) } returns Optional.of(article2)
+        every { articleRepository.save(any()) } answers { firstArg() }
+        setupRecapMocks(reviewPodcast)
+
+        episodeService.createEpisodeFromPipelineResult(reviewPodcast, result)
+
+        verify { articleRepository.save(match { it.id == 10L && it.isProcessed }) }
+        verify { articleRepository.save(match { it.id == 20L && it.isProcessed }) }
     }
 
     // --- generateAudioAsync tests ---

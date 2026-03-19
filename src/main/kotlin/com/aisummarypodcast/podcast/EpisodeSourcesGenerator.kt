@@ -24,35 +24,57 @@ class EpisodeSourcesGenerator(private val appProperties: AppProperties) {
             .withZone(ZoneOffset.UTC)
             .format(Instant.parse(episode.generatedAt))
 
-        val markdown = buildString {
-            appendLine("# ${podcast.name}")
-            appendLine()
-            appendLine("**Episode date:** $date")
-            appendLine()
+        val html = buildString {
+            appendLine("<!DOCTYPE html>")
+            appendLine("<html lang=\"en\">")
+            appendLine("<head>")
+            appendLine("<meta charset=\"UTF-8\">")
+            appendLine("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">")
+            appendLine("<title>${escapeHtml(podcast.name)} - $date</title>")
+            appendLine("<style>")
+            appendLine("body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 700px; margin: 2rem auto; padding: 0 1rem; color: #1a1a1a; line-height: 1.6; }")
+            appendLine("h1 { font-size: 1.5rem; margin-bottom: 0.25rem; }")
+            appendLine(".date { color: #666; font-style: italic; margin-bottom: 1.5rem; }")
+            appendLine(".summary { margin-bottom: 1.5rem; }")
+            appendLine("h2 { font-size: 1.1rem; border-bottom: 1px solid #ddd; padding-bottom: 0.3rem; }")
+            appendLine("ul { padding-left: 1.25rem; }")
+            appendLine("li { margin-bottom: 0.5rem; }")
+            appendLine("a { color: #c2410c; }")
+            appendLine("</style>")
+            appendLine("</head>")
+            appendLine("<body>")
+            appendLine("<h1>${escapeHtml(podcast.name)}</h1>")
+            appendLine("<p class=\"date\">$date</p>")
             if (episode.recap != null) {
-                appendLine("## Summary")
-                appendLine()
-                appendLine(episode.recap)
-                appendLine()
+                appendLine("<div class=\"summary\">")
+                appendLine("<h2>Summary</h2>")
+                appendLine("<p>${escapeHtml(episode.recap!!)}</p>")
+                appendLine("</div>")
             }
             if (articles.isNotEmpty()) {
-                appendLine("## Sources")
-                appendLine()
+                appendLine("<h2>Sources</h2>")
+                appendLine("<ul>")
                 for (article in articles) {
-                    appendLine("- [${article.title}](${article.url})")
+                    appendLine("<li><a href=\"${escapeHtml(article.url)}\">${escapeHtml(article.title)}</a></li>")
                 }
+                appendLine("</ul>")
             }
+            appendLine("</body>")
+            appendLine("</html>")
         }
 
         val slug = deriveSlug(episode)
         val episodesDir = Path.of(appProperties.episodes.directory, podcast.id, "episodes")
         Files.createDirectories(episodesDir)
-        val sourcesPath = episodesDir.resolve("$slug-sources.txt")
-        Files.writeString(sourcesPath, markdown)
+        val sourcesPath = episodesDir.resolve("$slug-sources.html")
+        Files.writeString(sourcesPath, html)
 
-        log.info("Generated sources.txt for episode {} at {}", episode.id, sourcesPath)
+        log.info("Generated sources.html for episode {} at {}", episode.id, sourcesPath)
         return sourcesPath
     }
+
+    private fun escapeHtml(text: String): String =
+        text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
 
     fun deriveSlug(episode: Episode): String {
         val audioPath = episode.audioFilePath

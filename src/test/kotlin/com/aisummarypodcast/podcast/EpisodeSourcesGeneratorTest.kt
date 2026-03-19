@@ -41,7 +41,7 @@ class EpisodeSourcesGeneratorTest {
     }
 
     @Test
-    fun `generates sources md with recap and articles`() {
+    fun `generates sources html with recap and articles`() {
         val articles = listOf(
             article(1, "Spring Boot 4 Released", "https://spring.io/blog/spring-boot-4"),
             article(2, "Kotlin 2.2 Features", "https://blog.jetbrains.com/kotlin-2.2")
@@ -51,22 +51,23 @@ class EpisodeSourcesGeneratorTest {
 
         assertNotNull(path)
         val content = Files.readString(path!!)
-        assertTrue(content.contains("# Tech Daily"))
-        assertTrue(content.contains("**Episode date:** 2026-03-12"))
+        assertTrue(content.contains("<meta charset=\"UTF-8\">"))
+        assertTrue(content.contains("<h1>Tech Daily</h1>"))
+        assertTrue(content.contains("2026-03-12"))
         assertTrue(content.contains("Today we covered breaking news in tech."))
-        assertTrue(content.contains("- [Spring Boot 4 Released](https://spring.io/blog/spring-boot-4)"))
-        assertTrue(content.contains("- [Kotlin 2.2 Features](https://blog.jetbrains.com/kotlin-2.2)"))
+        assertTrue(content.contains("<a href=\"https://spring.io/blog/spring-boot-4\">Spring Boot 4 Released</a>"))
+        assertTrue(content.contains("<a href=\"https://blog.jetbrains.com/kotlin-2.2\">Kotlin 2.2 Features</a>"))
     }
 
     @Test
-    fun `generates sources md with recap only`() {
+    fun `generates sources html with recap only`() {
         val path = generator.generate(episode, podcast, emptyList())
 
         assertNotNull(path)
         val content = Files.readString(path!!)
-        assertTrue(content.contains("# Tech Daily"))
+        assertTrue(content.contains("<h1>Tech Daily</h1>"))
         assertTrue(content.contains("Today we covered"))
-        assertFalse(content.contains("## Sources"))
+        assertFalse(content.contains("<h2>Sources</h2>"))
     }
 
     @Test
@@ -91,7 +92,7 @@ class EpisodeSourcesGeneratorTest {
         val path = generator.generate(episode, podcast, emptyList())
 
         assertNotNull(path)
-        assertTrue(path!!.toString().endsWith("briefing-20260312-100000-sources.txt"))
+        assertTrue(path!!.toString().endsWith("briefing-20260312-100000-sources.html"))
         assertTrue(path.toString().contains("pod-1"))
     }
 

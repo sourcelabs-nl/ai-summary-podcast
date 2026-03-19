@@ -156,7 +156,6 @@ class LlmPipelineTest {
 
         verify { sourceAggregator.aggregateAndPersist(listOf(unlinkedPost), source) }
         verify { articleScoreSummarizer.scoreSummarize(listOf(createdArticle), podcast, filterModelDef, mapOf("s1" to "example.com/feed")) }
-        verify { articleRepository.save(scored.copy(isProcessed = true)) }
     }
 
     @Test
@@ -240,13 +239,13 @@ class LlmPipelineTest {
     }
 
     @Test
-    fun `marks articles as processed after composition`() {
+    fun `does not mark articles as processed`() {
         setupBasicPipeline()
         every { briefingComposer.compose(any(), any(), any(), any(), any<Map<Long, String>>()) } returns CompositionResult("Script", TokenUsage(500, 200))
 
         pipeline.run(podcast)
 
-        verify { articleRepository.save(match { it.id == 1L && it.isProcessed }) }
+        verify(exactly = 0) { articleRepository.save(match { it.isProcessed }) }
     }
 
     @Test

@@ -166,6 +166,28 @@ class EpisodeController(
         return ResponseEntity.ok(mapOf("message" to "Episode discarded"))
     }
 
+    @PostMapping("/{episodeId}/regenerate-recap")
+    fun regenerateRecap(
+        @PathVariable userId: String,
+        @PathVariable podcastId: String,
+        @PathVariable episodeId: Long
+    ): ResponseEntity<Any> {
+        userService.findById(userId) ?: return ResponseEntity.notFound().build()
+        val podcast = podcastService.findById(podcastId) ?: return ResponseEntity.notFound().build()
+        if (podcast.userId != userId) return ResponseEntity.notFound().build()
+
+        val episode = episodeRepository.findById(episodeId).orElse(null)
+            ?: return ResponseEntity.notFound().build()
+        if (episode.podcastId != podcastId) return ResponseEntity.notFound().build()
+
+        return try {
+            val updated = episodeService.regenerateRecap(episode, podcast)
+            ResponseEntity.ok(updated.toResponse())
+        } catch (e: Exception) {
+            ResponseEntity.internalServerError().body(mapOf("error" to "Failed to regenerate recap: ${e.message}"))
+        }
+    }
+
     @GetMapping("/{episodeId}/articles")
     fun articles(
         @PathVariable userId: String,

@@ -119,6 +119,6 @@ class FeedGenerator(
     private fun buildDescription(episode: Episode, contentBaseUrl: String): String {
         val recap = episode.showNotes ?: episode.recap ?: (episode.scriptText.take(500) + "...")
         val slug = episodeSourcesGenerator.deriveSlug(episode)
-        return "$recap\n\nSources: ${contentBaseUrl}episodes/$slug-sources.txt"
+        return "$recap\n\nSources: ${contentBaseUrl}episodes/$slug-sources.html"
     }
 }

@@ -209,6 +209,57 @@ class EpisodeControllerTest {
             .andExpect(status().isConflict)
     }
 
+    // --- regenerate-recap tests ---
+
+    @Test
+    fun `regenerate-recap returns updated episode`() {
+        val episodeWithRecap = generatedEpisode.copy(recap = "New recap.", showNotes = "New recap.")
+        every { userService.findById(userId) } returns user
+        every { podcastService.findById(podcastId) } returns podcast
+        every { episodeRepository.findById(2L) } returns Optional.of(generatedEpisode)
+        every { episodeService.regenerateRecap(generatedEpisode, podcast) } returns episodeWithRecap
+
+        mockMvc.perform(post("/users/$userId/podcasts/$podcastId/episodes/2/regenerate-recap"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.recap").value("New recap."))
+            .andExpect(jsonPath("$.showNotes").value("New recap."))
+
+        verify { episodeService.regenerateRecap(generatedEpisode, podcast) }
+    }
+
+    @Test
+    fun `regenerate-recap for non-existing episode returns 404`() {
+        every { userService.findById(userId) } returns user
+        every { podcastService.findById(podcastId) } returns podcast
+        every { episodeRepository.findById(99L) } returns Optional.empty()
+
+        mockMvc.perform(post("/users/$userId/podcasts/$podcastId/episodes/99/regenerate-recap"))
+            .andExpect(status().isNotFound)
+    }
+
+    @Test
+    fun `regenerate-recap for wrong podcast returns 404`() {
+        val otherPodcastEpisode = generatedEpisode.copy(podcastId = "other-podcast")
+        every { userService.findById(userId) } returns user
+        every { podcastService.findById(podcastId) } returns podcast
+        every { episodeRepository.findById(2L) } returns Optional.of(otherPodcastEpisode)
+
+        mockMvc.perform(post("/users/$userId/podcasts/$podcastId/episodes/2/regenerate-recap"))
+            .andExpect(status().isNotFound)
+    }
+
+    @Test
+    fun `regenerate-recap returns 500 on failure`() {
+        every { userService.findById(userId) } returns user
+        every { podcastService.findById(podcastId) } returns podcast
+        every { episodeRepository.findById(2L) } returns Optional.of(generatedEpisode)
+        every { episodeService.regenerateRecap(generatedEpisode, podcast) } throws RuntimeException("LLM error")
+
+        mockMvc.perform(post("/users/$userId/podcasts/$podcastId/episodes/2/regenerate-recap"))
+            .andExpect(status().isInternalServerError)
+            .andExpect(jsonPath("$.error").exists())
+    }
+
     @Test
     fun `articles for non-existing episode returns 404`() {
         every { userService.findById(userId) } returns user
