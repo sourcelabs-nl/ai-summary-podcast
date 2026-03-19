@@ -241,7 +241,7 @@ class InterviewComposerTest {
         val prompt = composer.buildPrompt(manyArticles, podcast)
 
         assertTrue(prompt.contains("COMING UP TEASER"))
-        assertTrue(prompt.contains("preview of 3-4"))
+        assertTrue(prompt.contains("2-3 short punchy fragments"))
     }
 
     @Test

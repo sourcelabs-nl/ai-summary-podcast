@@ -89,7 +89,7 @@ class InterviewComposer(
         val comingUpTeaser = if (articles.size >= 5) {
             val placement = if (podcast.sponsor != null) "immediately after the sponsor message" else "immediately after the introduction"
             """
-            - COMING UP TEASER: $placement, the interviewer should rattle off a quick preview of 3-4 of the most interesting topics coming up in the show. Keep each teaser to one punchy sentence. Example: "Coming up — why OpenAI's latest move has everyone scrambling, a database claiming to be 100x faster than Postgres, and the security flaw nobody's talking about." This builds anticipation and gives listeners a reason to stay"""
+            - COMING UP TEASER: $placement, the interviewer rattles off 2-3 short punchy fragments previewing the most interesting topics. Keep the ENTIRE teaser under 25 words, no full sentences, just intriguing fragments separated by commas. Be spectacular, create curiosity. Example: "Coming up: AI agents going rogue, a model that halves its own memory, and the security flaw nobody's talking about." """
         } else ""
 
         val ttsGuidelinesBlock = if (ttsScriptGuidelines.isNotEmpty()) {
