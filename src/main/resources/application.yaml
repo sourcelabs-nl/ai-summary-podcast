@@ -1,6 +1,8 @@
 spring:
   application:
     name: ai-summary-podcast
+  lifecycle:
+    timeout-per-shutdown-phase: 10s
   autoconfigure:
     exclude:
       - org.springframework.ai.model.openai.autoconfigure.OpenAiChatAutoConfiguration
@@ -74,3 +76,4 @@ app:
 
 server:
   port: 8085
+  shutdown: graceful
