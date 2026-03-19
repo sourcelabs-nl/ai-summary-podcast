@@ -66,8 +66,6 @@ class SoundCloudPublisher(
             )
         )
 
-        addToPlaylist(accessToken, podcast, response.id)
-
         return PublishResult(
             externalId = response.id.toString(),
             externalUrl = response.permalinkUrl
@@ -105,31 +103,6 @@ class SoundCloudPublisher(
             ?.let { (it as tools.jackson.databind.node.ObjectNode).put("playlistId", playlistId.toString()) }
             ?: objectMapper.createObjectNode().put("playlistId", playlistId.toString())
         targetService.upsert(podcastId, "soundcloud", objectMapper.writeValueAsString(config), target?.enabled ?: true)
-    }
-
-    private fun addToPlaylist(accessToken: String, podcast: Podcast, trackId: Long) {
-        val playlistId = getPlaylistId(podcast.id)
-
-        if (playlistId == null) {
-            createNewPlaylist(accessToken, podcast, trackId)
-            return
-        }
-
-        try {
-            val existing = soundCloudClient.getPlaylist(accessToken, playlistId)
-            val allTrackIds = existing.tracks.map { it.id } + trackId
-            soundCloudClient.addTrackToPlaylist(accessToken, playlistId, allTrackIds)
-            log.info("Added track {} to SoundCloud playlist {} (now {} tracks)", trackId, playlistId, allTrackIds.size)
-        } catch (e: HttpClientErrorException.NotFound) {
-            log.warn("SoundCloud playlist {} not found, creating new playlist", playlistId)
-            createNewPlaylist(accessToken, podcast, trackId)
-        }
-    }
-
-    private fun createNewPlaylist(accessToken: String, podcast: Podcast, trackId: Long) {
-        val playlist = soundCloudClient.createPlaylist(accessToken, podcast.name, listOf(trackId))
-        savePlaylistId(podcast.id, playlist.id)
-        log.info("Created SoundCloud playlist {} for podcast {}", playlist.id, podcast.id)
     }
 
     fun updateTrackPermalinks(podcast: Podcast, userId: String, episodes: List<Episode>, publications: List<com.aisummarypodcast.store.EpisodePublication>) {
