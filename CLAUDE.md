@@ -21,7 +21,9 @@ Required environment variable (managed via direnv `.envrc`): `APP_ENCRYPTION_MAS
 
 ## Testing
 
-Use **MockK** (not Mockito) for all Kotlin tests. For Spring integration tests, use `@MockkBean` from the `springmockk` library (`com.ninja-squad:springmockk`) to inject mocks into the Spring context. Whenever a code change breaks existing tests, those tests must be fixed as part of the same change — never leave broken tests behind.
+Use **MockK** (not Mockito) for all Kotlin tests. For Spring integration tests, use `@MockkBean` from the `springmockk` library (`com.ninja-squad:springmockk`) to inject mocks into the Spring context.
+
+**Never leave the project in a broken state.** Every commit must compile and all tests must pass. When a code change breaks existing tests, fix those tests as part of the same change. Run `mvn test` before considering any change complete. If constructor signatures change, update all test files that instantiate the class.
 
 ## Architecture Guidelines
 
