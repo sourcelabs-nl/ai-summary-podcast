@@ -107,7 +107,36 @@ This is a Spring Boot 4 project using Jackson 3.x. The `com.fasterxml.jackson.an
 **Not a violation:**
 - Imports from `com.fasterxml.jackson.annotation` — these are correct in Jackson 3.x
 
-### 8. LLM Prompt Grounding
+### 8. Concurrency — Coroutines Only
+
+This project uses Kotlin coroutines for all async/background work. No Java concurrency primitives are allowed.
+
+**Violations to flag:**
+- Use of `ExecutorService`, `Executors`, `ThreadPoolExecutor`, or any `java.util.concurrent` thread pool
+- Use of `Thread()` or `thread {}` for async work
+- Use of `CompletableFuture` for async orchestration (coroutines should be used instead)
+- Using `Dispatchers.Default` for I/O-bound work (must use `Dispatchers.IO` for HTTP requests, database calls, file I/O)
+
+**Not a violation:**
+- `@Async` on Spring-managed methods (this is the Spring async mechanism)
+- `Semaphore` from `kotlinx.coroutines.sync` (coroutine-aware concurrency primitive)
+
+### 9. Code Reuse and Consistency
+
+New code must reuse existing functionality rather than reimplementing it. Similar operations must follow consistent patterns.
+
+**Violations to flag:**
+- Reimplementing logic that already exists in a service method (e.g., writing a new cost calculation when `CostEstimator` already does it)
+- Copy-pasting blocks of code across functions instead of extracting a shared function (look for 5+ lines that are structurally identical)
+- Inconsistent patterns: if function A resolves a model with `modelResolver.resolve()` and function B does the same thing differently (e.g., manual lookup), flag the inconsistency
+- Adding a new utility function that duplicates an existing one (e.g., a new date formatter when one exists)
+
+**How to check:**
+- When reviewing a new function, search the codebase for similar operations
+- When reviewing changes to an existing pattern, check if the same pattern exists elsewhere and was updated consistently
+- Flag cases where the same concept is implemented with different approaches in different places
+
+### 10. LLM Prompt Grounding
 
 Composer prompts (briefing, dialogue, interview) must include grounding instructions that constrain LLM output to the provided article content only.
 
