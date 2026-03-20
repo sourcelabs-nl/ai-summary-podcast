@@ -696,7 +696,7 @@ export default function PodcastSettingsPage() {
               <p className="text-sm text-muted-foreground">
                 Publication credentials are managed in your user settings.
               </p>
-              <Link href="/settings/publishing">
+              <Link href="/settings?tab=publishing">
                 <Button variant="outline" size="sm">
                   <Settings2 className="mr-2 size-4" />
                   Manage Credentials
