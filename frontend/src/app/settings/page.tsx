@@ -420,16 +420,6 @@ function SettingsContent() {
                     />
                     <Label htmlFor="ftp-tls">Use TLS</Label>
                   </div>
-                  <div className="flex items-center gap-2 pt-2">
-                    <Button size="sm" onClick={handleTestFtp} disabled={testingFtp || !ftp.host}>
-                      <TestTube className="mr-2 size-4" />
-                      {testingFtp ? "Testing..." : "Test Connection"}
-                    </Button>
-                    <Button size="sm" onClick={handleSaveFtp} disabled={savingFtp || !ftp.host}>
-                      <Save className="mr-2 size-4" />
-                      {savingFtp ? "Saving..." : "Save"}
-                    </Button>
-                  </div>
                 </div>
               )}
 
@@ -469,20 +459,36 @@ function SettingsContent() {
                       placeholder="https://example.com/callback"
                     />
                   </div>
-                  <div className="flex items-center gap-2 pt-2">
-                    <Button size="sm" onClick={handleTestSoundCloud} disabled={testingSc}>
-                      <TestTube className="mr-2 size-4" />
-                      {testingSc ? "Testing..." : "Test Connection"}
-                    </Button>
-                    <Button size="sm" onClick={handleSaveSoundCloud} disabled={savingSc || !soundCloud.clientId}>
-                      <Save className="mr-2 size-4" />
-                      {savingSc ? "Saving..." : "Save"}
-                    </Button>
-                  </div>
                 </div>
               )}
             </CardContent>
           </Card>
+          <div className="mt-6 flex items-center gap-2">
+            {pubTab === "ftp" && (
+              <>
+                <Button size="sm" onClick={handleTestFtp} disabled={testingFtp || !ftp.host}>
+                  <TestTube className="mr-2 size-4" />
+                  {testingFtp ? "Testing..." : "Test Connection"}
+                </Button>
+                <Button onClick={handleSaveFtp} disabled={savingFtp || !ftp.host}>
+                  <Save className="mr-2 size-4" />
+                  {savingFtp ? "Saving..." : "Save"}
+                </Button>
+              </>
+            )}
+            {pubTab === "soundcloud" && (
+              <>
+                <Button size="sm" onClick={handleTestSoundCloud} disabled={testingSc}>
+                  <TestTube className="mr-2 size-4" />
+                  {testingSc ? "Testing..." : "Test Connection"}
+                </Button>
+                <Button onClick={handleSaveSoundCloud} disabled={savingSc || !soundCloud.clientId}>
+                  <Save className="mr-2 size-4" />
+                  {savingSc ? "Saving..." : "Save"}
+                </Button>
+              </>
+            )}
+          </div>
         </TabsContent>
       </Tabs>
 
