@@ -498,7 +498,7 @@ function SettingsContent() {
           <div className="mt-6 flex items-center gap-2">
             {pubTab === "ftp" && (
               <>
-                <Button variant="outline" onClick={handleTestFtp} disabled={testingFtp || !ftp.host}>
+                <Button onClick={handleTestFtp} disabled={testingFtp || !ftp.host}>
                   <TestTube className="mr-2 size-4" />
                   {testingFtp ? "Testing..." : "Test Connection"}
                 </Button>
@@ -510,7 +510,7 @@ function SettingsContent() {
             )}
             {pubTab === "soundcloud" && (
               <>
-                <Button variant="outline" onClick={handleTestSoundCloud} disabled={testingSc}>
+                <Button onClick={handleTestSoundCloud} disabled={testingSc}>
                   <TestTube className="mr-2 size-4" />
                   {testingSc ? "Testing..." : "Test Connection"}
                 </Button>
