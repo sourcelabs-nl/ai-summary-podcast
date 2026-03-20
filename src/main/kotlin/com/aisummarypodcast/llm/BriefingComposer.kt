@@ -78,7 +78,7 @@ class BriefingComposer(
         val locale = SupportedLanguage.fromCode(podcast.language)?.toLocale() ?: Locale.ENGLISH
         val today = LocalDate.now()
         val currentDate = today.format(DateTimeFormatter.ofPattern("EEEE, MMMM d, yyyy", locale))
-        val isFriday = today.dayOfWeek == java.time.DayOfWeek.FRIDAY
+        val fridayBlock = buildFridayBlock()
 
         val languageInstruction = if (podcast.language != "en") {
             val langName = SupportedLanguage.fromCode(podcast.language)?.displayName ?: "English"
@@ -97,9 +97,6 @@ class BriefingComposer(
             "\n\n            TTS script formatting:\n            $ttsScriptGuidelines"
         } else ""
 
-        val fridayBlock = if (isFriday) {
-            "\n            - It's Friday! Feel free to adopt a slightly more casual and lighthearted tone. Sprinkle in a few nuanced, witty jokes or observations related to the topics — but keep it subtle and don't overdo it."
-        } else ""
 
         return """
             $stylePrompt

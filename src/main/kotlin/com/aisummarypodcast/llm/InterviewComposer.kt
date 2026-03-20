@@ -72,6 +72,8 @@ class InterviewComposer(
         val locale = SupportedLanguage.fromCode(podcast.language)?.toLocale() ?: Locale.ENGLISH
         val currentDate = LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, MMMM d, yyyy", locale))
 
+        val fridayBlock = buildFridayBlock()
+
         val languageInstruction = if (podcast.language != "en") {
             val langName = SupportedLanguage.fromCode(podcast.language)?.displayName ?: "English"
             "\n            - Write the entire interview in $langName"
@@ -132,7 +134,7 @@ class InterviewComposer(
               * Playful disagreement: "See, I actually think that's completely wrong, and here's why..."
               The expert can push back too: "No no, let me finish this part because it changes everything."
             - STRICT TURN LENGTH: The expert MUST NOT speak for more than 3-4 sentences in a single turn. This is a HARD RULE, not a suggestion. After 3-4 sentences, the interviewer MUST jump in — even if it's just a short reaction ("That's huge.", "Wow.", "Okay I need to process that."). Long expert monologues are the number one cause of listener drop-off. Keep the rhythm tight
-            - EMPHASIS ON IMPORTANT NEWS: When covering major announcements or surprising developments, convey their significance — use emphatic language, exclamation marks, and brief pauses to let important news land. Not everything is exciting; save the energy for what truly stands out
+            - EMPHASIS ON IMPORTANT NEWS: When covering major announcements or surprising developments, convey their significance — use emphatic language, exclamation marks, and brief pauses to let important news land. Not everything is exciting; save the energy for what truly stands out$fridayBlock
 
             Speaker transitions:
             - Speaker transitions must sound natural — do NOT start a turn with a bare name address (e.g., "Jarno, the market..."). Instead, use conversational bridges: reactions, follow-ups, or connectors before transitioning (e.g., "That's a great point. Now I'm curious about...", "Interesting — speaking of which...")
