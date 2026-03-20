@@ -36,7 +36,7 @@ class EpisodeControllerTest {
     @MockkBean
     private lateinit var userService: UserService
 
-    @MockkBean
+    @MockkBean(relaxed = true)
     private lateinit var episodeService: EpisodeService
 
     @MockkBean(relaxed = true)

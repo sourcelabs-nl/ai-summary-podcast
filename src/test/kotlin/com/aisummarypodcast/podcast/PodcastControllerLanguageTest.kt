@@ -31,7 +31,7 @@ class PodcastControllerLanguageTest {
     @MockkBean
     private lateinit var llmPipeline: LlmPipeline
 
-    @MockkBean
+    @MockkBean(relaxed = true)
     private lateinit var episodeService: EpisodeService
 
     @MockkBean(relaxed = true)

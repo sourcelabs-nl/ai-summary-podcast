@@ -53,6 +53,7 @@ export interface Episode {
   recap?: string;
   showNotes?: string;
   errorMessage?: string;
+  pipelineStage?: string;
 }
 
 export interface Source {

@@ -17,6 +17,8 @@ import com.aisummarypodcast.store.PostArticleRepository
 import com.aisummarypodcast.tts.TtsPipeline
 import org.slf4j.LoggerFactory
 import org.springframework.context.ApplicationEventPublisher
+import org.springframework.boot.context.event.ApplicationReadyEvent
+import org.springframework.context.event.EventListener
 import org.springframework.scheduling.annotation.Async
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -39,38 +41,78 @@ class EpisodeService(
 
     private val log = LoggerFactory.getLogger(javaClass)
 
+    @EventListener(ApplicationReadyEvent::class)
+    fun cleanupStaleGeneratingEpisodes() {
+        val stale = episodeRepository.findByStatus(EpisodeStatus.GENERATING.name)
+        if (stale.isNotEmpty()) {
+            log.info("[Startup] Found {} stale GENERATING episodes, marking as FAILED", stale.size)
+            for (episode in stale) {
+                episodeRepository.save(
+                    episode.copy(
+                        status = EpisodeStatus.FAILED,
+                        errorMessage = "Generation interrupted by application restart",
+                        pipelineStage = null
+                    )
+                )
+            }
+        }
+    }
+
+    fun createGeneratingEpisode(podcast: Podcast): Episode {
+        val episode = episodeRepository.save(
+            Episode(
+                podcastId = podcast.id,
+                generatedAt = Instant.now().toString(),
+                scriptText = "",
+                status = EpisodeStatus.GENERATING
+            )
+        )
+        log.info("[Pipeline] Created GENERATING episode {} for podcast '{}' ({})", episode.id, podcast.name, podcast.id)
+        eventPublisher.publishEvent(
+            PodcastEvent(this, podcast.id, "episode", episode.id!!, "episode.generating", emptyMap())
+        )
+        return episode
+    }
+
+    fun updatePipelineStage(episodeId: Long, stage: String) {
+        val episode = episodeRepository.findById(episodeId).orElse(null) ?: return
+        episodeRepository.save(episode.copy(pipelineStage = stage))
+    }
+
     fun createEpisodeFromPipelineResult(
         podcast: Podcast,
         result: PipelineResult,
+        generatingEpisode: Episode? = null,
         overrideGeneratedAt: String? = null,
         updateLastGenerated: Boolean = true
     ): Episode {
-        val generatedAt = overrideGeneratedAt ?: Instant.now().toString()
+        val generatedAt = overrideGeneratedAt ?: generatingEpisode?.generatedAt ?: Instant.now().toString()
+        val baseEpisode = generatingEpisode ?: Episode(
+            podcastId = podcast.id,
+            generatedAt = generatedAt,
+            scriptText = ""
+        )
+
+        val withScript = episodeRepository.save(
+            baseEpisode.copy(
+                generatedAt = generatedAt,
+                scriptText = result.script,
+                filterModel = result.filterModel,
+                composeModel = result.composeModel,
+                llmInputTokens = result.llmInputTokens,
+                llmOutputTokens = result.llmOutputTokens,
+                llmCostCents = result.llmCostCents,
+                pipelineStage = if (podcast.requireReview) null else "tts",
+                status = if (podcast.requireReview) EpisodeStatus.PENDING_REVIEW else EpisodeStatus.GENERATING
+            )
+        )
+
         val episode = if (podcast.requireReview) {
-            episodeRepository.save(
-                Episode(
-                    podcastId = podcast.id,
-                    generatedAt = generatedAt,
-                    scriptText = result.script,
-                    status = EpisodeStatus.PENDING_REVIEW,
-                    filterModel = result.filterModel,
-                    composeModel = result.composeModel,
-                    llmInputTokens = result.llmInputTokens,
-                    llmOutputTokens = result.llmOutputTokens,
-                    llmCostCents = result.llmCostCents
-                )
-            )
+            withScript
         } else {
-            val ttsEpisode = ttsPipeline.generate(result.script, podcast)
-            episodeRepository.save(
-                ttsEpisode.copy(
-                    filterModel = result.filterModel,
-                    composeModel = result.composeModel,
-                    llmInputTokens = result.llmInputTokens,
-                    llmOutputTokens = result.llmOutputTokens,
-                    llmCostCents = result.llmCostCents
-                )
-            )
+            ttsPipeline.generateForExistingEpisode(withScript, podcast).let {
+                episodeRepository.save(it.copy(pipelineStage = null))
+            }
         }
 
         saveEpisodeArticleLinks(episode, result)
@@ -209,22 +251,32 @@ class EpisodeService(
         generateAudioAsync(episode.id, podcast.id)
     }
 
-    fun createFailedEpisode(podcast: Podcast, errorMessage: String): Episode {
-        val episode = episodeRepository.save(
-            Episode(
-                podcastId = podcast.id,
-                generatedAt = Instant.now().toString(),
-                scriptText = "",
-                status = EpisodeStatus.FAILED,
-                errorMessage = errorMessage
+    fun failEpisode(podcast: Podcast, errorMessage: String, generatingEpisode: Episode? = null): Episode {
+        val episode = if (generatingEpisode != null) {
+            episodeRepository.save(
+                generatingEpisode.copy(
+                    status = EpisodeStatus.FAILED,
+                    errorMessage = errorMessage,
+                    pipelineStage = null
+                )
             )
-        )
+        } else {
+            episodeRepository.save(
+                Episode(
+                    podcastId = podcast.id,
+                    generatedAt = Instant.now().toString(),
+                    scriptText = "",
+                    status = EpisodeStatus.FAILED,
+                    errorMessage = errorMessage
+                )
+            )
+        }
         podcastRepository.save(podcast.copy(lastGeneratedAt = Instant.now().toString()))
         eventPublisher.publishEvent(
             PodcastEvent(this, podcast.id, "episode", episode.id!!, "episode.failed",
                 mapOf("episodeNumber" to episode.id, "error" to errorMessage))
         )
-        log.info("[Pipeline] Created FAILED episode {} for podcast '{}' ({}): {}", episode.id, podcast.name, podcast.id, errorMessage)
+        log.info("[Pipeline] Episode {} failed for podcast '{}' ({}): {}", episode.id, podcast.name, podcast.id, errorMessage)
         return episode
     }
 
@@ -239,7 +291,7 @@ class EpisodeService(
 
     fun hasPendingOrApprovedEpisode(podcastId: String): Boolean {
         return episodeRepository.findByPodcastIdAndStatusIn(
-            podcastId, listOf(EpisodeStatus.PENDING_REVIEW.name, EpisodeStatus.APPROVED.name)
+            podcastId, listOf(EpisodeStatus.PENDING_REVIEW.name, EpisodeStatus.APPROVED.name, EpisodeStatus.GENERATING.name)
         ).isNotEmpty()
     }
 

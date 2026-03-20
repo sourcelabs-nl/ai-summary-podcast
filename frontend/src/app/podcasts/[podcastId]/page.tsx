@@ -44,6 +44,7 @@ import { useTabParam } from "@/hooks/use-tab-param";
 const TABS = ["episodes", "publications", "sources"] as const;
 
 const STATUSES = [
+  "GENERATING",
   "GENERATED",
   "PENDING_REVIEW",
   "APPROVED",
@@ -74,7 +75,6 @@ export default function EpisodesPage() {
   const [upcomingCount, setUpcomingCount] = useState<number>(0);
   const [upcomingPostCount, setUpcomingPostCount] = useState<number>(0);
   const [countdown, setCountdown] = useState<string | null>(null);
-  const [pipelineStage, setPipelineStage] = useState<string | null>(null);
   const [regeneratingId, setRegeneratingId] = useState<number | null>(null);
   const [confirmRegenerateId, setConfirmRegenerateId] = useState<number | null>(null);
   const [currentTab, setTab] = useTabParam("episodes", TABS);
@@ -142,12 +142,9 @@ export default function EpisodesPage() {
   }, [selectedUser, params.podcastId, statusFilter, fetchPublications]);
 
   useEventStream(params.podcastId, useCallback((event: string, data: { data: Record<string, unknown> }) => {
-    if (event === "pipeline.progress") {
-      setPipelineStage(data.data.stage as string);
+    if (event === "episode.generating" || event === "episode.stage" || event === "pipeline.progress") {
+      fetchEpisodes();
     } else {
-      if (event === "episode.created" || event === "episode.generated" || event === "episode.failed") {
-        setPipelineStage(null);
-      }
       fetchEpisodes();
     }
   }, [fetchEpisodes]));
@@ -167,16 +164,12 @@ export default function EpisodesPage() {
       fetch(`/api/users/${selectedUser.id}/podcasts/${params.podcastId}/upcoming-articles`)
         .then((res) => (res.ok ? res.json() : { articles: [], postCount: 0 }))
         .catch(() => ({ articles: [], postCount: 0 })),
-      fetch(`/api/users/${selectedUser.id}/podcasts/${params.podcastId}/pipeline-status`)
-        .then((res) => (res.ok ? res.json() : { stage: null }))
-        .catch(() => ({ stage: null })),
     ])
-      .then(([podcastData, episodeData, upcomingData, pipelineData]) => {
+      .then(([podcastData, episodeData, upcomingData]) => {
         setPodcast(podcastData);
         setEpisodes(episodeData);
         setUpcomingCount(upcomingData.articleCount ?? 0);
         setUpcomingPostCount(upcomingData.postCount ?? 0);
-        setPipelineStage(pipelineData.stage ?? null);
         fetchPublications(episodeData);
       })
       .catch(() => {})
@@ -292,28 +285,15 @@ export default function EpisodesPage() {
 
       <Link
         href={`/podcasts/${params.podcastId}/upcoming`}
-        className={`mb-6 flex items-center justify-between rounded-lg border px-4 py-3 transition-colors ${
-          pipelineStage
-            ? "border-primary/50 bg-primary/5"
-            : "border-border bg-muted/50 hover:bg-muted"
-        }`}
+        className="mb-6 flex items-center justify-between rounded-lg border border-border bg-muted/50 px-4 py-3 transition-colors hover:bg-muted"
       >
-        {pipelineStage ? (
-          <span className="flex items-center gap-2 text-sm font-medium">
-            <Loader2 className="size-4 animate-spin text-primary" />
-            {pipelineStage === "aggregating" && "Aggregating posts..."}
-            {pipelineStage === "scoring" && "Scoring articles..."}
-            {pipelineStage === "composing" && "Composing script..."}
-          </span>
-        ) : (
-          <span className="text-sm font-medium">
-            Next Episode {upcomingCount > 0
-              ? <>&middot; {upcomingCount} article{upcomingCount !== 1 ? "s" : ""}{upcomingPostCount > upcomingCount ? ` / ${upcomingPostCount} posts` : ""} ready</>
-              : <>&middot; no articles yet</>}
-          </span>
-        )}
+        <span className="text-sm font-medium">
+          Next Episode {upcomingCount > 0
+            ? <>&middot; {upcomingCount} article{upcomingCount !== 1 ? "s" : ""}{upcomingPostCount > upcomingCount ? ` / ${upcomingPostCount} posts` : ""} ready</>
+            : <>&middot; no articles yet</>}
+        </span>
         <div className="flex items-center gap-2">
-          {!pipelineStage && countdown && (
+          {countdown && (
             <span className="flex items-center gap-1 text-xs text-muted-foreground tabular-nums">
               <Clock className="size-3" />
               {countdown}
@@ -375,10 +355,10 @@ export default function EpisodesPage() {
                 {episodes.map((episode) => (
                   <TableRow
                     key={episode.id}
-                    className="cursor-pointer"
-                    onClick={() => router.push(`/podcasts/${params.podcastId}/episodes/${episode.id}`)}
+                    className={episode.status === "GENERATING" ? "bg-primary/5" : "cursor-pointer"}
+                    onClick={episode.status !== "GENERATING" ? () => router.push(`/podcasts/${params.podcastId}/episodes/${episode.id}`) : undefined}
                   >
-                    <TableCell className="text-sm font-medium">{episode.id}</TableCell>
+                    <TableCell className="text-sm font-medium">{episode.status === "GENERATING" ? "—" : episode.id}</TableCell>
                     <TableCell className="text-sm">
                       {new Date(episode.generatedAt).toLocaleDateString()}
                     </TableCell>
@@ -386,29 +366,44 @@ export default function EpisodesPage() {
                       {new Date(episode.generatedAt).toLocaleDateString(undefined, { weekday: "short" })}
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-1.5">
-                        <Badge variant={STATUS_VARIANT[episode.status] ?? "secondary"} className="text-[11px] px-1.5 py-px">
-                          {episode.status.replace("_", " ")}
-                        </Badge>
-                        {publishedEpisodeIds.has(episode.id) && (
-                          <Badge variant="default" className="text-[11px] px-1.5 py-px">
-                            Published
+                      {episode.status === "GENERATING" ? (
+                        <span className="flex items-center gap-2 text-sm font-medium text-primary">
+                          <Loader2 className="size-3.5 animate-spin" />
+                          {episode.pipelineStage === "aggregating" && "Aggregating..."}
+                          {episode.pipelineStage === "scoring" && "Scoring..."}
+                          {episode.pipelineStage === "deduplicating" && "Deduplicating..."}
+                          {episode.pipelineStage === "composing" && "Composing..."}
+                          {episode.pipelineStage === "tts" && "Generating audio..."}
+                          {!episode.pipelineStage && "Starting..."}
+                        </span>
+                      ) : (
+                        <div className="flex items-center gap-1.5">
+                          <Badge variant={STATUS_VARIANT[episode.status] ?? "secondary"} className="text-[11px] px-1.5 py-px">
+                            {episode.status.replace("_", " ")}
                           </Badge>
-                        )}
-                      </div>
+                          {publishedEpisodeIds.has(episode.id) && (
+                            <Badge variant="default" className="text-[11px] px-1.5 py-px">
+                              Published
+                            </Badge>
+                          )}
+                        </div>
+                      )}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-                      {episode.composeModel ?? "—"}
+                      {episode.status === "GENERATING" ? "—" : (episode.composeModel ?? "—")}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-                      {episode.ttsModel ?? "—"}
+                      {episode.status === "GENERATING" ? "—" : (episode.ttsModel ?? "—")}
                     </TableCell>
                     <TableCell className="text-sm text-right text-muted-foreground">
-                      {((episode.llmCostCents ?? 0) + (episode.ttsCostCents ?? 0)) > 0
-                        ? `$${(((episode.llmCostCents ?? 0) + (episode.ttsCostCents ?? 0)) / 100).toFixed(2)}`
-                        : "—"}
+                      {episode.status === "GENERATING" ? "—" : (
+                        ((episode.llmCostCents ?? 0) + (episode.ttsCostCents ?? 0)) > 0
+                          ? `$${(((episode.llmCostCents ?? 0) + (episode.ttsCostCents ?? 0)) / 100).toFixed(2)}`
+                          : "—"
+                      )}
                     </TableCell>
                     <TableCell className="text-right h-12">
+                      {episode.status === "GENERATING" ? null : (
                       <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
                         {episode.status === "PENDING_REVIEW" && (
                           <>
@@ -480,6 +475,7 @@ export default function EpisodesPage() {
                           <ChevronRight className="size-4" />
                         </Button>
                       </div>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}

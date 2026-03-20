@@ -33,4 +33,7 @@ interface EpisodeRepository : CrudRepository<Episode, Long> {
 
     @Query("SELECT * FROM episodes WHERE podcast_id = :podcastId AND status = 'GENERATED' ORDER BY generated_at DESC LIMIT :limit")
     fun findRecentGeneratedByPodcastId(podcastId: String, limit: Int): List<Episode>
+
+    @Query("SELECT * FROM episodes WHERE status = :status")
+    fun findByStatus(status: String): List<Episode>
 }

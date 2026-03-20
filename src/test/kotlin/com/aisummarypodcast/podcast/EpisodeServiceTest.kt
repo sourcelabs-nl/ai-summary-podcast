@@ -88,22 +88,20 @@ class EpisodeServiceTest {
 
     @Test
     fun `creates GENERATED episode with TTS when requireReview is false`() {
-        val ttsEpisode = Episode(
-            id = 5, podcastId = "p1", generatedAt = "now",
-            scriptText = "Script", audioFilePath = "/audio.mp3", durationSeconds = 60
-        )
         val result = PipelineResult(
             script = "Script", filterModel = "filter", composeModel = "compose",
             processedArticleIds = listOf(10L)
         )
-        every { ttsPipeline.generate("Script", podcast) } returns ttsEpisode
+        every { ttsPipeline.generateForExistingEpisode(any(), podcast) } answers {
+            firstArg<Episode>().copy(audioFilePath = "/audio.mp3", durationSeconds = 60, status = EpisodeStatus.GENERATED)
+        }
         every { episodeRepository.save(any()) } answers { firstArg<Episode>().copy(id = 5) }
         every { podcastRepository.save(any()) } answers { firstArg() }
         setupRecapMocks(podcast)
 
         val episode = episodeService.createEpisodeFromPipelineResult(podcast, result)
 
-        verify { ttsPipeline.generate("Script", podcast) }
+        verify { ttsPipeline.generateForExistingEpisode(any(), podcast) }
         verify { episodeArticleRepository.save(match { it.episodeId == 5L && it.articleId == 10L }) }
     }
 
@@ -424,7 +422,7 @@ class EpisodeServiceTest {
 
     @Test
     fun `hasPendingOrApprovedEpisode returns true when pending episodes exist`() {
-        every { episodeRepository.findByPodcastIdAndStatusIn("p1", listOf("PENDING_REVIEW", "APPROVED")) } returns listOf(
+        every { episodeRepository.findByPodcastIdAndStatusIn("p1", listOf("PENDING_REVIEW", "APPROVED", "GENERATING")) } returns listOf(
             Episode(id = 1L, podcastId = "p1", generatedAt = "now", scriptText = "Script", status = EpisodeStatus.PENDING_REVIEW)
         )
 
@@ -433,7 +431,7 @@ class EpisodeServiceTest {
 
     @Test
     fun `hasPendingOrApprovedEpisode returns false when no pending episodes`() {
-        every { episodeRepository.findByPodcastIdAndStatusIn("p1", listOf("PENDING_REVIEW", "APPROVED")) } returns emptyList()
+        every { episodeRepository.findByPodcastIdAndStatusIn("p1", listOf("PENDING_REVIEW", "APPROVED", "GENERATING")) } returns emptyList()
 
         assertEquals(false, episodeService.hasPendingOrApprovedEpisode("p1"))
     }

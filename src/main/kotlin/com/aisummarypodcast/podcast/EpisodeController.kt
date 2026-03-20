@@ -26,7 +26,8 @@ data class EpisodeResponse(
     val ttsModel: String?,
     val recap: String?,
     val showNotes: String?,
-    val errorMessage: String?
+    val errorMessage: String?,
+    val pipelineStage: String?
 )
 
 data class UpdateScriptRequest(
@@ -255,6 +256,7 @@ class EpisodeController(
         ttsModel = ttsModel,
         recap = recap,
         showNotes = showNotes,
-        errorMessage = errorMessage
+        errorMessage = errorMessage,
+        pipelineStage = pipelineStage
     )
 }

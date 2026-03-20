@@ -113,19 +113,25 @@ class PodcastService(
             return GenerateBriefingResult(episode = null)
         }
 
+        val generatingEpisode = episodeService.createGeneratingEpisode(podcast)
+
         return try {
             val result = llmPipeline.run(podcast) { stage, detail ->
+                episodeService.updatePipelineStage(generatingEpisode.id!!, stage)
                 eventPublisher.publishEvent(
-                    PodcastEvent(this, podcast.id, "pipeline", 0, "pipeline.progress",
+                    PodcastEvent(this, podcast.id, "episode", generatingEpisode.id, "episode.stage",
                         detail + ("stage" to stage))
                 )
-            } ?: return GenerateBriefingResult(episode = null)
+            } ?: run {
+                episodeRepository.delete(generatingEpisode)
+                return GenerateBriefingResult(episode = null)
+            }
 
-            val episode = episodeService.createEpisodeFromPipelineResult(podcast, result)
+            val episode = episodeService.createEpisodeFromPipelineResult(podcast, result, generatingEpisode)
             GenerateBriefingResult(episode = episode)
         } catch (e: Exception) {
             log.error("[Pipeline] Briefing generation failed for podcast '{}' ({}): {}", podcast.name, podcast.id, e.message, e)
-            val failedEpisode = episodeService.createFailedEpisode(podcast, e.message ?: "Unknown error")
+            val failedEpisode = episodeService.failEpisode(podcast, e.message ?: "Unknown error", generatingEpisode)
             GenerateBriefingResult(episode = failedEpisode, failed = true, errorMessage = e.message)
         }
     }
