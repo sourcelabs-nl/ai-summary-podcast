@@ -1,7 +1,7 @@
 package com.aisummarypodcast.publishing
 
+import com.aisummarypodcast.podcast.EpisodeService
 import com.aisummarypodcast.podcast.PodcastService
-import com.aisummarypodcast.store.EpisodeRepository
 import com.aisummarypodcast.user.UserService
 import org.slf4j.LoggerFactory
 import org.springframework.http.ResponseEntity
@@ -25,7 +25,7 @@ data class PublicationResponse(
 class PublishingController(
     private val userService: UserService,
     private val podcastService: PodcastService,
-    private val episodeRepository: EpisodeRepository,
+    private val episodeService: EpisodeService,
     private val publishingService: PublishingService
 ) {
 
@@ -42,7 +42,7 @@ class PublishingController(
         val podcast = podcastService.findById(podcastId) ?: return ResponseEntity.notFound().build()
         if (podcast.userId != userId) return ResponseEntity.notFound().build()
 
-        val episode = episodeRepository.findById(episodeId).orElse(null)
+        val episode = episodeService.findById(episodeId)
             ?: return ResponseEntity.notFound().build()
         if (episode.podcastId != podcastId) return ResponseEntity.notFound().build()
 
@@ -105,7 +105,7 @@ class PublishingController(
         val podcast = podcastService.findById(podcastId) ?: return ResponseEntity.notFound().build()
         if (podcast.userId != userId) return ResponseEntity.notFound().build()
 
-        val episode = episodeRepository.findById(episodeId).orElse(null)
+        val episode = episodeService.findById(episodeId)
             ?: return ResponseEntity.notFound().build()
         if (episode.podcastId != podcastId) return ResponseEntity.notFound().build()
 
@@ -132,7 +132,7 @@ class PublishingController(
         val podcast = podcastService.findById(podcastId) ?: return ResponseEntity.notFound().build()
         if (podcast.userId != userId) return ResponseEntity.notFound().build()
 
-        val episode = episodeRepository.findById(episodeId).orElse(null)
+        val episode = episodeService.findById(episodeId)
             ?: return ResponseEntity.notFound().build()
         if (episode.podcastId != podcastId) return ResponseEntity.notFound().build()
 

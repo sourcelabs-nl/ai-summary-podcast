@@ -308,10 +308,6 @@ class PodcastController(
 
         log.info("Manual briefing generation triggered for podcast {}", podcastId)
 
-        if (podcast.requireReview && episodeService.hasPendingOrApprovedEpisode(podcastId)) {
-            return ResponseEntity.status(409).body(mapOf("error" to "A pending or approved episode already exists — approve or discard it first"))
-        }
-
         val result = podcastService.generateBriefing(podcast)
         if (result.failed) {
             return ResponseEntity.status(500).body(mapOf("error" to (result.errorMessage ?: "Briefing generation failed"), "episodeId" to result.episode?.id))

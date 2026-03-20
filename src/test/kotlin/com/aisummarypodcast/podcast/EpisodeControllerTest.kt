@@ -2,7 +2,6 @@ package com.aisummarypodcast.podcast
 
 import com.aisummarypodcast.config.AppProperties
 import com.aisummarypodcast.store.Episode
-import com.aisummarypodcast.store.EpisodeRepository
 import com.aisummarypodcast.store.EpisodeStatus
 import com.aisummarypodcast.store.Podcast
 import com.aisummarypodcast.store.User
@@ -19,16 +18,12 @@ import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.*
-import java.util.*
 
 @WebMvcTest(EpisodeController::class)
 class EpisodeControllerTest {
 
     @Autowired
     private lateinit var mockMvc: MockMvc
-
-    @MockkBean
-    private lateinit var episodeRepository: EpisodeRepository
 
     @MockkBean
     private lateinit var podcastService: PodcastService
@@ -62,7 +57,7 @@ class EpisodeControllerTest {
     fun `list episodes returns all episodes`() {
         every { userService.findById(userId) } returns user
         every { podcastService.findById(podcastId) } returns podcast
-        every { episodeRepository.findByPodcastId(podcastId) } returns listOf(pendingEpisode, generatedEpisode)
+        every { episodeService.findByPodcastId(podcastId, null) } returns listOf(pendingEpisode, generatedEpisode)
 
         mockMvc.perform(get("/users/$userId/podcasts/$podcastId/episodes"))
             .andExpect(status().isOk)
@@ -73,7 +68,7 @@ class EpisodeControllerTest {
     fun `list episodes with status filter`() {
         every { userService.findById(userId) } returns user
         every { podcastService.findById(podcastId) } returns podcast
-        every { episodeRepository.findByPodcastIdAndStatus(podcastId, "PENDING_REVIEW") } returns listOf(pendingEpisode)
+        every { episodeService.findByPodcastId(podcastId, "PENDING_REVIEW") } returns listOf(pendingEpisode)
 
         mockMvc.perform(get("/users/$userId/podcasts/$podcastId/episodes?status=PENDING_REVIEW"))
             .andExpect(status().isOk)
@@ -94,7 +89,7 @@ class EpisodeControllerTest {
     fun `get single episode`() {
         every { userService.findById(userId) } returns user
         every { podcastService.findById(podcastId) } returns podcast
-        every { episodeRepository.findById(1L) } returns Optional.of(pendingEpisode)
+        every { episodeService.findById(1L) } returns pendingEpisode
 
         mockMvc.perform(get("/users/$userId/podcasts/$podcastId/episodes/1"))
             .andExpect(status().isOk)
@@ -107,7 +102,7 @@ class EpisodeControllerTest {
     fun `get non-existing episode returns 404`() {
         every { userService.findById(userId) } returns user
         every { podcastService.findById(podcastId) } returns podcast
-        every { episodeRepository.findById(99L) } returns Optional.empty()
+        every { episodeService.findById(99L) } returns null
 
         mockMvc.perform(get("/users/$userId/podcasts/$podcastId/episodes/99"))
             .andExpect(status().isNotFound)
@@ -117,7 +112,7 @@ class EpisodeControllerTest {
     fun `edit script of pending episode`() {
         every { userService.findById(userId) } returns user
         every { podcastService.findById(podcastId) } returns podcast
-        every { episodeRepository.findById(1L) } returns Optional.of(pendingEpisode)
+        every { episodeService.findById(1L) } returns pendingEpisode
         every { episodeService.updateScript(pendingEpisode, "Updated script") } returns pendingEpisode.copy(scriptText = "Updated script")
 
         mockMvc.perform(
@@ -133,7 +128,7 @@ class EpisodeControllerTest {
     fun `edit script of non-pending episode returns 409`() {
         every { userService.findById(userId) } returns user
         every { podcastService.findById(podcastId) } returns podcast
-        every { episodeRepository.findById(2L) } returns Optional.of(generatedEpisode)
+        every { episodeService.findById(2L) } returns generatedEpisode
 
         mockMvc.perform(
             put("/users/$userId/podcasts/$podcastId/episodes/2/script")
@@ -148,7 +143,7 @@ class EpisodeControllerTest {
     fun `approve pending episode returns 202`() {
         every { userService.findById(userId) } returns user
         every { podcastService.findById(podcastId) } returns podcast
-        every { episodeRepository.findById(1L) } returns Optional.of(pendingEpisode)
+        every { episodeService.findById(1L) } returns pendingEpisode
         justRun { episodeService.approveAndGenerateAudio(pendingEpisode, podcast) }
 
         mockMvc.perform(post("/users/$userId/podcasts/$podcastId/episodes/1/approve"))
@@ -162,7 +157,7 @@ class EpisodeControllerTest {
         val failedEpisode = pendingEpisode.copy(status = EpisodeStatus.FAILED)
         every { userService.findById(userId) } returns user
         every { podcastService.findById(podcastId) } returns podcast
-        every { episodeRepository.findById(1L) } returns Optional.of(failedEpisode)
+        every { episodeService.findById(1L) } returns failedEpisode
         justRun { episodeService.approveAndGenerateAudio(failedEpisode, podcast) }
 
         mockMvc.perform(post("/users/$userId/podcasts/$podcastId/episodes/1/approve"))
@@ -173,7 +168,7 @@ class EpisodeControllerTest {
     fun `approve generated episode returns 409`() {
         every { userService.findById(userId) } returns user
         every { podcastService.findById(podcastId) } returns podcast
-        every { episodeRepository.findById(2L) } returns Optional.of(generatedEpisode)
+        every { episodeService.findById(2L) } returns generatedEpisode
 
         mockMvc.perform(post("/users/$userId/podcasts/$podcastId/episodes/2/approve"))
             .andExpect(status().isConflict)
@@ -183,7 +178,7 @@ class EpisodeControllerTest {
     fun `discard pending episode delegates to service`() {
         every { userService.findById(userId) } returns user
         every { podcastService.findById(podcastId) } returns podcast
-        every { episodeRepository.findById(1L) } returns Optional.of(pendingEpisode)
+        every { episodeService.findById(1L) } returns pendingEpisode
         justRun { episodeService.discardAndResetArticles(pendingEpisode, podcastId) }
 
         mockMvc.perform(post("/users/$userId/podcasts/$podcastId/episodes/1/discard"))
@@ -200,7 +195,7 @@ class EpisodeControllerTest {
         )
         every { userService.findById(userId) } returns user
         every { podcastService.findById(podcastId) } returns podcast
-        every { episodeRepository.findById(3L) } returns Optional.of(approvedEpisode)
+        every { episodeService.findById(3L) } returns approvedEpisode
 
         mockMvc.perform(post("/users/$userId/podcasts/$podcastId/episodes/3/discard"))
             .andExpect(status().isConflict)
@@ -213,7 +208,7 @@ class EpisodeControllerTest {
         val episodeWithRecap = generatedEpisode.copy(recap = "New recap.", showNotes = "New recap.")
         every { userService.findById(userId) } returns user
         every { podcastService.findById(podcastId) } returns podcast
-        every { episodeRepository.findById(2L) } returns Optional.of(generatedEpisode)
+        every { episodeService.findById(2L) } returns generatedEpisode
         every { episodeService.regenerateRecap(generatedEpisode, podcast) } returns episodeWithRecap
 
         mockMvc.perform(post("/users/$userId/podcasts/$podcastId/episodes/2/regenerate-recap"))
@@ -228,7 +223,7 @@ class EpisodeControllerTest {
     fun `regenerate-recap for non-existing episode returns 404`() {
         every { userService.findById(userId) } returns user
         every { podcastService.findById(podcastId) } returns podcast
-        every { episodeRepository.findById(99L) } returns Optional.empty()
+        every { episodeService.findById(99L) } returns null
 
         mockMvc.perform(post("/users/$userId/podcasts/$podcastId/episodes/99/regenerate-recap"))
             .andExpect(status().isNotFound)
@@ -239,7 +234,7 @@ class EpisodeControllerTest {
         val otherPodcastEpisode = generatedEpisode.copy(podcastId = "other-podcast")
         every { userService.findById(userId) } returns user
         every { podcastService.findById(podcastId) } returns podcast
-        every { episodeRepository.findById(2L) } returns Optional.of(otherPodcastEpisode)
+        every { episodeService.findById(2L) } returns otherPodcastEpisode
 
         mockMvc.perform(post("/users/$userId/podcasts/$podcastId/episodes/2/regenerate-recap"))
             .andExpect(status().isNotFound)
@@ -249,7 +244,7 @@ class EpisodeControllerTest {
     fun `regenerate-recap returns 500 on failure`() {
         every { userService.findById(userId) } returns user
         every { podcastService.findById(podcastId) } returns podcast
-        every { episodeRepository.findById(2L) } returns Optional.of(generatedEpisode)
+        every { episodeService.findById(2L) } returns generatedEpisode
         every { episodeService.regenerateRecap(generatedEpisode, podcast) } throws RuntimeException("LLM error")
 
         mockMvc.perform(post("/users/$userId/podcasts/$podcastId/episodes/2/regenerate-recap"))
@@ -261,7 +256,7 @@ class EpisodeControllerTest {
     fun `articles for non-existing episode returns 404`() {
         every { userService.findById(userId) } returns user
         every { podcastService.findById(podcastId) } returns podcast
-        every { episodeRepository.findById(99L) } returns Optional.empty()
+        every { episodeService.findById(99L) } returns null
 
         mockMvc.perform(get("/users/$userId/podcasts/$podcastId/episodes/99/articles"))
             .andExpect(status().isNotFound)
@@ -272,7 +267,7 @@ class EpisodeControllerTest {
         val otherPodcastEpisode = pendingEpisode.copy(podcastId = "other-podcast")
         every { userService.findById(userId) } returns user
         every { podcastService.findById(podcastId) } returns podcast
-        every { episodeRepository.findById(1L) } returns Optional.of(otherPodcastEpisode)
+        every { episodeService.findById(1L) } returns otherPodcastEpisode
 
         mockMvc.perform(get("/users/$userId/podcasts/$podcastId/episodes/1/articles"))
             .andExpect(status().isNotFound)

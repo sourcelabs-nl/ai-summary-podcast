@@ -1,7 +1,6 @@
 package com.aisummarypodcast.podcast
 
 import com.aisummarypodcast.store.Episode
-import com.aisummarypodcast.store.EpisodeRepository
 import com.aisummarypodcast.store.EpisodeStatus
 import com.aisummarypodcast.user.UserService
 import org.springframework.http.ResponseEntity
@@ -55,7 +54,6 @@ data class EpisodeArticleResponse(
 @RestController
 @RequestMapping("/users/{userId}/podcasts/{podcastId}/episodes")
 class EpisodeController(
-    private val episodeRepository: EpisodeRepository,
     private val podcastService: PodcastService,
     private val userService: UserService,
     private val episodeService: EpisodeService
@@ -71,11 +69,7 @@ class EpisodeController(
         val podcast = podcastService.findById(podcastId) ?: return ResponseEntity.notFound().build()
         if (podcast.userId != userId) return ResponseEntity.notFound().build()
 
-        val episodes = if (status != null) {
-            episodeRepository.findByPodcastIdAndStatus(podcastId, status)
-        } else {
-            episodeRepository.findByPodcastId(podcastId)
-        }
+        val episodes = episodeService.findByPodcastId(podcastId, status)
 
         return ResponseEntity.ok(episodes.sortedWith(compareByDescending<Episode> { it.generatedAt }.thenByDescending { it.id }).map { it.toResponse() })
     }
@@ -90,7 +84,7 @@ class EpisodeController(
         val podcast = podcastService.findById(podcastId) ?: return ResponseEntity.notFound().build()
         if (podcast.userId != userId) return ResponseEntity.notFound().build()
 
-        val episode = episodeRepository.findById(episodeId).orElse(null)
+        val episode = episodeService.findById(episodeId)
             ?: return ResponseEntity.notFound().build()
         if (episode.podcastId != podcastId) return ResponseEntity.notFound().build()
 
@@ -108,7 +102,7 @@ class EpisodeController(
         val podcast = podcastService.findById(podcastId) ?: return ResponseEntity.notFound().build()
         if (podcast.userId != userId) return ResponseEntity.notFound().build()
 
-        val episode = episodeRepository.findById(episodeId).orElse(null)
+        val episode = episodeService.findById(episodeId)
             ?: return ResponseEntity.notFound().build()
         if (episode.podcastId != podcastId) return ResponseEntity.notFound().build()
 
@@ -130,7 +124,7 @@ class EpisodeController(
         val podcast = podcastService.findById(podcastId) ?: return ResponseEntity.notFound().build()
         if (podcast.userId != userId) return ResponseEntity.notFound().build()
 
-        val episode = episodeRepository.findById(episodeId).orElse(null)
+        val episode = episodeService.findById(episodeId)
             ?: return ResponseEntity.notFound().build()
         if (episode.podcastId != podcastId) return ResponseEntity.notFound().build()
 
@@ -153,7 +147,7 @@ class EpisodeController(
         val podcast = podcastService.findById(podcastId) ?: return ResponseEntity.notFound().build()
         if (podcast.userId != userId) return ResponseEntity.notFound().build()
 
-        val episode = episodeRepository.findById(episodeId).orElse(null)
+        val episode = episodeService.findById(episodeId)
             ?: return ResponseEntity.notFound().build()
         if (episode.podcastId != podcastId) return ResponseEntity.notFound().build()
 
@@ -175,7 +169,7 @@ class EpisodeController(
         val podcast = podcastService.findById(podcastId) ?: return ResponseEntity.notFound().build()
         if (podcast.userId != userId) return ResponseEntity.notFound().build()
 
-        val episode = episodeRepository.findById(episodeId).orElse(null)
+        val episode = episodeService.findById(episodeId)
             ?: return ResponseEntity.notFound().build()
         if (episode.podcastId != podcastId) return ResponseEntity.notFound().build()
 
@@ -197,7 +191,7 @@ class EpisodeController(
         val podcast = podcastService.findById(podcastId) ?: return ResponseEntity.notFound().build()
         if (podcast.userId != userId) return ResponseEntity.notFound().build()
 
-        val episode = episodeRepository.findById(episodeId).orElse(null)
+        val episode = episodeService.findById(episodeId)
             ?: return ResponseEntity.notFound().build()
         if (episode.podcastId != podcastId) return ResponseEntity.notFound().build()
 

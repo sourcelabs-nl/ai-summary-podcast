@@ -1,10 +1,10 @@
 package com.aisummarypodcast.publishing
 
 import com.aisummarypodcast.config.AppProperties
+import com.aisummarypodcast.podcast.EpisodeService
 import com.aisummarypodcast.podcast.PodcastService
 import com.aisummarypodcast.store.Episode
 import com.aisummarypodcast.store.EpisodePublication
-import com.aisummarypodcast.store.EpisodeRepository
 import com.aisummarypodcast.store.EpisodeStatus
 import com.aisummarypodcast.store.Podcast
 import com.aisummarypodcast.store.PublicationStatus
@@ -18,7 +18,6 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.*
-import java.util.Optional
 
 @WebMvcTest(PublishingController::class)
 class PublishingControllerTest {
@@ -32,8 +31,8 @@ class PublishingControllerTest {
     @MockkBean
     private lateinit var podcastService: PodcastService
 
-    @MockkBean
-    private lateinit var episodeRepository: EpisodeRepository
+    @MockkBean(relaxed = true)
+    private lateinit var episodeService: EpisodeService
 
     @MockkBean
     private lateinit var publishingService: PublishingService
@@ -59,7 +58,7 @@ class PublishingControllerTest {
     fun `publish returns 200 on success`() {
         every { userService.findById(userId) } returns user
         every { podcastService.findById(podcastId) } returns podcast
-        every { episodeRepository.findById(episodeId) } returns Optional.of(episode)
+        every { episodeService.findById(episodeId) } returns episode
         every { publishingService.publish(episode, podcast, userId, "soundcloud") } returns
             EpisodePublication(
                 id = 10L,
@@ -83,7 +82,7 @@ class PublishingControllerTest {
     fun `publish returns 404 for unknown episode`() {
         every { userService.findById(userId) } returns user
         every { podcastService.findById(podcastId) } returns podcast
-        every { episodeRepository.findById(episodeId) } returns Optional.empty()
+        every { episodeService.findById(episodeId) } returns null
 
         mockMvc.perform(post("/users/$userId/podcasts/$podcastId/episodes/$episodeId/publish/soundcloud"))
             .andExpect(status().isNotFound)
@@ -93,7 +92,7 @@ class PublishingControllerTest {
     fun `publish returns 400 for unsupported target`() {
         every { userService.findById(userId) } returns user
         every { podcastService.findById(podcastId) } returns podcast
-        every { episodeRepository.findById(episodeId) } returns Optional.of(episode)
+        every { episodeService.findById(episodeId) } returns episode
         every { publishingService.publish(episode, podcast, userId, "youtube") } throws
             IllegalArgumentException("Unsupported publish target: youtube")
 
@@ -106,7 +105,7 @@ class PublishingControllerTest {
     fun `publish returns 409 when already published`() {
         every { userService.findById(userId) } returns user
         every { podcastService.findById(podcastId) } returns podcast
-        every { episodeRepository.findById(episodeId) } returns Optional.of(episode)
+        every { episodeService.findById(episodeId) } returns episode
         every { publishingService.publish(episode, podcast, userId, "soundcloud") } throws
             IllegalStateException("Episode is already published to soundcloud")
 
@@ -118,7 +117,7 @@ class PublishingControllerTest {
     fun `list publications returns empty array`() {
         every { userService.findById(userId) } returns user
         every { podcastService.findById(podcastId) } returns podcast
-        every { episodeRepository.findById(episodeId) } returns Optional.of(episode)
+        every { episodeService.findById(episodeId) } returns episode
         every { publishingService.getPublications(episodeId) } returns emptyList()
 
         mockMvc.perform(get("/users/$userId/podcasts/$podcastId/episodes/$episodeId/publications"))
@@ -130,7 +129,7 @@ class PublishingControllerTest {
     fun `list publications returns existing publications`() {
         every { userService.findById(userId) } returns user
         every { podcastService.findById(podcastId) } returns podcast
-        every { episodeRepository.findById(episodeId) } returns Optional.of(episode)
+        every { episodeService.findById(episodeId) } returns episode
         every { publishingService.getPublications(episodeId) } returns listOf(
             EpisodePublication(
                 id = 10L,

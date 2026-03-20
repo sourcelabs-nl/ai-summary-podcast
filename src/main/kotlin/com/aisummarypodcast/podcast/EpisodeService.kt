@@ -242,6 +242,7 @@ class EpisodeService(
         return episodeRepository.save(episode.copy(scriptText = scriptText))
     }
 
+    @Transactional
     fun approveAndGenerateAudio(episode: Episode, podcast: Podcast) {
         episodeRepository.save(episode.copy(status = EpisodeStatus.APPROVED, errorMessage = null))
         log.info("Episode {} approved, triggering async TTS generation", episode.id)
@@ -252,6 +253,7 @@ class EpisodeService(
         generateAudioAsync(episode.id, podcast.id)
     }
 
+    @Transactional
     fun failEpisode(podcast: Podcast, errorMessage: String, generatingEpisode: Episode? = null): Episode {
         val episode = if (generatingEpisode != null) {
             episodeRepository.save(
@@ -305,12 +307,8 @@ class EpisodeService(
 
             val podcast = podcastRepository.findById(episode.podcastId).orElse(null) ?: continue
             try {
-                val links = episodeArticleRepository.findByEpisodeId(episode.id!!)
-                val articles = links.mapNotNull { link -> articleRepository.findById(link.articleId).orElse(null) }
-                    .sortedByDescending { it.relevanceScore ?: 0 }
-                if (episodeSourcesGenerator.generate(episode, podcast, articles) != null) {
-                    generatedSources++
-                }
+                generateSourcesFile(episode, podcast)
+                generatedSources++
             } catch (e: Exception) {
                 log.warn("Failed to generate sources.md for episode {}: {}", episode.id, e.message)
             }
@@ -325,6 +323,14 @@ class EpisodeService(
     }
 
     fun findById(episodeId: Long): Episode? = episodeRepository.findById(episodeId).orElse(null)
+
+    fun findByPodcastId(podcastId: String, status: String? = null): List<Episode> {
+        return if (status != null) {
+            episodeRepository.findByPodcastIdAndStatus(podcastId, status)
+        } else {
+            episodeRepository.findByPodcastId(podcastId)
+        }
+    }
 
     fun hasPendingOrApprovedEpisode(podcastId: String): Boolean {
         return episodeRepository.findByPodcastIdAndStatusIn(

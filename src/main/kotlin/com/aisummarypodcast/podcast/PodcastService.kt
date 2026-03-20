@@ -216,13 +216,15 @@ class PodcastService(
 
         val episodes = episodeRepository.findByPodcastId(podcast.id)
         for (episode in episodes) {
-            try {
-                val audioPath = Path.of(episode.audioFilePath)
-                if (Files.exists(audioPath)) {
-                    Files.delete(audioPath)
+            episode.audioFilePath?.let { filePath ->
+                try {
+                    val audioPath = Path.of(filePath)
+                    if (Files.exists(audioPath)) {
+                        Files.delete(audioPath)
+                    }
+                } catch (e: Exception) {
+                    log.error("Failed to delete audio file for episode {}: {}", episode.id, e.message)
                 }
-            } catch (e: Exception) {
-                log.error("Failed to delete audio file for episode {}: {}", episode.id, e.message)
             }
             episodeRepository.delete(episode)
         }
