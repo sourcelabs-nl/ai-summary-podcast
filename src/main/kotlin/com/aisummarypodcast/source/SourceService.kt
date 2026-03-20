@@ -6,7 +6,6 @@ import com.aisummarypodcast.store.Source
 import com.aisummarypodcast.store.SourceRepository
 import com.aisummarypodcast.store.SourceType
 import org.slf4j.LoggerFactory
-import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
@@ -23,7 +22,6 @@ class SourceService(
     private val sourceRepository: SourceRepository,
     private val articleRepository: ArticleRepository,
     private val postRepository: PostRepository,
-    private val jdbcTemplate: JdbcTemplate,
     private val rssFeedFetcher: RssFeedFetcher,
     private val websiteFetcher: WebsiteFetcher
 ) {
@@ -109,38 +107,11 @@ class SourceService(
     }
 
     fun getArticleCounts(sourceIds: List<String>, relevanceThreshold: Int): Map<String, SourceArticleCounts> {
-        if (sourceIds.isEmpty()) return emptyMap()
-        val placeholders = sourceIds.joinToString(",") { "?" }
-        val sql = """
-            SELECT source_id,
-                   COUNT(*) as total,
-                   COUNT(CASE WHEN relevance_score >= ? THEN 1 END) as relevant
-            FROM articles
-            WHERE source_id IN ($placeholders)
-            GROUP BY source_id
-        """.trimIndent()
-        val args = (listOf<Any>(relevanceThreshold) + sourceIds).toTypedArray()
-        return jdbcTemplate.query(sql, args) { rs: java.sql.ResultSet, _ : Int ->
-            SourceArticleCounts(
-                sourceId = rs.getString("source_id"),
-                total = rs.getInt("total"),
-                relevant = rs.getInt("relevant")
-            )
-        }.associateBy { it.sourceId }
+        return articleRepository.getArticleCountsBySourceIds(sourceIds, relevanceThreshold)
     }
 
     fun getPostCounts(sourceIds: List<String>): Map<String, Int> {
-        if (sourceIds.isEmpty()) return emptyMap()
-        val placeholders = sourceIds.joinToString(",") { "?" }
-        val sql = """
-            SELECT source_id, COUNT(*) as total
-            FROM posts
-            WHERE source_id IN ($placeholders)
-            GROUP BY source_id
-        """.trimIndent()
-        return jdbcTemplate.query(sql, sourceIds.toTypedArray()) { rs: java.sql.ResultSet, _: Int ->
-            rs.getString("source_id") to rs.getInt("total")
-        }.toMap()
+        return postRepository.getPostCountsBySourceIds(sourceIds)
     }
 
     @Transactional

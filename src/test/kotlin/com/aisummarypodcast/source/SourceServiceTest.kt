@@ -14,8 +14,6 @@ import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
-import org.springframework.jdbc.core.JdbcTemplate
-import org.springframework.jdbc.core.RowMapper
 import java.util.Optional
 
 class SourceServiceTest {
@@ -26,11 +24,10 @@ class SourceServiceTest {
     }
     private val articleRepository = mockk<ArticleRepository>()
     private val postRepository = mockk<PostRepository>()
-    private val jdbcTemplate = mockk<JdbcTemplate>()
     private val rssFeedFetcher = mockk<RssFeedFetcher>()
     private val websiteFetcher = mockk<WebsiteFetcher>()
 
-    private val service = SourceService(sourceRepository, articleRepository, postRepository, jdbcTemplate, rssFeedFetcher, websiteFetcher)
+    private val service = SourceService(sourceRepository, articleRepository, postRepository, rssFeedFetcher, websiteFetcher)
 
     @Test
     fun `re-enabling a disabled source clears failure tracking`() {
@@ -65,20 +62,10 @@ class SourceServiceTest {
 
     @Test
     fun `getArticleCounts returns counts grouped by source`() {
-        every { jdbcTemplate.query(any<String>(), any<Array<Any>>(), any<RowMapper<SourceArticleCounts>>()) } answers {
-            val mapper = thirdArg<RowMapper<SourceArticleCounts>>()
-            val rs1 = mockk<java.sql.ResultSet> {
-                every { getString("source_id") } returns "s1"
-                every { getInt("total") } returns 42
-                every { getInt("relevant") } returns 18
-            }
-            val rs2 = mockk<java.sql.ResultSet> {
-                every { getString("source_id") } returns "s2"
-                every { getInt("total") } returns 10
-                every { getInt("relevant") } returns 0
-            }
-            listOf(mapper.mapRow(rs1, 0)!!, mapper.mapRow(rs2, 1)!!)
-        }
+        every { articleRepository.getArticleCountsBySourceIds(listOf("s1", "s2"), 5) } returns mapOf(
+            "s1" to SourceArticleCounts("s1", 42, 18),
+            "s2" to SourceArticleCounts("s2", 10, 0)
+        )
 
         val result = service.getArticleCounts(listOf("s1", "s2"), 5)
 
@@ -91,13 +78,15 @@ class SourceServiceTest {
 
     @Test
     fun `getArticleCounts returns empty map for empty source list`() {
+        every { articleRepository.getArticleCountsBySourceIds(emptyList(), 5) } returns emptyMap()
+
         val result = service.getArticleCounts(emptyList(), 5)
         assertEquals(emptyMap<String, SourceArticleCounts>(), result)
     }
 
     @Test
     fun `getArticleCounts returns empty map when no articles exist`() {
-        every { jdbcTemplate.query(any<String>(), any<Array<Any>>(), any<RowMapper<SourceArticleCounts>>()) } returns emptyList()
+        every { articleRepository.getArticleCountsBySourceIds(listOf("s1"), 5) } returns emptyMap()
 
         val result = service.getArticleCounts(listOf("s1"), 5)
         assertEquals(emptyMap<String, SourceArticleCounts>(), result)

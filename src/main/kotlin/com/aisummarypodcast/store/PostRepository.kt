@@ -4,7 +4,7 @@ import org.springframework.data.jdbc.repository.query.Modifying
 import org.springframework.data.jdbc.repository.query.Query
 import org.springframework.data.repository.CrudRepository
 
-interface PostRepository : CrudRepository<Post, Long> {
+interface PostRepository : CrudRepository<Post, Long>, PostRepositoryCustom {
 
     @Query("SELECT * FROM posts WHERE source_id = :sourceId AND content_hash = :contentHash")
     fun findBySourceIdAndContentHash(sourceId: String, contentHash: String): Post?
