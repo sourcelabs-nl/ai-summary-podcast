@@ -227,39 +227,51 @@ Voice configuration uses the `ttsVoices` map:
 
 ### Model Configuration
 
-The LLM pipeline uses a **named model registry** defined in `application.yaml`. Each entry maps a name to a provider and model ID:
+All model definitions (LLM and TTS) live under `app.models` in `application.yaml`, organized by provider. Each model has a `type` (`llm` or `tts`) and optional cost fields:
 
 ```yaml
 app:
+  models:
+    openrouter:
+      "[openai/gpt-5.4-nano]":
+        type: llm
+        input-cost-per-mtok: 0.20
+        output-cost-per-mtok: 1.25
+      "[anthropic/claude-sonnet-4.6]":
+        type: llm
+        input-cost-per-mtok: 3.00
+        output-cost-per-mtok: 15.00
+    openai:
+      "[tts-1-hd]":
+        type: tts
+        cost-per-million-chars: 15.00
+    inworld:
+      "[inworld-tts-1.5-max]":
+        type: tts
+        cost-per-million-chars: 10.00
   llm:
-    models:
-      cheap:
+    defaults:
+      filter:
         provider: openrouter
         model: openai/gpt-5.4-nano
-      capable:
+      compose:
         provider: openrouter
         model: anthropic/claude-sonnet-4.6
-      opus:
-        provider: openrouter
-        model: anthropic/claude-opus-4.6
-      local:
-        provider: ollama
-        model: llama3
-    defaults:
-      filter: cheap      # used for scoring, summarization, and dedup filter
-      compose: capable    # used for briefing composition
 ```
 
-Per-podcast overrides use the `llmModels` field, mapping stage names (`filter`, `compose`) to model names from the registry:
+Model name keys containing `/`, `-`, or `.` must be quoted with `"[...]"` for Spring Boot's relaxed property binding.
+
+Per-podcast overrides use the `llmModels` field, mapping stage names (`filter`, `compose`) to `{provider, model}` objects:
 
 ```json
 {
   "llmModels": {
-    "filter": "local",
-    "compose": "capable"
+    "compose": {"provider": "openrouter", "model": "anthropic/claude-opus-4.6"}
   }
 }
 ```
+
+The `GET /config/defaults` endpoint returns available models grouped by provider and type, used by the frontend to populate model selection dropdowns.
 
 ### Episode Review
 
@@ -271,20 +283,7 @@ Episodes can be **regenerated** — this re-composes the script from the same ar
 
 ### Cost Tracking
 
-Episode responses include token usage and estimated costs for both LLM and TTS stages. Costs are reported in USD cents and require pricing configuration in `application.yaml`:
-
-```yaml
-app:
-  llm:
-    models:
-      cheap:
-        input-cost-per-mtok: 0.15    # USD per million input tokens
-        output-cost-per-mtok: 0.60   # USD per million output tokens
-  tts:
-    cost-per-million-chars:
-      openai: 15.00                  # USD per million characters
-      elevenlabs: 30.00
-```
+Episode responses include token usage and estimated costs for both LLM and TTS stages. Costs are reported in USD cents and are derived from the pricing fields configured on each model in `app.models` (see [Model Configuration](#model-configuration)). LLM models use `input-cost-per-mtok` and `output-cost-per-mtok` (USD per million tokens). TTS models use `cost-per-million-chars` (USD per million characters).
 
 Cost fields are `null` when pricing is not configured or when usage metadata is unavailable from the provider.
 
@@ -460,7 +459,7 @@ curl -X POST http://localhost:8085/users/{userId}/podcasts \
     "topic": "artificial intelligence and machine learning",
     "language": "en",
     "style": "deep-dive",
-    "llmModels": {"filter": "cheap", "compose": "capable"},
+    "llmModels": {"compose": {"provider": "openrouter", "model": "anthropic/claude-opus-4.6"}},
     "ttsProvider": "openai",
     "ttsVoices": {"default": "onyx"},
     "ttsSettings": {"speed": 1.1},

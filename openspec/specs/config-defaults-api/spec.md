@@ -5,12 +5,12 @@ Defines the API endpoint for exposing system-level podcast configuration default
 ## Requirements
 
 ### Requirement: Config defaults endpoint
-The system SHALL provide a `GET /config/defaults` endpoint that returns the system default values for podcast settings derived from application configuration (AppProperties).
+The system SHALL provide a `GET /config/defaults` endpoint that returns the system default values for podcast settings derived from application configuration. The response SHALL include: `llmModels` (object with `filter` and `compose` keys, each containing `{provider, model}`), `availableModels` (object with provider keys, each containing a list of `{name, type}` entries), `maxLlmCostCents`, `targetWords`, `fullBodyThreshold`, `maxArticleAgeDays`.
 
-#### Scenario: Successful response
-- **WHEN** a GET request is made to `/config/defaults`
-- **THEN** the response SHALL contain: llmModels (resolved model names per stage), maxLlmCostCents, targetWords, fullBodyThreshold, maxArticleAgeDays
+#### Scenario: Successful response with structured defaults
+- **WHEN** a GET request is made to `/config/defaults` and defaults are `filter: {provider: openrouter, model: openai/gpt-5.4-nano}`, `compose: {provider: openrouter, model: anthropic/claude-sonnet-4.6}`
+- **THEN** the response `llmModels` SHALL contain `{"filter": {"provider": "openrouter", "model": "openai/gpt-5.4-nano"}, "compose": {"provider": "openrouter", "model": "anthropic/claude-sonnet-4.6"}}`
 
-#### Scenario: LLM models resolved from aliases
-- **WHEN** the defaults endpoint is called and llm.defaults references aliases (e.g., "cheap", "capable")
-- **THEN** the response llmModels map SHALL contain the resolved model names (e.g., "openai/gpt-4o-mini") rather than the alias names
+#### Scenario: Available models grouped by provider with type
+- **WHEN** a GET request is made to `/config/defaults` and `app.models` contains openrouter (LLM models) and inworld (TTS models)
+- **THEN** the response `availableModels` SHALL contain `{"openrouter": [{"name": "openai/gpt-5.4-nano", "type": "llm"}, ...], "inworld": [{"name": "inworld-tts-1.5-max", "type": "tts"}, ...]}`

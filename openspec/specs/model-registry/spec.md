@@ -7,46 +7,50 @@ Named model definitions in application configuration with provider and model ID,
 ## Requirements
 
 ### Requirement: Named model definitions in application configuration
-The system SHALL support defining named LLM models in `application.yaml` under `app.llm.models`. Each named model SHALL have a `provider` field (matching a provider name used in `UserProviderConfig`, e.g., `"openrouter"`, `"ollama"`, `"openai"`) and a `model` field (the model ID to send to the provider API, e.g., `"anthropic/claude-haiku-4.5"`). The named models SHALL be loaded into `AppProperties` at startup as a `Map<String, ModelDefinition>`.
+The system SHALL support defining models in `application.yaml` under `app.models`, organized as a two-level nested map: `app.models.<provider>.<model-name>`. Each model entry SHALL have a `type` field with value `llm` or `tts`. LLM models MAY have `input-cost-per-mtok` and `output-cost-per-mtok` fields (USD per million tokens). TTS models MAY have a `cost-per-million-chars` field (USD per million characters). The models SHALL be loaded into `AppProperties` at startup as a `Map<String, Map<String, ModelCost>>` (provider to model name to cost definition).
 
-#### Scenario: Multiple models defined
-- **WHEN** application.yaml contains `app.llm.models` with entries "cheap" (provider: openrouter, model: anthropic/claude-haiku-4.5) and "capable" (provider: openrouter, model: anthropic/claude-sonnet-4)
-- **THEN** `AppProperties.llm.models` contains two `ModelDefinition` entries keyed by "cheap" and "capable"
+#### Scenario: LLM models defined under provider
+- **WHEN** `application.yaml` contains `app.models.openrouter` with entries `openai/gpt-5.4-nano` (type: llm, input-cost-per-mtok: 0.20) and `anthropic/claude-sonnet-4.6` (type: llm, input-cost-per-mtok: 3.00)
+- **THEN** `AppProperties.models["openrouter"]` contains two `ModelCost` entries keyed by `openai/gpt-5.4-nano` and `anthropic/claude-sonnet-4.6`, both with type LLM
 
-#### Scenario: Model with different provider
-- **WHEN** application.yaml contains a model "local" with provider "ollama" and model "llama3"
-- **THEN** the model definition resolves to provider "ollama" and model ID "llama3"
+#### Scenario: TTS models defined under provider
+- **WHEN** `application.yaml` contains `app.models.inworld` with entry `inworld-tts-1.5-max` (type: tts, cost-per-million-chars: 10.00)
+- **THEN** `AppProperties.models["inworld"]` contains a `ModelCost` entry keyed by `inworld-tts-1.5-max` with type TTS
+
+#### Scenario: Multiple providers defined
+- **WHEN** `application.yaml` contains models under `openrouter`, `inworld`, and `openai` providers
+- **THEN** `AppProperties.models` contains three provider keys, each with their respective model entries
 
 #### Scenario: No models defined
-- **WHEN** application.yaml does not define any `app.llm.models` entries
-- **THEN** `AppProperties.llm.models` is an empty map
+- **WHEN** `application.yaml` does not define any `app.models` entries
+- **THEN** `AppProperties.models` is an empty map
 
 ### Requirement: Global stage-to-model defaults
-The system SHALL support mapping pipeline stages to named model defaults in `application.yaml` under `app.llm.defaults`. The supported stage names SHALL be `filter` (for article relevance filtering and summarization) and `compose` (for briefing script composition). Each default SHALL reference a named model defined in `app.llm.models`.
+The system SHALL support mapping pipeline stages to model defaults in `application.yaml` under `app.llm.defaults`. The supported stage names SHALL be `filter` and `compose`. Each default SHALL be an object with `provider` (string) and `model` (string) fields, referencing a model defined under `app.models.<provider>.<model>`.
 
 #### Scenario: Default stage mappings configured
-- **WHEN** application.yaml contains `app.llm.defaults.filter: cheap` and `app.llm.defaults.compose: capable`
-- **THEN** the filter stage resolves to the "cheap" model definition and the compose stage resolves to the "capable" model definition
+- **WHEN** `application.yaml` contains `app.llm.defaults.filter` with `provider: openrouter, model: openai/gpt-5.4-nano` and `app.llm.defaults.compose` with `provider: openrouter, model: anthropic/claude-sonnet-4.6`
+- **THEN** the filter stage resolves to the `openrouter`/`openai/gpt-5.4-nano` model cost and the compose stage resolves to the `openrouter`/`anthropic/claude-sonnet-4.6` model cost
 
 #### Scenario: Default references non-existent model
-- **WHEN** application.yaml contains `app.llm.defaults.filter: nonexistent` and no model named "nonexistent" exists in `app.llm.models`
+- **WHEN** `application.yaml` contains `app.llm.defaults.filter` with `provider: openrouter, model: nonexistent` and no such model exists under `app.models.openrouter`
 - **THEN** the system SHALL throw an error at pipeline runtime when the filter stage is invoked
 
 ### Requirement: Model resolution for a pipeline stage
-The system SHALL resolve the model for a given pipeline stage using the following resolution chain: (1) check the podcast's `llm_models` JSON map for a stage-specific override, (2) fall back to the global stage default from `app.llm.defaults`, (3) look up the resulting model name in `app.llm.models`. If the resolved name is not found in the model registry, the system SHALL throw an `IllegalArgumentException` with a message indicating the unknown model name and available model names.
+The system SHALL resolve the model for a given pipeline stage using the following resolution chain: (1) check the podcast's `llm_models` JSON for a stage-specific override containing `{provider, model}`, (2) fall back to the global stage default from `app.llm.defaults`. The resulting `{provider, model}` pair SHALL be looked up in `app.models[provider][model]`. If the model is not found, the system SHALL throw an `IllegalArgumentException`.
 
 #### Scenario: Podcast override takes precedence
-- **WHEN** a podcast has `llm_models` set to `{"compose": "local"}` and the global default for compose is "capable"
-- **THEN** the compose stage uses the "local" model definition
+- **WHEN** a podcast has `llm_models` set to `{"compose": {"provider": "openrouter", "model": "anthropic/claude-opus-4.6"}}` and the global default for compose is a different model
+- **THEN** the compose stage uses the `openrouter`/`anthropic/claude-opus-4.6` model cost
 
 #### Scenario: Global default used when no podcast override
-- **WHEN** a podcast has `llm_models` set to `null` (or empty map) and the global default for filter is "cheap"
-- **THEN** the filter stage uses the "cheap" model definition
+- **WHEN** a podcast has `llm_models` set to `null` and the global default for filter is `{provider: openrouter, model: openai/gpt-5.4-nano}`
+- **THEN** the filter stage uses the `openrouter`/`openai/gpt-5.4-nano` model cost
 
 #### Scenario: Podcast override for one stage, default for another
-- **WHEN** a podcast has `llm_models` set to `{"compose": "local"}` (no filter override) and the global defaults are filter: "cheap", compose: "capable"
-- **THEN** the filter stage uses "cheap" and the compose stage uses "local"
+- **WHEN** a podcast has `llm_models` set to `{"compose": {"provider": "openrouter", "model": "anthropic/claude-opus-4.6"}}` (no filter override) and the global default for filter is `{provider: openrouter, model: openai/gpt-5.4-nano}`
+- **THEN** the filter stage uses `openai/gpt-5.4-nano` and the compose stage uses `anthropic/claude-opus-4.6`
 
 #### Scenario: Unknown model name fails loudly
-- **WHEN** a podcast has `llm_models` set to `{"filter": "nonexistent"}` and no model named "nonexistent" exists
-- **THEN** the system throws an `IllegalArgumentException` with a message like "Unknown model name 'nonexistent'. Available models: [cheap, capable, local]"
+- **WHEN** a podcast has `llm_models` set to `{"filter": {"provider": "openrouter", "model": "nonexistent"}}` and no such model exists under `app.models.openrouter`
+- **THEN** the system throws an `IllegalArgumentException` with a message indicating the unknown model
