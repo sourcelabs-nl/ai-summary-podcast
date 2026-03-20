@@ -359,31 +359,32 @@ export default function PodcastSettingsPage() {
                     </div>
                   )}
                   <div className="flex flex-col gap-2">
-                    <label>
-                      <input
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp"
-                        onChange={handleImageUpload}
-                        className="hidden"
-                      />
-                      <Button type="button" size="sm" disabled={imageUploading} asChild>
-                        <span>
-                          <Upload className="mr-2 size-4" />
-                          {imageUploading ? "Uploading..." : "Upload Image"}
-                        </span>
-                      </Button>
-                    </label>
-                    {imageUrl && (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="destructive"
-                        onClick={handleImageDelete}
-                      >
-                        <Trash2 className="mr-2 size-4" />
-                        Delete Image
-                      </Button>
-                    )}
+                    <div className="flex items-center gap-2">
+                      <label>
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          onChange={handleImageUpload}
+                          className="hidden"
+                        />
+                        <Button type="button" size="icon-lg" title={imageUploading ? "Uploading..." : "Upload image"} disabled={imageUploading} asChild>
+                          <span>
+                            <Upload className="size-4" />
+                          </span>
+                        </Button>
+                      </label>
+                      {imageUrl && (
+                        <Button
+                          type="button"
+                          size="icon-lg"
+                          variant="destructive"
+                          title="Delete image"
+                          onClick={handleImageDelete}
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      )}
+                    </div>
                     <p className="text-xs text-muted-foreground">
                       JPEG, PNG, or WebP. Max 1 MB.
                     </p>
