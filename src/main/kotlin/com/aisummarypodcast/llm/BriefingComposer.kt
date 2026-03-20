@@ -1,16 +1,12 @@
 package com.aisummarypodcast.llm
 
 import com.aisummarypodcast.config.AppProperties
-import com.aisummarypodcast.podcast.SupportedLanguage
 import com.aisummarypodcast.store.Article
 import com.aisummarypodcast.store.Podcast
 import com.aisummarypodcast.store.PodcastStyle
 import org.slf4j.LoggerFactory
 import org.springframework.ai.openai.OpenAiChatOptions
 import org.springframework.stereotype.Component
-import java.time.LocalDate
-import java.time.format.DateTimeFormatter
-import java.util.Locale
 import kotlin.time.measureTimedValue
 
 data class CompositionResult(
@@ -71,31 +67,12 @@ class BriefingComposer(
 
         val summaryBlock = buildArticleSummaryBlock(articles, useFullBody, followUpAnnotations)
 
-        val customInstructionsBlock = podcast.customInstructions?.let {
-            "\n\nAdditional instructions: $it"
-        } ?: ""
-
-        val locale = SupportedLanguage.fromCode(podcast.language)?.toLocale() ?: Locale.ENGLISH
-        val today = LocalDate.now()
-        val currentDate = today.format(DateTimeFormatter.ofPattern("EEEE, MMMM d, yyyy", locale))
-        val fridayBlock = buildFridayBlock()
-
-        val languageInstruction = if (podcast.language != "en") {
-            val langName = SupportedLanguage.fromCode(podcast.language)?.displayName ?: "English"
-            "\n            - Write the entire script in $langName"
-        } else ""
-
-        val sponsorBlock = podcast.sponsor?.let { s ->
-            val name = s["name"] ?: return@let ""
-            val message = s["message"] ?: return@let ""
-            """
-            - Immediately after the introduction, include the sponsor message: "This podcast is brought to you by $name — $message."
-            - End with a sign-off that includes a mention of the sponsor: $name"""
-        } ?: ""
-
-        val ttsGuidelinesBlock = if (ttsScriptGuidelines.isNotEmpty()) {
-            "\n\n            TTS script formatting:\n            $ttsScriptGuidelines"
-        } else ""
+        val customInstructionsBlock = buildCustomInstructionsBlock(podcast.customInstructions)
+        val currentDate = buildCurrentDate(podcast.language)
+        val toneBlock = buildToneBlock()
+        val languageInstruction = buildLanguageInstruction(podcast.language, "script")
+        val sponsorBlock = buildSponsorBlock(podcast.sponsor)
+        val ttsGuidelinesBlock = buildTtsGuidelinesBlock(ttsScriptGuidelines)
 
 
         return """
@@ -121,7 +98,7 @@ class BriefingComposer(
             - HOOK OPENING: Do NOT start with a standard welcome. Instead, open with a provocative statement, surprising fact, or compelling question drawn from the most interesting article of the day. Then transition into the regular introduction
             - FRONT-LOAD THE BEST STORY: Lead with the most compelling or surprising article, not the order they appear in the summaries
             - SHORT SEGMENTS WITH SIGNPOSTING: Keep individual topic segments concise. Use clear verbal signposts and smooth transitions so listeners always know where they are
-            - EMPHASIS ON IMPORTANT NEWS: When covering major announcements or surprising developments, convey their significance — use emphatic language, exclamation marks, and brief pauses to let important news land. Not everything is exciting; save the energy for what truly stands out$fridayBlock$languageInstruction$customInstructionsBlock
+            - EMPHASIS ON IMPORTANT NEWS: When covering major announcements or surprising developments, convey their significance — use emphatic language, exclamation marks, and brief pauses to let important news land. Not everything is exciting; save the energy for what truly stands out$toneBlock$languageInstruction$customInstructionsBlock
 
             Article summaries:
             $summaryBlock$ttsGuidelinesBlock

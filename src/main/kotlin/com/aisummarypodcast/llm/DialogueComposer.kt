@@ -1,15 +1,11 @@
 package com.aisummarypodcast.llm
 
 import com.aisummarypodcast.config.AppProperties
-import com.aisummarypodcast.podcast.SupportedLanguage
 import com.aisummarypodcast.store.Article
 import com.aisummarypodcast.store.Podcast
 import org.slf4j.LoggerFactory
 import org.springframework.ai.openai.OpenAiChatOptions
 import org.springframework.stereotype.Component
-import java.time.LocalDate
-import java.time.format.DateTimeFormatter
-import java.util.Locale
 import kotlin.time.measureTimedValue
 
 @Component
@@ -65,31 +61,12 @@ class DialogueComposer(
 
         val summaryBlock = buildArticleSummaryBlock(articles, useFullBody, followUpAnnotations)
 
-        val customInstructionsBlock = podcast.customInstructions?.let {
-            "\n\nAdditional instructions: $it"
-        } ?: ""
-
-        val locale = SupportedLanguage.fromCode(podcast.language)?.toLocale() ?: Locale.ENGLISH
-        val currentDate = LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, MMMM d, yyyy", locale))
-
-        val fridayBlock = buildFridayBlock()
-
-        val languageInstruction = if (podcast.language != "en") {
-            val langName = SupportedLanguage.fromCode(podcast.language)?.displayName ?: "English"
-            "\n            - Write the entire dialogue in $langName"
-        } else ""
-
-        val sponsorBlock = podcast.sponsor?.let { s ->
-            val name = s["name"] ?: return@let ""
-            val message = s["message"] ?: return@let ""
-            """
-            - Immediately after the introduction, include the sponsor message: "This podcast is brought to you by $name — $message."
-            - End with a sign-off that includes a mention of the sponsor: $name"""
-        } ?: ""
-
-        val ttsGuidelinesBlock = if (ttsScriptGuidelines.isNotEmpty()) {
-            "\n\n            TTS script formatting:\n            $ttsScriptGuidelines"
-        } else ""
+        val customInstructionsBlock = buildCustomInstructionsBlock(podcast.customInstructions)
+        val currentDate = buildCurrentDate(podcast.language)
+        val toneBlock = buildToneBlock()
+        val languageInstruction = buildLanguageInstruction(podcast.language, "dialogue")
+        val sponsorBlock = buildSponsorBlock(podcast.sponsor)
+        val ttsGuidelinesBlock = buildTtsGuidelinesBlock(ttsScriptGuidelines)
 
         return """
             You are writing a dialogue script for a podcast with multiple speakers. Create a natural, engaging conversation between the speakers about the topics below.
@@ -121,7 +98,7 @@ class DialogueComposer(
             - MID-ROLL CALLBACKS: Reference earlier topics later in the episode to create narrative cohesion (e.g., "Remember that thing we talked about earlier? Well, this connects directly...", "This ties back to what you said about..."). Cross-reference at least once per episode
             - SHORT SEGMENTS WITH SIGNPOSTING: Keep individual topic segments concise (roughly 60-90 seconds each). Use clear verbal signposts so listeners always know where they are (e.g., "Next up...", "Switching gears...", "Now for something completely different...")
             - NATURAL INTERRUPTIONS: Speakers should occasionally interrupt each other MID-TOPIC — not at the end of a complete explanation, but while the other speaker is still building their point. Keep each speaker turn to 3-5 sentences max, then have the other speaker jump in with a reaction, follow-up question, or interjection (e.g., "Wait — hold on, does that mean...", "Okay but that sounds like..."). The original speaker then continues in their NEXT turn. Aim for 3-4 interruptions per episode, spread across different topics
-            - EMPHASIS ON IMPORTANT NEWS: When covering major announcements or surprising developments, convey their significance — use emphatic language, exclamation marks, and brief pauses to let important news land. Not everything is exciting; save the energy for what truly stands out$fridayBlock
+            - EMPHASIS ON IMPORTANT NEWS: When covering major announcements or surprising developments, convey their significance — use emphatic language, exclamation marks, and brief pauses to let important news land. Not everything is exciting; save the energy for what truly stands out$toneBlock
 
             Speaker transitions:
             - NEVER place two consecutive tags of the same speaker (e.g., <${speakerRoles.first()}>...</${speakerRoles.first()}><${speakerRoles.first()}>...</${speakerRoles.first()}> is FORBIDDEN). Every speaker turn MUST be followed by the OTHER speaker before the same speaker can speak again$nameInstruction$languageInstruction$customInstructionsBlock
