@@ -25,6 +25,10 @@ Use **MockK** (not Mockito) for all Kotlin tests. For Spring integration tests, 
 
 **Never leave the project in a broken state.** Every commit must compile and all tests must pass. When a code change breaks existing tests, fix those tests as part of the same change. Run `mvn test` before considering any change complete. If constructor signatures change, update all test files that instantiate the class.
 
+## Code Review Loop
+
+After fixing code review violations, always re-run the code reviewer (`/code-review --all`) to verify the fixes didn't introduce new violations and to catch issues that become visible after the first layer is cleaned up. Repeat until the review is clean. Fixes themselves can introduce new violations (e.g., moving logic to a service may reveal a missing `@Transactional`, or duplicating code during extraction).
+
 ## Architecture Guidelines
 
 Controllers validate input, delegate to services, and map responses — no business logic. Never duplicate logic that already exists in a service. For the full set of architectural review rules (controller hygiene, service layer, Spring Data JDBC, database consistency, testing, Jackson 3.x), see the `code-review` skill or run `/code-review`.
