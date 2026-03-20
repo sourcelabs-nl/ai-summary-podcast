@@ -78,6 +78,10 @@ Domain values that represent a fixed set of states, categories, or types must be
 - Non-SELECT queries (`DELETE`, `UPDATE`, `INSERT`) must have `@Modifying`
 - No business logic in repositories
 
+**Data access rules:**
+- All database queries must go through Spring Data repositories, not raw `JdbcClient` or `JdbcTemplate` in services. For complex queries (JOINs, custom projections), use `@Query` on a repository method with a custom row mapper or DTO projection.
+- If a query spans multiple tables, it belongs on the repository of the primary entity being queried (e.g., a query joining `episode_articles` and `articles` belongs on `EpisodeArticleRepository`).
+
 ### 5. Database Consistency
 
 **Violations to flag:**

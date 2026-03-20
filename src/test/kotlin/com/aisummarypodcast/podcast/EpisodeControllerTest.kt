@@ -15,7 +15,7 @@ import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest
 import org.springframework.http.MediaType
-import org.springframework.jdbc.core.simple.JdbcClient
+
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.*
@@ -41,9 +41,6 @@ class EpisodeControllerTest {
 
     @MockkBean(relaxed = true)
     private lateinit var appProperties: AppProperties
-
-    @MockkBean(relaxed = true)
-    private lateinit var jdbcClient: JdbcClient
 
     private val userId = "user-1"
     private val user = User(id = userId, name = "Test User")

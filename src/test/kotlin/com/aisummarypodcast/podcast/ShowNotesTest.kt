@@ -10,7 +10,6 @@ import com.aisummarypodcast.store.PostArticleRepository
 import com.aisummarypodcast.tts.TtsPipeline
 import io.mockk.mockk
 import org.springframework.context.ApplicationEventPublisher
-import org.springframework.jdbc.core.simple.JdbcClient
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
@@ -28,7 +27,6 @@ class ShowNotesTest {
     private val postArticleRepository = mockk<PostArticleRepository>()
     private val episodeSourcesGenerator = mockk<EpisodeSourcesGenerator>()
     private val eventPublisher = mockk<ApplicationEventPublisher>(relaxed = true)
-    private val jdbcClient = mockk<JdbcClient>(relaxed = true)
 
     private val articleEligibilityService = mockk<com.aisummarypodcast.llm.ArticleEligibilityService>()
 
@@ -36,8 +34,7 @@ class ShowNotesTest {
         episodeRepository, podcastRepository, ttsPipeline,
         episodeArticleRepository, articleRepository,
         episodeRecapGenerator, modelResolver, postArticleRepository,
-        episodeSourcesGenerator, articleEligibilityService, eventPublisher,
-        jdbcClient
+        episodeSourcesGenerator, articleEligibilityService, eventPublisher
     )
 
     private val buildShowNotes: Method = EpisodeService::class.java

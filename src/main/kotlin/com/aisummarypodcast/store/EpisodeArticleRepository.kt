@@ -4,7 +4,7 @@ import org.springframework.data.jdbc.repository.query.Query
 import org.springframework.data.repository.CrudRepository
 import com.aisummarypodcast.store.Article
 
-interface EpisodeArticleRepository : CrudRepository<EpisodeArticle, Long> {
+interface EpisodeArticleRepository : CrudRepository<EpisodeArticle, Long>, EpisodeArticleRepositoryCustom {
 
     @Query("SELECT * FROM episode_articles WHERE episode_id = :episodeId")
     fun findByEpisodeId(episodeId: Long): List<EpisodeArticle>

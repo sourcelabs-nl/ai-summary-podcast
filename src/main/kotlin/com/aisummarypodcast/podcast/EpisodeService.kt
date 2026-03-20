@@ -19,7 +19,6 @@ import org.slf4j.LoggerFactory
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.boot.context.event.ApplicationReadyEvent
 import org.springframework.context.event.EventListener
-import org.springframework.jdbc.core.simple.JdbcClient
 import org.springframework.scheduling.annotation.Async
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -37,8 +36,7 @@ class EpisodeService(
     private val postArticleRepository: PostArticleRepository,
     private val episodeSourcesGenerator: EpisodeSourcesGenerator,
     private val articleEligibilityService: ArticleEligibilityService,
-    private val eventPublisher: ApplicationEventPublisher,
-    private val jdbcClient: JdbcClient
+    private val eventPublisher: ApplicationEventPublisher
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -291,37 +289,7 @@ class EpisodeService(
     }
 
     fun findArticlesForEpisode(episodeId: Long): List<EpisodeArticleResponse> {
-        return jdbcClient.sql(
-            """
-            SELECT a.id, a.title, a.url, a.author, a.published_at, a.relevance_score, a.summary, a.body,
-                   s.id AS source_id, s.type AS source_type, s.url AS source_url, s.label AS source_label
-            FROM episode_articles ea
-            JOIN articles a ON ea.article_id = a.id
-            JOIN sources s ON a.source_id = s.id
-            WHERE ea.episode_id = :episodeId
-            ORDER BY a.relevance_score DESC NULLS LAST
-            """.trimIndent()
-        )
-            .param("episodeId", episodeId)
-            .query { rs, _ ->
-                EpisodeArticleResponse(
-                    id = rs.getLong("id"),
-                    title = rs.getString("title"),
-                    url = rs.getString("url"),
-                    author = rs.getString("author"),
-                    publishedAt = rs.getString("published_at"),
-                    relevanceScore = rs.getObject("relevance_score") as? Int,
-                    summary = rs.getString("summary"),
-                    body = rs.getString("body"),
-                    source = ArticleSourceResponse(
-                        id = rs.getString("source_id"),
-                        type = rs.getString("source_type"),
-                        url = rs.getString("source_url"),
-                        label = rs.getString("source_label")
-                    )
-                )
-            }
-            .list()
+        return episodeArticleRepository.findArticlesWithSourcesByEpisodeId(episodeId)
     }
 
     fun regenerateAllShowNotes(): Map<String, Int> {
