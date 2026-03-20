@@ -6,7 +6,6 @@ import com.aisummarypodcast.store.Article
 
 interface EpisodeArticleRepository : CrudRepository<EpisodeArticle, Long>, EpisodeArticleRepositoryCustom {
 
-    @Query("SELECT * FROM episode_articles WHERE episode_id = :episodeId")
     fun findByEpisodeId(episodeId: Long): List<EpisodeArticle>
 
     // Status values must match EpisodeStatus enum names

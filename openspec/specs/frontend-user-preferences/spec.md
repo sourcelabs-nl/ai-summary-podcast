@@ -7,11 +7,11 @@ Frontend settings page for user profile editing and API key management, accessib
 ## Requirements
 
 ### Requirement: Settings page route
-The frontend SHALL provide a settings page at the `/settings` route. The page SHALL display two sections: Profile and API Keys.
+The frontend SHALL provide a settings page at the `/settings` route. The page SHALL display three tabs: Profile, API Keys, and Publishing.
 
 #### Scenario: Navigate to settings
 - **WHEN** the user clicks the gear icon in the header
-- **THEN** the app navigates to `/settings` and displays the settings page with Profile and API Keys sections
+- **THEN** the app navigates to `/settings` and displays the settings page with three tabs: Profile, API Keys, and Publishing
 
 ### Requirement: Profile section
 The settings page SHALL display a Profile section with an editable name field and a Save button. The name field SHALL be pre-filled with the current user's name from the user context. Saving SHALL call `PUT /users/{userId}` with the updated name. After a successful save, the user context SHALL be refreshed to reflect the updated name.
@@ -32,7 +32,7 @@ The settings page SHALL display an API Keys section with a security notice: "All
 - **THEN** the API Keys section displays the encryption security notice with a lock icon
 
 ### Requirement: Provider config list
-The API Keys section SHALL display a unified list of all configured providers for the selected user, fetched from `GET /users/{userId}/api-keys`. Each row SHALL show the provider name, category badge (LLM or TTS), base URL, and icon-only action buttons (Edit, Remove). The category badge SHALL use the `default` variant for LLM and `outline` variant for TTS to visually distinguish them. The Edit button SHALL include a `title` attribute "Edit provider". The Remove button SHALL include a `title` attribute "Remove provider".
+The API Keys section SHALL display a list of configured providers for the selected user, fetched from `GET /users/{userId}/api-keys`, filtering out providers with the PUBLISHING category (those are managed on the Publishing tab). Each row SHALL show the provider name, category badge (LLM or TTS), base URL, and icon-only action buttons (Edit, Remove). The category badge SHALL use the `default` variant for LLM and `outline` variant for TTS to visually distinguish them. The Edit button SHALL include a `title` attribute "Edit provider". The Remove button SHALL include a `title` attribute "Remove provider".
 
 #### Scenario: Display configured providers
 - **WHEN** the settings page loads and the user has configured providers
@@ -83,3 +83,21 @@ The settings page SHALL provide an Edit button on each provider row that opens t
 #### Scenario: Update only base URL
 - **WHEN** the user edits a provider, changes only the base URL, and leaves the API key empty
 - **THEN** the system calls `PUT /users/{userId}/api-keys/{category}` with the new base URL and null apiKey (preserving the existing key)
+
+### Requirement: Feedback via sonner toasts
+All save, test, and delete actions on the settings page SHALL display feedback using sonner toasts (not inline alerts or other notification patterns). Success actions SHALL show a success toast; errors SHALL show an error toast with the error message.
+
+#### Scenario: Successful save shows toast
+- **WHEN** the user saves profile or API key changes successfully
+- **THEN** a sonner success toast is displayed
+
+#### Scenario: Error shows toast
+- **WHEN** a save or test action fails
+- **THEN** a sonner error toast is displayed with the error message
+
+### Requirement: Publishing tab
+The settings page SHALL include a Publishing tab for managing publishing-related provider configurations (e.g., SoundCloud, podcast hosting). This tab manages providers with the PUBLISHING category, which are filtered out of the API Keys tab.
+
+#### Scenario: Publishing tab displayed
+- **WHEN** the user navigates to the settings page
+- **THEN** a "Publishing" tab is available alongside Profile and API Keys

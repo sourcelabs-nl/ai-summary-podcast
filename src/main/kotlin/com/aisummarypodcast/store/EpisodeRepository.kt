@@ -5,10 +5,8 @@ import org.springframework.data.repository.CrudRepository
 
 interface EpisodeRepository : CrudRepository<Episode, Long> {
 
-    @Query("SELECT * FROM episodes WHERE podcast_id = :podcastId")
     fun findByPodcastId(podcastId: String): List<Episode>
 
-    @Query("SELECT * FROM episodes WHERE podcast_id = :podcastId AND status = :status")
     fun findByPodcastIdAndStatus(podcastId: String, status: String): List<Episode>
 
     @Query("SELECT * FROM episodes WHERE podcast_id = :podcastId AND status IN (:statuses)")
@@ -37,6 +35,5 @@ interface EpisodeRepository : CrudRepository<Episode, Long> {
     @Query("SELECT * FROM episodes WHERE podcast_id = :podcastId AND status = 'GENERATED' ORDER BY generated_at DESC LIMIT :limit")
     fun findRecentGeneratedByPodcastId(podcastId: String, limit: Int): List<Episode>
 
-    @Query("SELECT * FROM episodes WHERE status = :status")
     fun findByStatus(status: String): List<Episode>
 }

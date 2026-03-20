@@ -7,7 +7,7 @@ Per-podcast briefing generation pipeline, including podcast-scoped scheduling, L
 ## Requirements
 
 ### Requirement: Briefing generation uses per-podcast schedule
-The `BriefingGenerationScheduler` SHALL launch a coroutine loop on `ApplicationReadyEvent` that runs every 60 seconds, using its own `CoroutineScope(Dispatchers.Default + SupervisorJob())` so it runs independently from other schedulers (e.g., source polling) and cannot be starved by them. The scope SHALL be cancelled on `@PreDestroy` for graceful shutdown. Each iteration SHALL query all podcasts, evaluate each podcast's `cron` expression against the current time and `last_generated_at`, and trigger the pipeline for podcasts that are due. When a podcast has `requireReview = true`, the scheduler SHALL skip generation if an episode with status `PENDING_REVIEW` or `APPROVED` already exists for that podcast. The scheduler SHALL skip any cron trigger whose scheduled time is more than 30 minutes before the current time, logging a WARN-level message for each skipped trigger. The scheduler SHALL advance through all stale triggers to find the next actionable one without modifying `last_generated_at`.
+The `BriefingGenerationScheduler` SHALL launch a coroutine loop on `ApplicationReadyEvent` that runs every 60 seconds, using its own `CoroutineScope(Dispatchers.IO + SupervisorJob())` so it runs independently from other schedulers (e.g., source polling) and cannot be starved by them. The scope SHALL be cancelled on `@PreDestroy` for graceful shutdown. Each iteration SHALL query all podcasts, evaluate each podcast's `cron` expression against the current time and `last_generated_at`, and trigger the pipeline for podcasts that are due. The scheduler SHALL skip generation for any podcast that has an active episode (status `GENERATING`, `PENDING_REVIEW`, or `APPROVED`). The scheduler SHALL skip any cron trigger whose scheduled time is more than 30 minutes before the current time, logging a WARN-level message for each skipped trigger. The scheduler SHALL advance through all stale triggers to find the next actionable one without modifying `last_generated_at`.
 
 #### Scenario: Scheduled briefing respects individual cron expressions
 - **WHEN** the scheduler runs and podcast A (cron: daily 06:00, last generated yesterday) and podcast B (cron: daily 18:00, last generated today at 18:00) exist, and it is currently 06:05
@@ -21,17 +21,13 @@ The `BriefingGenerationScheduler` SHALL launch a coroutine loop on `ApplicationR
 - **WHEN** the scheduler runs and a podcast has `last_generated_at` set to null and its cron expression indicates it should have run already today
 - **THEN** the system triggers the pipeline for that podcast
 
-#### Scenario: Scheduled briefing skips when pending review exists
-- **WHEN** the scheduler runs and a podcast with `requireReview = true` is due for generation, but an episode with status `PENDING_REVIEW` already exists for that podcast
-- **THEN** the system skips generation for that podcast
+#### Scenario: Scheduled briefing skips when active episode exists
+- **WHEN** the scheduler runs and a podcast is due for generation, but an episode with status `GENERATING`, `PENDING_REVIEW`, or `APPROVED` already exists for that podcast
+- **THEN** the system skips generation for that podcast (regardless of the podcast's `requireReview` setting)
 
-#### Scenario: Scheduled briefing skips when approved episode exists
-- **WHEN** the scheduler runs and a podcast with `requireReview = true` is due for generation, but an episode with status `APPROVED` already exists for that podcast
-- **THEN** the system skips generation for that podcast
-
-#### Scenario: Scheduled briefing generates when review required but no pending
-- **WHEN** the scheduler runs and a podcast with `requireReview = true` is due for generation, and no episode with status `PENDING_REVIEW` or `APPROVED` exists for that podcast
-- **THEN** the system triggers the pipeline and creates an episode with status `PENDING_REVIEW`
+#### Scenario: Scheduled briefing generates when no active episode
+- **WHEN** the scheduler runs and a podcast is due for generation, and no episode with status `GENERATING`, `PENDING_REVIEW`, or `APPROVED` exists for that podcast
+- **THEN** the system triggers the pipeline for that podcast
 
 #### Scenario: Missed trigger is skipped when system was down
 - **WHEN** the scheduler runs and a podcast (cron: daily 15:00, last generated yesterday at 15:00) exists, and the current time is today at 18:00 (3 hours past the trigger)
@@ -107,7 +103,7 @@ The `TtsPipeline` SHALL use the podcast's `tts_voice` and `tts_speed` settings w
 - **THEN** the system creates the `data/episodes/{podcastId}/` directory before saving the audio file
 
 ### Requirement: Manual briefing generation per podcast
-The system SHALL allow triggering briefing generation for a specific podcast via REST API, bypassing the cron schedule. When the podcast has `requireReview = true`, the manual trigger SHALL create an episode with status `PENDING_REVIEW` instead of immediately generating audio. The manual trigger SHALL return HTTP 409 (Conflict) if a `PENDING_REVIEW` or `APPROVED` episode already exists.
+The system SHALL allow triggering briefing generation for a specific podcast via REST API, bypassing the cron schedule. When the podcast has `requireReview = true`, the manual trigger SHALL create an episode with status `PENDING_REVIEW` instead of immediately generating audio. When the podcast has an active episode (status `GENERATING`, `PENDING_REVIEW`, or `APPROVED`), the service SHALL return `GenerateBriefingResult(episode = null)` and the controller SHALL return HTTP 200 with a message indicating no relevant articles to process.
 
 #### Scenario: Trigger manual briefing without review
 - **WHEN** a `POST /users/{userId}/podcasts/{podcastId}/generate` request is received for a podcast with `requireReview = false`
@@ -117,9 +113,9 @@ The system SHALL allow triggering briefing generation for a specific podcast via
 - **WHEN** a `POST /users/{userId}/podcasts/{podcastId}/generate` request is received for a podcast with `requireReview = true`
 - **THEN** the system runs the LLM pipeline, saves the script as an episode with status `PENDING_REVIEW`, and returns HTTP 200 indicating a script is ready for review
 
-#### Scenario: Trigger manual briefing when pending exists
-- **WHEN** a `POST /users/{userId}/podcasts/{podcastId}/generate` request is received for a podcast with `requireReview = true` and a `PENDING_REVIEW` or `APPROVED` episode already exists
-- **THEN** the system returns HTTP 409 (Conflict) indicating a pending script must be approved or discarded first
+#### Scenario: Trigger manual briefing when active episode exists
+- **WHEN** a `POST /users/{userId}/podcasts/{podcastId}/generate` request is received and the podcast has an active episode (status `GENERATING`, `PENDING_REVIEW`, or `APPROVED`)
+- **THEN** the service returns `GenerateBriefingResult(episode = null)` and the controller returns HTTP 200 with message "No relevant articles to process"
 
 #### Scenario: Trigger manual briefing for non-existing podcast
 - **WHEN** a `POST /users/{userId}/podcasts/{podcastId}/generate` request is received for a podcast that does not exist
@@ -130,11 +126,11 @@ The system SHALL allow triggering briefing generation for a specific podcast via
 - **THEN** the system returns HTTP 200 with a message indicating no relevant articles to process
 
 ### Requirement: Failed episode creation on generation errors
-When the briefing generation pipeline throws an exception (e.g., invalid model configuration, LLM API errors), the system SHALL create an episode with status `FAILED` and store the error message in the `errorMessage` field. The podcast's `lastGeneratedAt` SHALL be updated to prevent the scheduler from retrying the same failed trigger indefinitely. An `episode.failed` event SHALL be published so connected clients are notified. `PodcastService.generateBriefing()` SHALL return a `GenerateBriefingResult` containing the episode (or null), a `failed` flag, and an optional error message.
+When the briefing generation pipeline throws an exception (e.g., invalid model configuration, LLM API errors), the system SHALL create an episode with status `FAILED` and store the error message in the `errorMessage` field. The podcast's `lastGeneratedAt` SHALL already have been set when the GENERATING episode was created at pipeline start. An `episode.failed` event SHALL be published so connected clients are notified. `PodcastService.generateBriefing()` SHALL return a `GenerateBriefingResult` containing the episode (or null), a `failed` flag, and an optional error message.
 
 #### Scenario: Pipeline error creates failed episode (scheduler)
 - **WHEN** the scheduler triggers briefing generation for a podcast and the LLM pipeline throws an exception (e.g., unknown model name)
-- **THEN** a FAILED episode is created with the error message, `lastGeneratedAt` is updated, an `episode.failed` event is published, and the scheduler logs the failure without retrying
+- **THEN** the GENERATING episode is transitioned to FAILED with the error message (`lastGeneratedAt` was already set at pipeline start), an `episode.failed` event is published, and the scheduler logs the failure without retrying
 
 #### Scenario: Pipeline error creates failed episode (manual trigger)
 - **WHEN** a `POST /users/{userId}/podcasts/{podcastId}/generate` request is received and the LLM pipeline throws an exception
@@ -145,7 +141,7 @@ When the briefing generation pipeline throws an exception (e.g., invalid model c
 - **THEN** the episode appears in the episode list with status `FAILED` and the error message is visible on the episode detail page
 
 ### Requirement: Early episode creation with GENERATING status
-The pipeline SHALL create an episode row with status `GENERATING` and empty script text at the start of generation, before any LLM calls. The episode's `pipelineStage` field SHALL be updated as the pipeline progresses through stages (`aggregating`, `scoring`, `deduplicating`, `composing`, `tts`). On successful completion, the episode SHALL be updated with the final script, costs, token usage, and transitioned to `PENDING_REVIEW` or `GENERATED`. On failure, the episode SHALL be transitioned to `FAILED` with an error message.
+The pipeline SHALL create an episode row with status `GENERATING` and empty script text at the start of generation, before any LLM calls. The podcast's `lastGeneratedAt` SHALL be set at this point (when the GENERATING episode is created), not on completion. The episode's `pipelineStage` field SHALL be updated as the pipeline progresses through stages (`aggregating`, `scoring`, `deduplicating`, `composing`, `tts`). On successful completion, the episode SHALL be updated with the final script, costs, token usage, and transitioned to `PENDING_REVIEW` or `GENERATED`. On failure, the episode SHALL be transitioned to `FAILED` with an error message.
 
 #### Scenario: Episode created at pipeline start
 - **WHEN** a podcast generation is triggered

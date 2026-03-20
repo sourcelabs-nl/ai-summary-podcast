@@ -16,7 +16,7 @@ The system SHALL provide a settings page at `/podcasts/[podcastId]/settings` tha
 - **THEN** the page displays "Podcast not found."
 
 ### Requirement: Settings sub-tabs
-The settings form SHALL be organized into four sub-tabs: General, LLM, TTS, and Content. The General tab SHALL be the default active tab.
+The settings form SHALL be organized into five sub-tabs: General, LLM, TTS, Content, and Publishing. The General tab SHALL be the default active tab.
 
 #### Scenario: General tab fields
 - **WHEN** the General tab is active
@@ -32,7 +32,9 @@ The settings form SHALL be organized into four sub-tabs: General, LLM, TTS, and 
 
 #### Scenario: Content tab fields
 - **WHEN** the Content tab is active
-- **THEN** the form displays editable fields for: targetWords (number), fullBodyThreshold (number), maxArticleAgeDays (number), sponsor (key-value editor), pronunciations (key-value editor)
+- **THEN** the form displays editable fields for: targetWords (number), fullBodyThreshold (number), maxArticleAgeDays (number), recapLookbackEpisodes (number), sponsor (key-value editor), pronunciations (key-value editor)
+
+> **Known gap:** `recapLookbackEpisodes` is present in the backend API but is not yet included in the settings form. It should be added to the Content tab as a number field.
 
 ### Requirement: LLM model selector
 The LLM Models field SHALL display a per-stage model selector for the `filter` and `compose` pipeline stages. For each stage, the selector SHALL show: a provider dropdown (populated from `availableModels` providers that have at least one LLM-type model), and a model dropdown (populated from the selected provider's LLM-type models from `availableModels`). The system default for each stage SHALL be displayed below the selector (e.g., "Default: openrouter / anthropic/claude-sonnet-4.6"). When no override is set for a stage, the dropdowns SHALL show the default values as placeholder text.
@@ -100,11 +102,11 @@ Nullable number fields in the settings form SHALL display placeholder text showi
 - **THEN** the placeholder is not visible and the user's value is displayed
 
 ### Requirement: LLM models default hint
-The LLM Models key-value editor SHALL display a helper text below it showing the system default model assignments fetched from the `GET /config/defaults` endpoint.
+The LLM Models selector SHALL display a "Using system default" hint per-stage when no override is set, with the actual default model information fetched from the `GET /config/defaults` endpoint.
 
 #### Scenario: Default models displayed
 - **WHEN** the LLM tab is active and defaults have been loaded
-- **THEN** a helper text is displayed below the editor listing default model assignments (e.g., "System defaults: filter = openai/gpt-4o-mini, compose = anthropic/claude-sonnet-4.6")
+- **THEN** a helper text is displayed below each stage's selector showing "Using system default" when no override is set for that stage
 
 #### Scenario: Defaults not loaded
 - **WHEN** the defaults endpoint fails or has not loaded yet

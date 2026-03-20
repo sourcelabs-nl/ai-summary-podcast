@@ -6,7 +6,6 @@ import org.springframework.data.repository.CrudRepository
 
 interface LlmCacheRepository : CrudRepository<LlmCache, Long> {
 
-    @Query("SELECT * FROM llm_cache WHERE prompt_hash = :promptHash AND model = :model")
     fun findByPromptHashAndModel(promptHash: String, model: String): LlmCache?
 
     @Modifying

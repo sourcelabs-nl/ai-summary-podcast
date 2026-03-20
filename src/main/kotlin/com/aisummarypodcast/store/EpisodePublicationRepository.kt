@@ -5,10 +5,8 @@ import org.springframework.data.repository.CrudRepository
 
 interface EpisodePublicationRepository : CrudRepository<EpisodePublication, Long> {
 
-    @Query("SELECT * FROM episode_publications WHERE episode_id = :episodeId")
     fun findByEpisodeId(episodeId: Long): List<EpisodePublication>
 
-    @Query("SELECT * FROM episode_publications WHERE episode_id = :episodeId AND target = :target")
     fun findByEpisodeIdAndTarget(episodeId: Long, target: String): EpisodePublication?
 
     // Status values must match EpisodeStatus enum names

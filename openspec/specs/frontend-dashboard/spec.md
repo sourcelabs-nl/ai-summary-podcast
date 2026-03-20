@@ -47,7 +47,7 @@ The system SHALL display a vertical list of all podcasts for the selected user a
 - **THEN** an empty state message is displayed
 
 ### Requirement: Episode list page
-The system SHALL display a list of episodes for a podcast at `/podcasts/{podcastId}` within a tabbed layout, fetched from `GET /users/{userId}/podcasts/{podcastId}/episodes`. Each episode row SHALL be a clickable link that navigates to `/podcasts/{podcastId}/episodes/{episodeId}`. Each episode row SHALL show the episode ID, generated date, day of week (short format), status badge, and action buttons. The episodes list SHALL be displayed under the "Episodes" tab, which is the default active tab. A "Publications" tab SHALL be displayed alongside it. The Date column SHALL have a fixed width. All badge text SHALL be consistently lowercased. The podcast detail header SHALL display the podcast name with the style badge inline next to it, and an icon-only "Settings" button right-aligned. The podcast detail header SHALL display the topic and cron schedule combined on one line in `text-sm` format, with the cron schedule in human-readable form separated by a dot separator (e.g., `{topic} · at 03:00 PM, Monday through Friday`). The status filter SHALL be integrated into the Status column header as a dropdown menu, rather than as a standalone select component above the table. All action buttons (Settings, Details, Publish, Approve) SHALL be icon-only using `size="icon-lg"` with `title` attributes for hover tooltips. Destructive buttons (Discard) SHALL keep the `destructive` variant, be icon-only, and include a `title` attribute. Episodes with status `GENERATING` SHALL be displayed as the first row with a spinner icon and the current pipeline stage text (e.g., "Scoring articles..."). GENERATING episodes SHALL NOT have action buttons (approve, discard, regenerate). The row SHALL use a subtle visual indicator (e.g., primary border highlight) to distinguish it from completed episodes.
+The system SHALL display a list of episodes for a podcast at `/podcasts/{podcastId}` within a tabbed layout, fetched from `GET /users/{userId}/podcasts/{podcastId}/episodes`. Each episode row SHALL be a clickable link that navigates to `/podcasts/{podcastId}/episodes/{episodeId}`. Each episode row SHALL show the episode ID, generated date, day of week (short format), status badge, and action buttons. The episodes list SHALL be displayed under the "Episodes" tab, which is the default active tab. A "Publications" tab SHALL be displayed alongside it. The Date column SHALL have a fixed width. All badge text SHALL be consistently lowercased. The podcast detail header SHALL display the podcast name with the style badge inline next to it, and an icon-only "Settings" button right-aligned. The podcast detail header SHALL display the topic and cron schedule combined on one line in `text-sm` format, with the cron schedule in human-readable form separated by a dot separator (e.g., `{topic} · at 03:00 PM, Monday through Friday`). The status filter SHALL be integrated into the Status column header as a dropdown menu, rather than as a standalone select component above the table. All action buttons (Settings, Details, Publish, Approve) SHALL be icon-only using `size="icon-lg"` with `title` attributes for hover tooltips. Destructive buttons (Discard) SHALL keep the `destructive` variant, be icon-only, and include a `title` attribute. Episodes with status `GENERATING` SHALL be displayed as the first row with a spinner icon and the current pipeline stage text in abbreviated form (e.g., "Scoring..."). GENERATING episodes SHALL NOT have action buttons (approve, discard, regenerate). The row SHALL use a subtle visual indicator (e.g., primary border highlight) to distinguish it from completed episodes.
 
 #### Scenario: Click episode row navigates to detail page
 - **WHEN** user clicks on an episode row
@@ -59,7 +59,7 @@ The system SHALL display a list of episodes for a podcast at `/podcasts/{podcast
 
 #### Scenario: GENERATING episode in list
 - **WHEN** an episode has status `GENERATING` with `pipelineStage` "scoring"
-- **THEN** it appears as the first row with a spinner and "Scoring articles..." text, no action buttons
+- **THEN** it appears as the first row with a spinner and "Scoring..." text (abbreviated stage name), no action buttons
 
 #### Scenario: GENERATING episode transitions to complete
 - **WHEN** a GENERATING episode's status changes to `PENDING_REVIEW` or `GENERATED` via SSE event
@@ -104,6 +104,10 @@ The system SHALL display a list of episodes for a podcast at `/podcasts/{podcast
 #### Scenario: Show all episodes via header dropdown
 - **WHEN** user clicks the Status column header and selects "All statuses" from the dropdown menu
 - **THEN** all episodes for the podcast are displayed
+
+#### Scenario: GENERATING status in filter dropdown
+- **WHEN** the status filter dropdown is opened
+- **THEN** `GENERATING` is included as a selectable status option alongside other statuses
 
 #### Scenario: Status header dropdown shows active filter
 - **WHEN** the status filter dropdown is opened
@@ -229,6 +233,6 @@ All tabbed pages SHALL sync the active tab with a `?tab=X` URL query parameter. 
 - **WHEN** any of the 4 tabbed pages is loaded
 - **THEN** tab state is synced with `?tab` query parameter:
   - `/podcasts/{podcastId}` — episodes (default), publications, sources
-  - `/podcasts/{podcastId}/settings` — general (default), llm, tts, content
+  - `/podcasts/{podcastId}/settings` — general (default), llm, tts, content, publishing
   - `/podcasts/{podcastId}/upcoming` — articles (default), script
   - `/podcasts/{podcastId}/episodes/{episodeId}` — script (default), articles, publications

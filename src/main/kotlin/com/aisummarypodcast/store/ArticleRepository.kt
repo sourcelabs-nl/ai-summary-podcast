@@ -18,11 +18,8 @@ interface ArticleRepository : CrudRepository<Article, Long>, ArticleRepositoryCu
     @Query("SELECT * FROM articles WHERE source_id IN (:sourceIds) AND is_processed = 0 AND published_at >= :since")
     fun findUnprocessedSince(sourceIds: List<String>, since: String): List<Article>
 
-    @Query("SELECT * FROM articles WHERE source_id = :sourceId AND content_hash = :contentHash")
     fun findBySourceIdAndContentHash(sourceId: String, contentHash: String): Article?
 
-    @Modifying
-    @Query("DELETE FROM articles WHERE source_id = :sourceId")
     fun deleteBySourceId(sourceId: String)
 
     @Modifying

@@ -108,14 +108,14 @@ class OAuthConnectionServiceTest {
 
     @Test
     fun `deleteConnection returns true when deleted`() {
-        every { repository.deleteByUserIdAndProvider("user1", "soundcloud") } returns 1
+        every { repository.deleteByUserIdAndProvider("user1", "soundcloud") } returns 1L
 
         assertTrue(service.deleteConnection("user1", "soundcloud"))
     }
 
     @Test
     fun `deleteConnection returns false when not found`() {
-        every { repository.deleteByUserIdAndProvider("user1", "soundcloud") } returns 0
+        every { repository.deleteByUserIdAndProvider("user1", "soundcloud") } returns 0L
 
         assertFalse(service.deleteConnection("user1", "soundcloud"))
     }

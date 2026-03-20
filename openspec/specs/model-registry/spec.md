@@ -37,7 +37,7 @@ The system SHALL support mapping pipeline stages to model defaults in `applicati
 - **THEN** the system SHALL throw an error at pipeline runtime when the filter stage is invoked
 
 ### Requirement: Model resolution for a pipeline stage
-The system SHALL resolve the model for a given pipeline stage using the following resolution chain: (1) check the podcast's `llm_models` JSON for a stage-specific override containing `{provider, model}`, (2) fall back to the global stage default from `app.llm.defaults`. The resulting `{provider, model}` pair SHALL be looked up in `app.models[provider][model]`. If the model is not found, the system SHALL throw an `IllegalArgumentException`.
+The system SHALL resolve the model for a given pipeline stage using the following resolution chain: (1) check the podcast's `llm_models` JSON for a stage-specific override containing `{provider, model}`, (2) fall back to the global stage default from `app.llm.defaults`. The resulting `{provider, model}` pair SHALL be looked up in `app.models[provider][model]`. If the model is not found, the system SHALL return a `ResolvedModel` with `cost = null` (rather than throwing an exception).
 
 #### Scenario: Podcast override takes precedence
 - **WHEN** a podcast has `llm_models` set to `{"compose": {"provider": "openrouter", "model": "anthropic/claude-opus-4.6"}}` and the global default for compose is a different model
@@ -51,6 +51,6 @@ The system SHALL resolve the model for a given pipeline stage using the followin
 - **WHEN** a podcast has `llm_models` set to `{"compose": {"provider": "openrouter", "model": "anthropic/claude-opus-4.6"}}` (no filter override) and the global default for filter is `{provider: openrouter, model: openai/gpt-5.4-nano}`
 - **THEN** the filter stage uses `openai/gpt-5.4-nano` and the compose stage uses `anthropic/claude-opus-4.6`
 
-#### Scenario: Unknown model name fails loudly
+#### Scenario: Unknown model name returns null cost
 - **WHEN** a podcast has `llm_models` set to `{"filter": {"provider": "openrouter", "model": "nonexistent"}}` and no such model exists under `app.models.openrouter`
-- **THEN** the system throws an `IllegalArgumentException` with a message indicating the unknown model
+- **THEN** the system returns a `ResolvedModel` with `cost = null` (the pipeline proceeds without cost tracking for that stage)

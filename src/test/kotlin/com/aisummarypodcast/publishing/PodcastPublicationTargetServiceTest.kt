@@ -81,14 +81,14 @@ class PodcastPublicationTargetServiceTest {
 
     @Test
     fun `delete returns true when target exists`() {
-        every { repository.deleteByPodcastIdAndTarget("pod1", "ftp") } returns 1
+        every { repository.deleteByPodcastIdAndTarget("pod1", "ftp") } returns 1L
 
         assertTrue(service.delete("pod1", "ftp"))
     }
 
     @Test
     fun `delete returns false when target does not exist`() {
-        every { repository.deleteByPodcastIdAndTarget("pod1", "ftp") } returns 0
+        every { repository.deleteByPodcastIdAndTarget("pod1", "ftp") } returns 0L
 
         assertFalse(service.delete("pod1", "ftp"))
     }

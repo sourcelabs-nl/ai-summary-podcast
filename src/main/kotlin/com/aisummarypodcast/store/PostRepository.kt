@@ -6,7 +6,6 @@ import org.springframework.data.repository.CrudRepository
 
 interface PostRepository : CrudRepository<Post, Long>, PostRepositoryCustom {
 
-    @Query("SELECT * FROM posts WHERE source_id = :sourceId AND content_hash = :contentHash")
     fun findBySourceIdAndContentHash(sourceId: String, contentHash: String): Post?
 
     @Query("SELECT * FROM posts WHERE content_hash = :contentHash AND source_id IN (:sourceIds) LIMIT 1")
@@ -40,7 +39,5 @@ interface PostRepository : CrudRepository<Post, Long>, PostRepositoryCustom {
     """)
     fun deleteOldUnlinkedPosts(cutoff: String)
 
-    @Modifying
-    @Query("DELETE FROM posts WHERE source_id = :sourceId")
     fun deleteBySourceId(sourceId: String)
 }
