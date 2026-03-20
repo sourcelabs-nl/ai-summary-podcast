@@ -46,95 +46,36 @@ Each user can create multiple podcasts, each with its own sources, topic, langua
 
 ```bash
 export APP_ENCRYPTION_MASTER_KEY=<base64-encoded 256-bit AES key>
-
-# LLM provider (global fallback)
-export OPENROUTER_API_KEY=<your-openrouter-key>
-
-# TTS providers (global fallbacks — at least one)
-export OPENAI_API_KEY=<your-openai-key>
-export ELEVENLABS_API_KEY=<your-elevenlabs-key>
-
-# SoundCloud publishing (optional)
-export APP_SOUNDCLOUD_CLIENT_ID=<your-soundcloud-client-id>
-export APP_SOUNDCLOUD_CLIENT_SECRET=<your-soundcloud-client-secret>
-
-# X/Twitter polling (optional — requires X Developer Basic tier)
-export APP_X_CLIENT_ID=<your-x-client-id>
-export APP_X_CLIENT_SECRET=<your-x-client-secret>
 ```
 
 3. Allow the file: `direnv allow`
 
 Generate an encryption key: `openssl rand -base64 32`
 
-`APP_ENCRYPTION_MASTER_KEY` is required. `OPENROUTER_API_KEY`, `OPENAI_API_KEY`, and `ELEVENLABS_API_KEY` serve as global fallbacks for their respective providers — they are used when a user has not configured their own provider keys via the API. Users can override these by setting per-user provider configs. `APP_SOUNDCLOUD_CLIENT_ID` and `APP_SOUNDCLOUD_CLIENT_SECRET` are optional — only needed if you want to publish episodes to SoundCloud. `APP_X_CLIENT_ID` and `APP_X_CLIENT_SECRET` are optional — only needed if you want to poll X (Twitter) accounts as content sources (requires an [X Developer](https://developer.x.com/) Basic tier account).
+`APP_ENCRYPTION_MASTER_KEY` is the only required environment variable. It is used to encrypt API keys stored in the database.
+
+All other credentials (LLM providers, TTS providers, publishing targets) are managed per-user via the web dashboard or the [Provider Configuration API](#provider-configuration). Optionally, you can set environment variables as global fallbacks for users who haven't configured their own keys:
+
+| Variable | Purpose |
+|----------|---------|
+| `OPENROUTER_API_KEY` | Global fallback for OpenRouter LLM provider |
+| `OPENAI_API_KEY` | Global fallback for OpenAI TTS provider |
+| `ELEVENLABS_API_KEY` | Global fallback for ElevenLabs TTS provider |
+| `APP_SOUNDCLOUD_CLIENT_ID` / `APP_SOUNDCLOUD_CLIENT_SECRET` | SoundCloud OAuth app credentials (see [Publishing to SoundCloud](#publishing-to-soundcloud)) |
+| `APP_X_CLIENT_ID` / `APP_X_CLIENT_SECRET` | X (Twitter) OAuth app credentials (see [Monitoring X Accounts](#monitoring-x-twitter-accounts)) |
 
 > **Without direnv?** You can alternatively export the variables in your shell profile (e.g. `~/.zshenv`) or source a `.env` file manually before running the app.
 
-### Using Ollama instead of OpenRouter
+### Provider Configuration
 
-To use [Ollama](https://ollama.com/) as the LLM provider, start Ollama locally and pull a model:
+LLM and TTS providers are configured per-user via the **web dashboard** (Settings > API Keys) or the [Provider Configuration API](#provider-configuration). Supported providers:
 
-```bash
-ollama pull llama3
-```
+- **LLM**: `openrouter` (default), `openai`, `ollama`
+- **TTS**: `openai` (default), `elevenlabs`, `inworld`
 
-Then configure a user's LLM provider to use Ollama (no API key needed):
+**Using Ollama (local, free):** Start [Ollama](https://ollama.com/) locally, pull a model (`ollama pull llama3`), then configure it as your LLM provider in the dashboard or via the API. No API key needed, uses `http://localhost:11434/v1` by default.
 
-```bash
-curl -X PUT http://localhost:8085/users/{userId}/api-keys/LLM \
-  -H 'Content-Type: application/json' \
-  -d '{"provider": "ollama"}'
-```
-
-This uses the default Ollama base URL (`http://localhost:11434/v1`). You can omit `OPENROUTER_API_KEY` from `.envrc` if all users are configured with Ollama.
-
-### Using ElevenLabs instead of OpenAI for TTS
-
-[ElevenLabs](https://elevenlabs.io/) offers high-quality voices and multi-speaker dialogue via the Text-to-Dialogue API — ideal for the `dialogue` briefing style. The global `ELEVENLABS_API_KEY` works as a fallback, or users can configure their own API key.
-
-1. **Get an API key** from https://elevenlabs.io/app/settings/api-keys
-
-2. **Configure the user's TTS provider:**
-
-```bash
-curl -X PUT http://localhost:8085/users/{userId}/api-keys/TTS \
-  -H 'Content-Type: application/json' \
-  -d '{"provider": "elevenlabs", "apiKey": "<your-elevenlabs-key>"}'
-```
-
-3. **Discover available voices:**
-
-```bash
-curl http://localhost:8085/users/{userId}/voices?provider=elevenlabs
-```
-
-4. **Create a podcast with ElevenLabs** (monologue or dialogue):
-
-```bash
-# Monologue (single voice)
-curl -X POST http://localhost:8085/users/{userId}/podcasts \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "name": "My Podcast",
-    "topic": "technology",
-    "ttsProvider": "elevenlabs",
-    "ttsVoices": {"default": "<voice_id>"}
-  }'
-
-# Dialogue (multi-speaker)
-curl -X POST http://localhost:8085/users/{userId}/podcasts \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "name": "My Dialogue Podcast",
-    "topic": "technology",
-    "style": "dialogue",
-    "ttsProvider": "elevenlabs",
-    "ttsVoices": {"host": "<voice_id>", "cohost": "<voice_id>"}
-  }'
-```
-
-Long dialogue scripts (over 5000 characters) are automatically split into batches and concatenated via FFmpeg.
+**Using ElevenLabs for TTS:** [ElevenLabs](https://elevenlabs.io/) supports high-quality voices and multi-speaker dialogue/interview styles. Configure it as your TTS provider in the dashboard with your API key, then use `GET /users/{userId}/voices?provider=elevenlabs` to discover available voice IDs.
 
 ### Starting the Application
 
@@ -162,7 +103,7 @@ cd frontend && npm run dev
 The dashboard provides:
 - **User settings** — gear icon in the header opens a settings page to edit your profile name and manage API keys (LLM and TTS provider configs) with a wizard-style dialog. All API keys are stored encrypted
 - **Podcast overview** — browse all podcasts with style badges, topics, and quick-access settings gear icon
-- **Podcast settings** — edit all podcast configuration (general, LLM, TTS, content) via a tabbed settings page with key-value editors for JSON map fields
+- **Podcast settings** — edit all podcast configuration (general, LLM, TTS, content, publishing) via a tabbed settings page with provider/model dropdowns for LLM and TTS selection
 - **Episode management** — view episodes with status filtering, approve/discard/regenerate pending reviews. Click any episode row to open the detail page. Shows the generation schedule in human-readable form
 - **Episode detail page** — dedicated page per episode with tabs for Script (chat-bubble rendering), Articles (grouped by source with relevance scores and collapsible sections), and Publications. Shows episode metadata, recap, and contextual action buttons
 - **Upcoming episode preview** — see collected articles for the next episode, preview the script via Server-Sent Events with real-time progress stages (aggregating, scoring, deduplicating, composing), and trigger episode generation on demand. Shows next scheduled generation time
@@ -186,7 +127,7 @@ Each podcast can be tailored to your preferences via the following settings:
 | `ttsVoices` | `{"default": "nova"}` | Voice configuration — see [TTS Configuration](#tts-configuration) below |
 | `speakerNames` | `null` | Display names for speakers — e.g. `{"interviewer": "Alice", "expert": "Bob"}`. Used in dialogue/interview scripts so speakers address each other by name |
 | `ttsSettings` | — | Provider-specific settings (e.g. `{"speed": "1.25"}` for OpenAI, `{"stability": "0.5"}` for ElevenLabs, `{"model": "inworld-tts-1.5-max", "speed": "1.0", "temperature": "1.1"}` for Inworld) |
-| `llmModels` | — | Override the LLM models per pipeline stage — see [Model Configuration](#model-configuration) below |
+| `llmModels` | — | Override LLM models per stage with `{provider, model}` objects — see [Model Configuration](#model-configuration) |
 | `targetWords` | `1500` | Approximate word count for the briefing script |
 | `cron` | `"0 0 6 * * *"` | Generation schedule in cron format (default: daily at 6 AM) |
 | `customInstructions` | — | Free-form instructions appended to the LLM prompt (e.g. "Focus on recent breakthroughs" or "Avoid financial topics") |
@@ -212,13 +153,13 @@ Each podcast can be tailored to your preferences via the following settings:
 
 ### TTS Configuration
 
-Three TTS providers are supported: **OpenAI** (default), **ElevenLabs**, and **Inworld AI**.
+Three TTS providers are supported: **OpenAI** (default), **ElevenLabs**, and **Inworld AI**. Configure your preferred provider and API key via the web dashboard (Settings > API Keys) or the [Provider Configuration API](#provider-configuration).
 
-**OpenAI** — Works out of the box with the global `OPENAI_API_KEY`. Voices: `alloy`, `echo`, `fable`, `nova`, `onyx`, `shimmer`. Settings: `{"speed": "1.25"}`.
+**OpenAI** — Voices: `alloy`, `echo`, `fable`, `nova`, `onyx`, `shimmer`. Settings: `{"speed": "1.25"}`.
 
-**ElevenLabs** — Uses the global `ELEVENLABS_API_KEY` as fallback, or a per-user key configured via the provider API (see [Setup](#using-elevenlabs-instead-of-openai-for-tts)). Supports single-voice monologue, multi-speaker dialogue, and interview styles. Use `GET /users/{userId}/voices?provider=elevenlabs` to discover available voice IDs.
+**ElevenLabs** — Supports single-voice monologue, multi-speaker dialogue, and interview styles. Use `GET /users/{userId}/voices?provider=elevenlabs` to discover available voice IDs.
 
-**Inworld AI** — Requires per-user API credentials configured via the provider API (JWT key and secret as `key:secret`). Supports monologue, dialogue, and interview styles with rich expressiveness markup (emphasis, non-verbal cues, IPA phonemes). Scripts are automatically post-processed to sanitize LLM output for Inworld (converts double asterisks, strips markdown, removes unsupported tags). Text normalization is enabled on the API as a safety net for numbers/dates. A per-podcast pronunciation dictionary (`pronunciations` field) can map terms to IPA phonemes for correct pronunciation of proper nouns and foreign names. Models: `inworld-tts-1.5-max` (default), `inworld-tts-1.5-mini`. Settings: `{"model": "inworld-tts-1.5-max", "speed": "1.0", "temperature": "0.8"}` (temperature defaults to 0.8 for non-realtime podcast generation). Use `GET /users/{userId}/voices?provider=inworld` to discover available voice IDs.
+**Inworld AI** — Requires JWT key and secret as `key:secret`. Supports monologue, dialogue, and interview styles with rich expressiveness markup (emphasis, non-verbal cues, IPA phonemes). Scripts are automatically post-processed to sanitize LLM output for Inworld. A per-podcast pronunciation dictionary (`pronunciations` field) can map terms to IPA phonemes. Models: `inworld-tts-1.5-max` (default), `inworld-tts-1.5-mini`. Settings: `{"model": "inworld-tts-1.5-max", "speed": "1.0", "temperature": "0.8"}`. Use `GET /users/{userId}/voices?provider=inworld` to discover available voice IDs.
 
 Voice configuration uses the `ttsVoices` map:
 - Monologue: `{"default": "nova"}` (or any ElevenLabs voice ID)
