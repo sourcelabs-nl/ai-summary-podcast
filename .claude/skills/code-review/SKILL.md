@@ -150,6 +150,30 @@ Composer prompts (briefing, dialogue, interview) must include grounding instruct
 - Removal of existing grounding constraints from prompts
 - Prompts that encourage the LLM to add external knowledge or speculation
 
+### 11. Dead Code
+
+Public functions and properties in services, repositories, and utility classes must have at least one caller. Dead code increases maintenance burden and obscures the actual API surface.
+
+**Scope:** Services, repositories (including custom repository implementations), domain classes, and utility classes. **Exclude controllers** from this check, as their public methods are HTTP endpoints invoked by external clients.
+
+**Violations to flag:**
+- Public functions in a service that are never called from any other file (controller, scheduler, other service, or test)
+- Repository methods (including custom repository methods) that are never called from any service or test
+- Public utility or helper functions with zero callers
+- Data class properties that are written but never read outside the class
+
+**How to check:**
+- For each public function in the reviewed file, grep the codebase for its name
+- A function referenced only in its own file (e.g., a private helper calling it) does not count as "used"
+- Test-only usage counts as used (the function is exercised, even if no production code calls it yet)
+- Functions annotated with `@Scheduled`, `@EventListener`, or similar Spring lifecycle annotations are considered used by the framework
+
+**Not a violation:**
+- Controller methods (they are HTTP endpoints)
+- Functions annotated with framework lifecycle annotations (`@Scheduled`, `@EventListener`, `@PostConstruct`)
+- Interface method declarations that are implemented elsewhere
+- Overrides of `CrudRepository` inherited methods
+
 ## Output Format
 
 Group findings by category. For each finding, include:

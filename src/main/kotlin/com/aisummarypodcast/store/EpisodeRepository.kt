@@ -12,13 +12,6 @@ interface EpisodeRepository : CrudRepository<Episode, Long> {
     @Query("SELECT * FROM episodes WHERE podcast_id = :podcastId AND status IN (:statuses)")
     fun findByPodcastIdAndStatusIn(podcastId: String, statuses: List<String>): List<Episode>
 
-    @Query("SELECT * FROM episodes WHERE podcast_id = :podcastId ORDER BY generated_at DESC LIMIT 1")
-    fun findMostRecentByPodcastId(podcastId: String): Episode?
-
-    // Status values must match EpisodeStatus enum names
-    @Query("SELECT * FROM episodes WHERE podcast_id = :podcastId AND recap IS NOT NULL AND status = 'GENERATED' ORDER BY generated_at DESC LIMIT :limit")
-    fun findRecentWithRecapByPodcastId(podcastId: String, limit: Int): List<Episode>
-
     // Status values must match EpisodeStatus enum names
     @Query("""
         SELECT e.* FROM episodes e

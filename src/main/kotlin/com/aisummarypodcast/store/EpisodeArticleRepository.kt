@@ -2,7 +2,6 @@ package com.aisummarypodcast.store
 
 import org.springframework.data.jdbc.repository.query.Query
 import org.springframework.data.repository.CrudRepository
-import com.aisummarypodcast.store.Article
 
 interface EpisodeArticleRepository : CrudRepository<EpisodeArticle, Long>, EpisodeArticleRepositoryCustom {
 
@@ -19,14 +18,4 @@ interface EpisodeArticleRepository : CrudRepository<EpisodeArticle, Long>, Episo
     """)
     fun isArticleLinkedToPublishedEpisode(articleId: Long): Boolean
 
-    // Status values must match EpisodeStatus enum names
-    @Query("""
-        SELECT a.* FROM articles a
-        JOIN episode_articles ea ON ea.article_id = a.id
-        JOIN episodes e ON ea.episode_id = e.id
-        WHERE e.podcast_id = :podcastId
-          AND e.status = 'GENERATED'
-        ORDER BY e.generated_at DESC
-    """)
-    fun findArticlesFromRecentGeneratedEpisodes(podcastId: String): List<Article>
 }
