@@ -346,56 +346,7 @@ class PodcastController(
         if (podcast.userId != userId) return ResponseEntity.notFound().build()
 
         val content = podcastService.getUpcomingContent(podcast)
-        val sourceMap = content.sources.associateBy { it.id }
-
-        val articleResponses = content.articles.map { article ->
-            val source = sourceMap[article.sourceId]
-            EpisodeArticleResponse(
-                id = article.id!!,
-                title = article.title,
-                url = article.url,
-                author = article.author,
-                publishedAt = article.publishedAt,
-                relevanceScore = article.relevanceScore,
-                summary = article.summary,
-                body = article.body,
-                source = ArticleSourceResponse(
-                    id = source?.id ?: article.sourceId,
-                    type = source?.type?.name ?: "UNKNOWN",
-                    url = source?.url ?: "",
-                    label = source?.label
-                )
-            )
-        }
-
-        val postResponses = content.unlinkedPosts.map { post ->
-            val source = sourceMap[post.sourceId]
-            EpisodeArticleResponse(
-                id = post.id!!,
-                title = post.title,
-                url = post.url,
-                author = post.author,
-                publishedAt = post.publishedAt,
-                relevanceScore = null,
-                summary = null,
-                body = post.body,
-                source = ArticleSourceResponse(
-                    id = source?.id ?: post.sourceId,
-                    type = source?.type?.name ?: "UNKNOWN",
-                    url = source?.url ?: "",
-                    label = source?.label
-                )
-            )
-        }
-
-        val allArticles = (articleResponses + postResponses).sortedByDescending { it.relevanceScore }
-
-        val response = mapOf(
-            "articles" to allArticles,
-            "articleCount" to content.effectiveArticleCount,
-            "postCount" to content.totalPostCount
-        )
-        return ResponseEntity.ok(response)
+        return ResponseEntity.ok(content.toResponse())
     }
 
     @GetMapping("/{podcastId}/preview", produces = [MediaType.TEXT_EVENT_STREAM_VALUE])
@@ -464,6 +415,57 @@ class PodcastController(
         }
 
         return emitter
+    }
+
+    private fun UpcomingContent.toResponse(): Map<String, Any> {
+        val sourceMap = sources.associateBy { it.id }
+
+        fun mapArticle(article: com.aisummarypodcast.store.Article) = EpisodeArticleResponse(
+            id = article.id!!,
+            title = article.title,
+            url = article.url,
+            author = article.author,
+            publishedAt = article.publishedAt,
+            relevanceScore = article.relevanceScore,
+            summary = article.summary,
+            body = article.body,
+            source = sourceMap[article.sourceId].let { source ->
+                ArticleSourceResponse(
+                    id = source?.id ?: article.sourceId,
+                    type = source?.type?.name ?: "UNKNOWN",
+                    url = source?.url ?: "",
+                    label = source?.label
+                )
+            }
+        )
+
+        fun mapPost(post: com.aisummarypodcast.store.Post) = EpisodeArticleResponse(
+            id = post.id!!,
+            title = post.title,
+            url = post.url,
+            author = post.author,
+            publishedAt = post.publishedAt,
+            relevanceScore = null,
+            summary = null,
+            body = post.body,
+            source = sourceMap[post.sourceId].let { source ->
+                ArticleSourceResponse(
+                    id = source?.id ?: post.sourceId,
+                    type = source?.type?.name ?: "UNKNOWN",
+                    url = source?.url ?: "",
+                    label = source?.label
+                )
+            }
+        )
+
+        val allArticles = (articles.map(::mapArticle) + unlinkedPosts.map(::mapPost))
+            .sortedByDescending { it.relevanceScore }
+
+        return mapOf(
+            "articles" to allArticles,
+            "articleCount" to effectiveArticleCount,
+            "postCount" to totalPostCount
+        )
     }
 
     private fun Podcast.toResponse() = PodcastResponse(
