@@ -77,6 +77,7 @@ Domain values that represent a fixed set of states, categories, or types must be
 - `@Query` annotations must use named parameters (`:paramName`), not positional (`?`)
 - Non-SELECT queries (`DELETE`, `UPDATE`, `INSERT`) must have `@Modifying`
 - No business logic in repositories
+- Do not use `@Query` when Spring Data can derive the query from the method name. Standard derived query methods (e.g., `findBySourceId`, `findBySourceIdAndContentHash`, `deleteBySourceId`, `countByStatus`, `existsByEmail`) do not need `@Query`. Only use `@Query` for queries that cannot be expressed via method naming: `IN` clauses, complex conditions (`>=`, `IS NULL`, `IS NOT NULL`), `OR` logic, or multi-table queries.
 
 **Data access rules:**
 - All database queries must go through Spring Data repositories, not raw `JdbcClient` or `JdbcTemplate` in services. For complex queries (JOINs, custom projections), use `@Query` on a repository method with a custom row mapper or DTO projection.
