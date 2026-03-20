@@ -419,21 +419,21 @@ class EpisodeServiceTest {
         verify { podcastRepository.save(match { it.lastGeneratedAt == null }) }
     }
 
-    // --- hasPendingOrApprovedEpisode tests ---
+    // --- hasActiveEpisode tests ---
 
     @Test
-    fun `hasPendingOrApprovedEpisode returns true when pending episodes exist`() {
-        every { episodeRepository.findByPodcastIdAndStatusIn("p1", listOf("PENDING_REVIEW", "APPROVED", "GENERATING")) } returns listOf(
+    fun `hasActiveEpisode returns true when pending episodes exist`() {
+        every { episodeRepository.findByPodcastIdAndStatusIn("p1", listOf("GENERATING", "PENDING_REVIEW", "APPROVED")) } returns listOf(
             Episode(id = 1L, podcastId = "p1", generatedAt = "now", scriptText = "Script", status = EpisodeStatus.PENDING_REVIEW)
         )
 
-        assertEquals(true, episodeService.hasPendingOrApprovedEpisode("p1"))
+        assertEquals(true, episodeService.hasActiveEpisode("p1"))
     }
 
     @Test
-    fun `hasPendingOrApprovedEpisode returns false when no pending episodes`() {
-        every { episodeRepository.findByPodcastIdAndStatusIn("p1", listOf("PENDING_REVIEW", "APPROVED", "GENERATING")) } returns emptyList()
+    fun `hasActiveEpisode returns false when no pending episodes`() {
+        every { episodeRepository.findByPodcastIdAndStatusIn("p1", listOf("GENERATING", "PENDING_REVIEW", "APPROVED")) } returns emptyList()
 
-        assertEquals(false, episodeService.hasPendingOrApprovedEpisode("p1"))
+        assertEquals(false, episodeService.hasActiveEpisode("p1"))
     }
 }

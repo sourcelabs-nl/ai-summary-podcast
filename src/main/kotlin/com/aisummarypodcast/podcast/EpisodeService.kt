@@ -60,14 +60,16 @@ class EpisodeService(
     }
 
     fun createGeneratingEpisode(podcast: Podcast): Episode {
+        val now = Instant.now().toString()
         val episode = episodeRepository.save(
             Episode(
                 podcastId = podcast.id,
-                generatedAt = Instant.now().toString(),
+                generatedAt = now,
                 scriptText = "",
                 status = EpisodeStatus.GENERATING
             )
         )
+        podcastRepository.save(podcast.copy(lastGeneratedAt = now))
         log.info("[Pipeline] Created GENERATING episode {} for podcast '{}' ({})", episode.id, podcast.name, podcast.id)
         eventPublisher.publishEvent(
             PodcastEvent(this, podcast.id, "episode", episode.id!!, "episode.generating", emptyMap())
@@ -342,9 +344,9 @@ class EpisodeService(
         }
     }
 
-    fun hasPendingOrApprovedEpisode(podcastId: String): Boolean {
+    fun hasActiveEpisode(podcastId: String): Boolean {
         return episodeRepository.findByPodcastIdAndStatusIn(
-            podcastId, listOf(EpisodeStatus.PENDING_REVIEW.name, EpisodeStatus.APPROVED.name, EpisodeStatus.GENERATING.name)
+            podcastId, listOf(EpisodeStatus.GENERATING.name, EpisodeStatus.PENDING_REVIEW.name, EpisodeStatus.APPROVED.name)
         ).isNotEmpty()
     }
 

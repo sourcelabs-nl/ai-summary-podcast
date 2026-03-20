@@ -111,8 +111,8 @@ class PodcastService(
     }
 
     fun generateBriefing(podcast: Podcast): GenerateBriefingResult {
-        if (podcast.requireReview && episodeService.hasPendingOrApprovedEpisode(podcast.id)) {
-            log.info("Podcast '{}' ({}) has a pending/approved episode — skipping generation", podcast.name, podcast.id)
+        if (episodeService.hasActiveEpisode(podcast.id)) {
+            log.info("Podcast '{}' ({}) has an active episode (generating/pending/approved) — skipping generation", podcast.name, podcast.id)
             return GenerateBriefingResult(episode = null)
         }
 
