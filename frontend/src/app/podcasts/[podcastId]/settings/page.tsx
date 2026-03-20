@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { KeyValueEditor } from "@/components/key-value-editor";
+import { cn } from "@/lib/utils";
 
 const STYLES = [
   "news-briefing",
@@ -83,6 +84,7 @@ export default function PodcastSettingsPage() {
   const [pubTargets, setPubTargets] = useState<PublicationTarget[]>([]);
   const [pubForm, setPubForm] = useState<Record<string, { config: Record<string, string>; enabled: boolean }>>({});
   const [configuredProviders, setConfiguredProviders] = useState<Set<string>>(new Set());
+  const [pubTab, setPubTab] = useState<"ftp" | "soundcloud">("ftp");
 
   useEffect(() => {
     if (!selectedUser) return;
@@ -704,118 +706,81 @@ export default function PodcastSettingsPage() {
                   </Button>
                 </Link>
               </div>
-              <Tabs defaultValue="ftp">
-                <TabsList>
-                  <TabsTrigger value="ftp">FTP</TabsTrigger>
-                  <TabsTrigger value="soundcloud">SoundCloud</TabsTrigger>
-                </TabsList>
+              <div className="mb-4 inline-flex h-9 w-fit items-center justify-center rounded-lg bg-muted p-[3px] text-muted-foreground">
+                <button
+                  onClick={() => setPubTab("ftp")}
+                  className={cn(
+                    "inline-flex h-[calc(100%-1px)] items-center justify-center rounded-md px-3 text-sm font-medium transition-all",
+                    pubTab === "ftp" ? "bg-background text-foreground shadow-sm" : "text-foreground/60 hover:text-foreground"
+                  )}
+                >
+                  FTP
+                </button>
+                <button
+                  onClick={() => setPubTab("soundcloud")}
+                  className={cn(
+                    "inline-flex h-[calc(100%-1px)] items-center justify-center rounded-md px-3 text-sm font-medium transition-all",
+                    pubTab === "soundcloud" ? "bg-background text-foreground shadow-sm" : "text-foreground/60 hover:text-foreground"
+                  )}
+                >
+                  SoundCloud
+                </button>
+              </div>
 
-                <TabsContent value="ftp">
-                  {(() => {
-                    const hasCreds = configuredProviders.has("ftp");
-                    const entry = pubForm.ftp ?? { config: { remotePath: "", publicUrl: "" }, enabled: false };
-                    return (
-                      <div className={!hasCreds ? "opacity-50 pointer-events-none" : ""}>
-                        <div className="mb-4 flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            {hasCreds ? (
-                              <Wifi className="size-4 text-green-600" />
-                            ) : (
-                              <WifiOff className="size-4 text-muted-foreground" />
-                            )}
-                            <span className="font-medium">FTP Target</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm text-muted-foreground">
-                              {entry.enabled ? "Enabled" : "Disabled"}
-                            </span>
-                            <Switch
-                              checked={entry.enabled}
-                              onCheckedChange={(checked) => togglePubTarget("ftp", checked)}
-                            />
-                          </div>
-                        </div>
-                        {!hasCreds && (
-                          <p className="mb-4 text-sm text-muted-foreground">
-                            Configure credentials in Settings first.
-                          </p>
-                        )}
-                        <div className="space-y-4">
-                          <FieldGroup label="Remote Path">
-                            <input
-                              type="text"
-                              value={entry.config.remotePath ?? ""}
-                              onChange={(e) => updatePubForm("ftp", "remotePath", e.target.value)}
-                              placeholder={`/${params.podcastId}/`}
-                              className={inputClass}
-                            />
-                            <p className="text-xs text-muted-foreground">
-                              FTP directory for this podcast. Defaults to /{"{podcastId}"}/ if empty.
-                            </p>
-                          </FieldGroup>
-                          <FieldGroup label="Public URL">
-                            <input
-                              type="text"
-                              value={entry.config.publicUrl ?? ""}
-                              onChange={(e) => updatePubForm("ftp", "publicUrl", e.target.value)}
-                              placeholder="https://example.com/shows/my-podcast"
-                              className={inputClass}
-                            />
-                          </FieldGroup>
-                        </div>
+              {pubTab === "ftp" && (() => {
+                const hasCreds = configuredProviders.has("ftp");
+                const entry = pubForm.ftp ?? { config: { remotePath: "", publicUrl: "" }, enabled: false };
+                return (
+                  <div className={cn("mt-4", !hasCreds && "opacity-50 pointer-events-none")}>
+                    <div className="mb-4 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        {hasCreds ? <Wifi className="size-4 text-green-600" /> : <WifiOff className="size-4 text-muted-foreground" />}
+                        <span className="font-medium">FTP Target</span>
                       </div>
-                    );
-                  })()}
-                </TabsContent>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-muted-foreground">{entry.enabled ? "Enabled" : "Disabled"}</span>
+                        <Switch checked={entry.enabled} onCheckedChange={(checked) => togglePubTarget("ftp", checked)} />
+                      </div>
+                    </div>
+                    {!hasCreds && <p className="mb-4 text-sm text-muted-foreground">Configure credentials in Settings first.</p>}
+                    <div className="space-y-4">
+                      <FieldGroup label="Remote Path">
+                        <input type="text" value={entry.config.remotePath ?? ""} onChange={(e) => updatePubForm("ftp", "remotePath", e.target.value)} placeholder={`/${params.podcastId}/`} className={inputClass} />
+                        <p className="text-xs text-muted-foreground">FTP directory for this podcast. Defaults to /{"{podcastId}"}/ if empty.</p>
+                      </FieldGroup>
+                      <FieldGroup label="Public URL">
+                        <input type="text" value={entry.config.publicUrl ?? ""} onChange={(e) => updatePubForm("ftp", "publicUrl", e.target.value)} placeholder="https://example.com/shows/my-podcast" className={inputClass} />
+                      </FieldGroup>
+                    </div>
+                  </div>
+                );
+              })()}
 
-                <TabsContent value="soundcloud">
-                  {(() => {
-                    const hasCreds = configuredProviders.has("soundcloud");
-                    const entry = pubForm.soundcloud ?? { config: { playlistId: "" }, enabled: false };
-                    return (
-                      <div className={!hasCreds ? "opacity-50 pointer-events-none" : ""}>
-                        <div className="mb-4 flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            {hasCreds ? (
-                              <Wifi className="size-4 text-green-600" />
-                            ) : (
-                              <WifiOff className="size-4 text-muted-foreground" />
-                            )}
-                            <span className="font-medium">SoundCloud Target</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm text-muted-foreground">
-                              {entry.enabled ? "Enabled" : "Disabled"}
-                            </span>
-                            <Switch
-                              checked={entry.enabled}
-                              onCheckedChange={(checked) => togglePubTarget("soundcloud", checked)}
-                            />
-                          </div>
-                        </div>
-                        {!hasCreds && (
-                          <p className="mb-4 text-sm text-muted-foreground">
-                            Configure credentials in Settings first.
-                          </p>
-                        )}
-                        <div className="space-y-4">
-                          <FieldGroup label="Playlist ID">
-                            <input
-                              type="text"
-                              value={entry.config.playlistId ?? ""}
-                              readOnly
-                              className={`${inputClass} bg-muted`}
-                            />
-                            <p className="text-xs text-muted-foreground">
-                              Auto-managed during publish. Read-only.
-                            </p>
-                          </FieldGroup>
-                        </div>
+              {pubTab === "soundcloud" && (() => {
+                const hasCreds = configuredProviders.has("soundcloud");
+                const entry = pubForm.soundcloud ?? { config: { playlistId: "" }, enabled: false };
+                return (
+                  <div className={cn("mt-4", !hasCreds && "opacity-50 pointer-events-none")}>
+                    <div className="mb-4 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        {hasCreds ? <Wifi className="size-4 text-green-600" /> : <WifiOff className="size-4 text-muted-foreground" />}
+                        <span className="font-medium">SoundCloud Target</span>
                       </div>
-                    );
-                  })()}
-                </TabsContent>
-              </Tabs>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-muted-foreground">{entry.enabled ? "Enabled" : "Disabled"}</span>
+                        <Switch checked={entry.enabled} onCheckedChange={(checked) => togglePubTarget("soundcloud", checked)} />
+                      </div>
+                    </div>
+                    {!hasCreds && <p className="mb-4 text-sm text-muted-foreground">Configure credentials in Settings first.</p>}
+                    <div className="space-y-4">
+                      <FieldGroup label="Playlist ID">
+                        <input type="text" value={entry.config.playlistId ?? ""} readOnly className={`${inputClass} bg-muted`} />
+                        <p className="text-xs text-muted-foreground">Auto-managed during publish. Read-only.</p>
+                      </FieldGroup>
+                    </div>
+                  </div>
+                );
+              })()}
             </CardContent>
           </Card>
         </TabsContent>
