@@ -17,9 +17,11 @@ interface EpisodeRepository : CrudRepository<Episode, Long> {
     @Query("SELECT * FROM episodes WHERE podcast_id = :podcastId ORDER BY generated_at DESC LIMIT 1")
     fun findMostRecentByPodcastId(podcastId: String): Episode?
 
+    // Status values must match EpisodeStatus enum names
     @Query("SELECT * FROM episodes WHERE podcast_id = :podcastId AND recap IS NOT NULL AND status = 'GENERATED' ORDER BY generated_at DESC LIMIT :limit")
     fun findRecentWithRecapByPodcastId(podcastId: String, limit: Int): List<Episode>
 
+    // Status values must match EpisodeStatus enum names
     @Query("""
         SELECT e.* FROM episodes e
         JOIN episode_publications ep ON ep.episode_id = e.id
@@ -31,6 +33,7 @@ interface EpisodeRepository : CrudRepository<Episode, Long> {
     """)
     fun findLatestPublishedByPodcastId(podcastId: String): Episode?
 
+    // Status values must match EpisodeStatus enum names
     @Query("SELECT * FROM episodes WHERE podcast_id = :podcastId AND status = 'GENERATED' ORDER BY generated_at DESC LIMIT :limit")
     fun findRecentGeneratedByPodcastId(podcastId: String, limit: Int): List<Episode>
 

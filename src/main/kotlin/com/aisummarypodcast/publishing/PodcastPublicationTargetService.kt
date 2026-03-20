@@ -16,10 +16,8 @@ class PodcastPublicationTargetService(
         repository.findByPodcastIdAndTarget(podcastId, target)
 
     fun upsert(podcastId: String, target: String, config: String, enabled: Boolean): PodcastPublicationTarget {
-        val existing = repository.findByPodcastIdAndTarget(podcastId, target)
-        return repository.save(
+        return repository.upsert(
             PodcastPublicationTarget(
-                id = existing?.id,
                 podcastId = podcastId,
                 target = target,
                 config = config,

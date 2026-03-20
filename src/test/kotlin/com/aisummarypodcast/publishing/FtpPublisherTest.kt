@@ -2,6 +2,7 @@ package com.aisummarypodcast.publishing
 
 import com.aisummarypodcast.config.AppProperties
 import com.aisummarypodcast.config.FeedProperties
+import com.aisummarypodcast.podcast.EpisodeService
 import com.aisummarypodcast.podcast.EpisodeSourcesGenerator
 import com.aisummarypodcast.podcast.FeedGenerator
 import com.aisummarypodcast.podcast.PodcastImageService
@@ -23,8 +24,7 @@ class FtpPublisherTest {
     private val podcastImageService = mockk<PodcastImageService>()
     private val feedGenerator = mockk<FeedGenerator>()
     private val episodeSourcesGenerator = mockk<EpisodeSourcesGenerator>()
-    private val episodeArticleRepository = mockk<EpisodeArticleRepository>()
-    private val articleRepository = mockk<ArticleRepository>()
+    private val episodeService = mockk<EpisodeService>()
     private val podcastRepository = mockk<PodcastRepository>()
     private val userRepository = mockk<UserRepository>()
     private val objectMapper = JsonMapper.builder().build()
@@ -34,8 +34,8 @@ class FtpPublisherTest {
 
     private val publisher = FtpPublisher(
         providerConfigService, targetService, podcastImageService,
-        feedGenerator, episodeSourcesGenerator, episodeArticleRepository,
-        articleRepository, podcastRepository, userRepository, objectMapper, appProperties
+        feedGenerator, episodeSourcesGenerator, episodeService,
+        podcastRepository, userRepository, objectMapper, appProperties
     )
 
     @Test

@@ -11,6 +11,7 @@ interface EpisodePublicationRepository : CrudRepository<EpisodePublication, Long
     @Query("SELECT * FROM episode_publications WHERE episode_id = :episodeId AND target = :target")
     fun findByEpisodeIdAndTarget(episodeId: Long, target: String): EpisodePublication?
 
+    // Status values must match EpisodeStatus enum names
     @Query("""
         SELECT ep.* FROM episode_publications ep
         JOIN episodes e ON ep.episode_id = e.id

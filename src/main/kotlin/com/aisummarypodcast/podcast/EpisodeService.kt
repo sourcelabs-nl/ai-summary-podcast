@@ -5,6 +5,7 @@ import com.aisummarypodcast.llm.EpisodeRecapGenerator
 import com.aisummarypodcast.llm.ModelResolver
 import com.aisummarypodcast.llm.PipelineResult
 import com.aisummarypodcast.llm.PipelineStage
+import com.aisummarypodcast.store.Article
 import com.aisummarypodcast.store.ArticleRepository
 import com.aisummarypodcast.store.Episode
 import com.aisummarypodcast.store.EpisodeArticle
@@ -292,6 +293,12 @@ class EpisodeService(
 
     fun findArticlesForEpisode(episodeId: Long): List<EpisodeArticleResponse> {
         return episodeArticleRepository.findArticlesWithSourcesByEpisodeId(episodeId)
+    }
+
+    fun findRawArticlesForEpisode(episodeId: Long): List<Article> {
+        val links = episodeArticleRepository.findByEpisodeId(episodeId)
+        return links.mapNotNull { link -> articleRepository.findById(link.articleId).orElse(null) }
+            .sortedByDescending { it.relevanceScore ?: 0 }
     }
 
     fun regenerateAllShowNotes(): Map<String, Int> {

@@ -9,6 +9,7 @@ interface EpisodeArticleRepository : CrudRepository<EpisodeArticle, Long>, Episo
     @Query("SELECT * FROM episode_articles WHERE episode_id = :episodeId")
     fun findByEpisodeId(episodeId: Long): List<EpisodeArticle>
 
+    // Status values must match EpisodeStatus enum names
     @Query("""
         SELECT COUNT(*) > 0 FROM episode_articles ea
         JOIN episodes e ON ea.episode_id = e.id
@@ -19,6 +20,7 @@ interface EpisodeArticleRepository : CrudRepository<EpisodeArticle, Long>, Episo
     """)
     fun isArticleLinkedToPublishedEpisode(articleId: Long): Boolean
 
+    // Status values must match EpisodeStatus enum names
     @Query("""
         SELECT a.* FROM articles a
         JOIN episode_articles ea ON ea.article_id = a.id

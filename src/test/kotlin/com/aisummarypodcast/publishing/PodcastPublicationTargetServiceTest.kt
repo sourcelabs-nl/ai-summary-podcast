@@ -57,8 +57,7 @@ class PodcastPublicationTargetServiceTest {
 
     @Test
     fun `upsert creates new target`() {
-        every { repository.findByPodcastIdAndTarget("pod1", "ftp") } returns null
-        every { repository.save(any()) } answers {
+        every { repository.upsert(any()) } answers {
             firstArg<PodcastPublicationTarget>().copy(id = 1)
         }
 
@@ -70,9 +69,9 @@ class PodcastPublicationTargetServiceTest {
 
     @Test
     fun `upsert updates existing target`() {
-        val existing = PodcastPublicationTarget(id = 1, podcastId = "pod1", target = "ftp", config = "{}", enabled = false)
-        every { repository.findByPodcastIdAndTarget("pod1", "ftp") } returns existing
-        every { repository.save(any()) } answers { firstArg() }
+        every { repository.upsert(any()) } answers {
+            firstArg<PodcastPublicationTarget>().copy(id = 1)
+        }
 
         val result = service.upsert("pod1", "ftp", """{"remotePath":"/new/"}""", true)
 

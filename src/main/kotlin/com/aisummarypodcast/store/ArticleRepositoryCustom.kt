@@ -8,6 +8,7 @@ interface ArticleRepositoryCustom {
     fun getArticleCountsBySourceIds(sourceIds: List<String>, relevanceThreshold: Int): Map<String, SourceArticleCounts>
 }
 
+// Positional parameters required for dynamic IN clause (Spring Data @Query does not support dynamic list sizes)
 @Repository
 class ArticleRepositoryCustomImpl(
     private val jdbcClient: JdbcClient

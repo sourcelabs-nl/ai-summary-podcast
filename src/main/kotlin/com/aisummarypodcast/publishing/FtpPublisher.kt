@@ -1,12 +1,11 @@
 package com.aisummarypodcast.publishing
 
 import com.aisummarypodcast.config.AppProperties
+import com.aisummarypodcast.podcast.EpisodeService
 import com.aisummarypodcast.podcast.EpisodeSourcesGenerator
 import com.aisummarypodcast.podcast.FeedGenerator
 import com.aisummarypodcast.podcast.PodcastImageService
-import com.aisummarypodcast.store.ArticleRepository
 import com.aisummarypodcast.store.Episode
-import com.aisummarypodcast.store.EpisodeArticleRepository
 import com.aisummarypodcast.store.Podcast
 import com.aisummarypodcast.store.PodcastRepository
 import com.aisummarypodcast.store.UserRepository
@@ -28,8 +27,7 @@ class FtpPublisher(
     private val podcastImageService: PodcastImageService,
     private val feedGenerator: FeedGenerator,
     private val episodeSourcesGenerator: EpisodeSourcesGenerator,
-    private val episodeArticleRepository: EpisodeArticleRepository,
-    private val articleRepository: ArticleRepository,
+    private val episodeService: EpisodeService,
     private val podcastRepository: PodcastRepository,
     private val userRepository: UserRepository,
     private val objectMapper: ObjectMapper,
@@ -130,9 +128,7 @@ class FtpPublisher(
             ensureDirectoryExists(ftpClient, remoteEpisodesPath)
 
             // Upload sources.md to episodes/
-            val links = episodeArticleRepository.findByEpisodeId(episode.id!!)
-            val articles = links.mapNotNull { link -> articleRepository.findById(link.articleId).orElse(null) }
-                .sortedByDescending { it.relevanceScore ?: 0 }
+            val articles = episodeService.findRawArticlesForEpisode(episode.id!!)
             val sourcesPath = episodeSourcesGenerator.generate(episode, podcast, articles)
             if (sourcesPath != null) {
                 uploadFile(ftpClient, remoteEpisodesPath, sourcesPath)

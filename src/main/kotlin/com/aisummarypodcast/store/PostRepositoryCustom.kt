@@ -7,6 +7,7 @@ interface PostRepositoryCustom {
     fun getPostCountsBySourceIds(sourceIds: List<String>): Map<String, Int>
 }
 
+// Positional parameters required for dynamic IN clause (Spring Data @Query does not support dynamic list sizes)
 @Repository
 class PostRepositoryCustomImpl(
     private val jdbcClient: JdbcClient
