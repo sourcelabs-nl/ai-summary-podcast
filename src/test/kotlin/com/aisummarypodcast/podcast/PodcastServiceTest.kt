@@ -20,6 +20,7 @@ import com.aisummarypodcast.store.PostRepository
 import com.aisummarypodcast.store.Source
 import com.aisummarypodcast.store.SourceRepository
 import com.aisummarypodcast.store.SourceType
+import com.aisummarypodcast.source.SourceAggregator
 import io.mockk.every
 import io.mockk.mockk
 import org.springframework.context.ApplicationEventPublisher
@@ -39,6 +40,7 @@ class PodcastServiceTest {
     private val llmPipeline = mockk<LlmPipeline>()
     private val episodeService = mockk<EpisodeService>()
     private val eventPublisher = mockk<ApplicationEventPublisher>(relaxed = true)
+    private val sourceAggregator = mockk<SourceAggregator>(relaxed = true)
     private val appProperties = AppProperties(
         llm = LlmProperties(),
         briefing = BriefingProperties(),
@@ -51,7 +53,7 @@ class PodcastServiceTest {
     private val podcastService = PodcastService(
         podcastRepository, sourceRepository, articleRepository, postRepository,
         postArticleRepository, episodeArticleRepository, episodeRepository, appProperties, llmPipeline, episodeService,
-        eventPublisher
+        eventPublisher, sourceAggregator
     )
 
     private val podcast = Podcast(

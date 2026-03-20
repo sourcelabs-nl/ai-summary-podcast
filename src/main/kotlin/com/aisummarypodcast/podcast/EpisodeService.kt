@@ -19,6 +19,7 @@ import org.slf4j.LoggerFactory
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.boot.context.event.ApplicationReadyEvent
 import org.springframework.context.event.EventListener
+import org.springframework.jdbc.core.simple.JdbcClient
 import org.springframework.scheduling.annotation.Async
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -36,7 +37,8 @@ class EpisodeService(
     private val postArticleRepository: PostArticleRepository,
     private val episodeSourcesGenerator: EpisodeSourcesGenerator,
     private val articleEligibilityService: ArticleEligibilityService,
-    private val eventPublisher: ApplicationEventPublisher
+    private val eventPublisher: ApplicationEventPublisher,
+    private val jdbcClient: JdbcClient
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -79,6 +81,7 @@ class EpisodeService(
         episodeRepository.save(episode.copy(pipelineStage = stage))
     }
 
+    @Transactional
     fun createEpisodeFromPipelineResult(
         podcast: Podcast,
         result: PipelineResult,
@@ -285,6 +288,72 @@ class EpisodeService(
         val finalEpisode = generateAndStoreShowNotes(recapEpisode)
         generateSourcesFile(finalEpisode, podcast)
         return finalEpisode
+    }
+
+    fun findArticlesForEpisode(episodeId: Long): List<EpisodeArticleResponse> {
+        return jdbcClient.sql(
+            """
+            SELECT a.id, a.title, a.url, a.author, a.published_at, a.relevance_score, a.summary, a.body,
+                   s.id AS source_id, s.type AS source_type, s.url AS source_url, s.label AS source_label
+            FROM episode_articles ea
+            JOIN articles a ON ea.article_id = a.id
+            JOIN sources s ON a.source_id = s.id
+            WHERE ea.episode_id = :episodeId
+            ORDER BY a.relevance_score DESC NULLS LAST
+            """.trimIndent()
+        )
+            .param("episodeId", episodeId)
+            .query { rs, _ ->
+                EpisodeArticleResponse(
+                    id = rs.getLong("id"),
+                    title = rs.getString("title"),
+                    url = rs.getString("url"),
+                    author = rs.getString("author"),
+                    publishedAt = rs.getString("published_at"),
+                    relevanceScore = rs.getObject("relevance_score") as? Int,
+                    summary = rs.getString("summary"),
+                    body = rs.getString("body"),
+                    source = ArticleSourceResponse(
+                        id = rs.getString("source_id"),
+                        type = rs.getString("source_type"),
+                        url = rs.getString("source_url"),
+                        label = rs.getString("source_label")
+                    )
+                )
+            }
+            .list()
+    }
+
+    fun regenerateAllShowNotes(): Map<String, Int> {
+        val episodes = episodeRepository.findAll()
+        var updatedShowNotes = 0
+        var generatedSources = 0
+
+        for (episode in episodes) {
+            if (episode.recap != null && episode.showNotes != episode.recap) {
+                episodeRepository.save(episode.copy(showNotes = episode.recap))
+                updatedShowNotes++
+            }
+
+            val podcast = podcastRepository.findById(episode.podcastId).orElse(null) ?: continue
+            try {
+                val links = episodeArticleRepository.findByEpisodeId(episode.id!!)
+                val articles = links.mapNotNull { link -> articleRepository.findById(link.articleId).orElse(null) }
+                    .sortedByDescending { it.relevanceScore ?: 0 }
+                if (episodeSourcesGenerator.generate(episode, podcast, articles) != null) {
+                    generatedSources++
+                }
+            } catch (e: Exception) {
+                log.warn("Failed to generate sources.md for episode {}: {}", episode.id, e.message)
+            }
+        }
+
+        log.info("Regenerated show notes for {} episodes, generated sources.md for {} episodes", updatedShowNotes, generatedSources)
+        return mapOf(
+            "updatedShowNotes" to updatedShowNotes,
+            "generatedSources" to generatedSources,
+            "totalEpisodes" to episodes.count()
+        )
     }
 
     fun findById(episodeId: Long): Episode? = episodeRepository.findById(episodeId).orElse(null)

@@ -38,7 +38,11 @@ class FtpPublisher(
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    override fun targetName(): String = "ftp"
+    companion object {
+        const val TARGET_NAME = "ftp"
+    }
+
+    override fun targetName(): String = TARGET_NAME
 
     override fun update(episode: Episode, podcast: Podcast, userId: String, externalId: String): PublishResult =
         publish(episode, podcast, userId)
@@ -58,7 +62,7 @@ class FtpPublisher(
 
         val user = userRepository.findById(podcast.userId).orElse(null) ?: return
         val baseUrl = podcastPublicUrl ?: appProperties.feed.staticBaseUrl ?: appProperties.feed.baseUrl
-        val feedXml = feedGenerator.generate(podcast, user, baseUrl, podcastPublicUrl, publishedTarget = "ftp")
+        val feedXml = feedGenerator.generate(podcast, user, baseUrl, podcastPublicUrl, publishedTarget = TARGET_NAME)
 
         val ftpClient = createFtpClient(credentials)
         try {
@@ -168,7 +172,7 @@ class FtpPublisher(
 
     @Suppress("UNCHECKED_CAST")
     private fun resolveCredentials(userId: String): FtpCredentials {
-        val config = providerConfigService.resolveConfig(userId, ApiKeyCategory.PUBLISHING, "ftp")
+        val config = providerConfigService.resolveConfig(userId, ApiKeyCategory.PUBLISHING, TARGET_NAME)
             ?: throw IllegalStateException("No FTP credentials configured. Add FTP credentials in publishing settings.")
         val json = config.apiKey ?: throw IllegalStateException("FTP credentials are incomplete")
         val map = objectMapper.readValue(json, Map::class.java) as Map<String, Any>
@@ -183,7 +187,7 @@ class FtpPublisher(
 
     @Suppress("UNCHECKED_CAST")
     private fun resolveTargetConfig(podcastId: String): Map<String, Any> {
-        val target = targetService.get(podcastId, "ftp")
+        val target = targetService.get(podcastId, TARGET_NAME)
             ?: throw IllegalStateException("FTP target not configured for this podcast")
         if (!target.enabled) throw IllegalStateException("FTP target is disabled for this podcast")
         return objectMapper.readValue(target.config, Map::class.java) as Map<String, Any>

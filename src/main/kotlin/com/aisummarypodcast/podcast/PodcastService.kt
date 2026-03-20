@@ -3,6 +3,7 @@ package com.aisummarypodcast.podcast
 import com.aisummarypodcast.config.AppProperties
 import com.aisummarypodcast.llm.LlmPipeline
 import com.aisummarypodcast.llm.PreviewResult
+import com.aisummarypodcast.source.SourceAggregator
 import com.aisummarypodcast.store.*
 import org.slf4j.LoggerFactory
 import org.springframework.context.ApplicationEventPublisher
@@ -24,7 +25,8 @@ data class UpcomingContent(
     val articles: List<Article>,
     val unlinkedPosts: List<Post>,
     val sources: List<Source>,
-    val totalPostCount: Long
+    val totalPostCount: Long,
+    val effectiveArticleCount: Long
 )
 
 @Service
@@ -39,7 +41,8 @@ class PodcastService(
     private val appProperties: AppProperties,
     private val llmPipeline: LlmPipeline,
     private val episodeService: EpisodeService,
-    private val eventPublisher: ApplicationEventPublisher
+    private val eventPublisher: ApplicationEventPublisher,
+    private val sourceAggregator: SourceAggregator
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -136,6 +139,7 @@ class PodcastService(
         }
     }
 
+    @Transactional
     fun regenerateEpisode(sourceEpisode: Episode, podcast: Podcast): Episode {
         val linkedArticles = episodeArticleRepository.findByEpisodeId(sourceEpisode.id!!)
         val articles = linkedArticles.mapNotNull { link ->
@@ -162,7 +166,7 @@ class PodcastService(
     fun getUpcomingContent(podcast: Podcast): UpcomingContent {
         val sources = sourceRepository.findByPodcastId(podcast.id)
         val sourceIds = sources.map { it.id }
-        if (sourceIds.isEmpty()) return UpcomingContent(emptyList(), emptyList(), sources, 0)
+        if (sourceIds.isEmpty()) return UpcomingContent(emptyList(), emptyList(), sources, 0, 0)
 
         val since = podcast.lastGeneratedAt ?: Instant.now().minus(
             (podcast.maxArticleAgeDays ?: appProperties.source.maxArticleAgeDays).toLong(), ChronoUnit.DAYS
@@ -175,7 +179,17 @@ class PodcastService(
         val linkedPostCount = if (articleIds.isNotEmpty()) postArticleRepository.countByArticleIds(articleIds) else 0L
         val totalPostCount = linkedPostCount + unlinkedPosts.size
 
-        return UpcomingContent(articles, unlinkedPosts, sources, totalPostCount)
+        val sourceMap = sources.associateBy { it.id }
+        val unlinkedPostArticleCount = unlinkedPosts
+            .groupBy { it.sourceId }
+            .entries
+            .sumOf { (sourceId, posts) ->
+                val source = sourceMap[sourceId]
+                if (source != null && sourceAggregator.shouldAggregate(source) && posts.size > 1) 1L else posts.size.toLong()
+            }
+        val effectiveArticleCount = articles.size.toLong() + unlinkedPostArticleCount
+
+        return UpcomingContent(articles, unlinkedPosts, sources, totalPostCount, effectiveArticleCount)
     }
 
     @Transactional

@@ -24,6 +24,7 @@ import io.mockk.justRun
 import io.mockk.mockk
 import io.mockk.verify
 import org.springframework.context.ApplicationEventPublisher
+import org.springframework.jdbc.core.simple.JdbcClient
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import java.util.*
@@ -48,13 +49,15 @@ class EpisodeServiceTest {
         every { canResetArticle(any()) } returns true
     }
     private val eventPublisher = mockk<ApplicationEventPublisher>(relaxed = true)
+    private val jdbcClient = mockk<JdbcClient>(relaxed = true)
 
     private val filterModelDef = ResolvedModel(provider = "openrouter", model = "anthropic/claude-haiku-4.5", cost = null)
 
     private val episodeService = EpisodeService(
         episodeRepository, podcastRepository, ttsPipeline,
         episodeArticleRepository, articleRepository, episodeRecapGenerator, modelResolver,
-        postArticleRepository, episodeSourcesGenerator, articleEligibilityService, eventPublisher
+        postArticleRepository, episodeSourcesGenerator, articleEligibilityService, eventPublisher,
+        jdbcClient
     )
 
     private val podcast = Podcast(id = "p1", userId = "u1", name = "Test", topic = "tech")

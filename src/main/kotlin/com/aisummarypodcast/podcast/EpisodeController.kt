@@ -5,7 +5,6 @@ import com.aisummarypodcast.store.EpisodeRepository
 import com.aisummarypodcast.store.EpisodeStatus
 import com.aisummarypodcast.user.UserService
 import org.springframework.http.ResponseEntity
-import org.springframework.jdbc.core.simple.JdbcClient
 import org.springframework.web.bind.annotation.*
 
 data class EpisodeResponse(
@@ -59,8 +58,7 @@ class EpisodeController(
     private val episodeRepository: EpisodeRepository,
     private val podcastService: PodcastService,
     private val userService: UserService,
-    private val episodeService: EpisodeService,
-    private val jdbcClient: JdbcClient
+    private val episodeService: EpisodeService
 ) {
 
     @GetMapping
@@ -203,39 +201,7 @@ class EpisodeController(
             ?: return ResponseEntity.notFound().build()
         if (episode.podcastId != podcastId) return ResponseEntity.notFound().build()
 
-        val articles = jdbcClient.sql(
-            """
-            SELECT a.id, a.title, a.url, a.author, a.published_at, a.relevance_score, a.summary, a.body,
-                   s.id AS source_id, s.type AS source_type, s.url AS source_url, s.label AS source_label
-            FROM episode_articles ea
-            JOIN articles a ON ea.article_id = a.id
-            JOIN sources s ON a.source_id = s.id
-            WHERE ea.episode_id = :episodeId
-            ORDER BY a.relevance_score DESC NULLS LAST
-            """.trimIndent()
-        )
-            .param("episodeId", episodeId)
-            .query { rs, _ ->
-                EpisodeArticleResponse(
-                    id = rs.getLong("id"),
-                    title = rs.getString("title"),
-                    url = rs.getString("url"),
-                    author = rs.getString("author"),
-                    publishedAt = rs.getString("published_at"),
-                    relevanceScore = rs.getObject("relevance_score") as? Int,
-                    summary = rs.getString("summary"),
-                    body = rs.getString("body"),
-                    source = ArticleSourceResponse(
-                        id = rs.getString("source_id"),
-                        type = rs.getString("source_type"),
-                        url = rs.getString("source_url"),
-                        label = rs.getString("source_label")
-                    )
-                )
-            }
-            .list()
-
-        return ResponseEntity.ok(articles)
+        return ResponseEntity.ok(episodeService.findArticlesForEpisode(episodeId))
     }
 
     private fun Episode.toResponse() = EpisodeResponse(

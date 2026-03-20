@@ -21,7 +21,11 @@ class SoundCloudPublisher(
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    override fun targetName(): String = "soundcloud"
+    companion object {
+        const val TARGET_NAME = "soundcloud"
+    }
+
+    override fun targetName(): String = TARGET_NAME
 
     override fun publish(episode: Episode, podcast: Podcast, userId: String): PublishResult {
         val accessToken = tokenManager.getValidAccessToken(userId)
@@ -92,17 +96,17 @@ class SoundCloudPublisher(
     }
 
     private fun getPlaylistId(podcastId: String): Long? {
-        val target = targetService.get(podcastId, "soundcloud") ?: return null
+        val target = targetService.get(podcastId, TARGET_NAME) ?: return null
         val config = objectMapper.readTree(target.config)
         return config.get("playlistId")?.asText()?.toLongOrNull()
     }
 
     private fun savePlaylistId(podcastId: String, playlistId: Long) {
-        val target = targetService.get(podcastId, "soundcloud")
+        val target = targetService.get(podcastId, TARGET_NAME)
         val config = target?.config?.let { objectMapper.readTree(it) }
             ?.let { (it as tools.jackson.databind.node.ObjectNode).put("playlistId", playlistId.toString()) }
             ?: objectMapper.createObjectNode().put("playlistId", playlistId.toString())
-        targetService.upsert(podcastId, "soundcloud", objectMapper.writeValueAsString(config), target?.enabled ?: true)
+        targetService.upsert(podcastId, TARGET_NAME, objectMapper.writeValueAsString(config), target?.enabled ?: true)
     }
 
     fun updateTrackPermalinks(podcast: Podcast, userId: String, episodes: List<Episode>, publications: List<com.aisummarypodcast.store.EpisodePublication>): Set<Long> {

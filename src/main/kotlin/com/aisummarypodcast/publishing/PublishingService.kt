@@ -94,7 +94,7 @@ class PublishingService(
             )
             log.info("Episode {} published to {} (externalId={})", episode.id, target, result.externalId)
             publisher.postPublish(podcast, userId)
-            if (target == "soundcloud") {
+            if (target == SoundCloudPublisher.TARGET_NAME) {
                 try {
                     rebuildSoundCloudPlaylist(podcast, userId)
                 } catch (e: Exception) {
@@ -142,7 +142,7 @@ class PublishingService(
             )
             log.info("Episode {} updated on {} (externalId={})", episode.id, existing.target, existing.externalId)
             publisher.postPublish(podcast, userId)
-            if (existing.target == "soundcloud") {
+            if (existing.target == SoundCloudPublisher.TARGET_NAME) {
                 try {
                     rebuildSoundCloudPlaylist(podcast, userId)
                 } catch (e: Exception) {
@@ -178,7 +178,7 @@ class PublishingService(
             if (publication.externalId != null) {
                 publisher.unpublish(userId, publication.externalId)
             }
-            if (target == "ftp" && episode.audioFilePath != null) {
+            if (target == FtpPublisher.TARGET_NAME && episode.audioFilePath != null) {
                 val audioFileName = java.nio.file.Path.of(episode.audioFilePath).fileName.toString()
                 (publisher as FtpPublisher).deleteRemoteFile(userId, podcast.id, audioFileName)
             }
@@ -196,7 +196,7 @@ class PublishingService(
             )
         )
 
-        if (target == "soundcloud") {
+        if (target == SoundCloudPublisher.TARGET_NAME) {
             try {
                 rebuildSoundCloudPlaylist(podcast, userId)
             } catch (e: Exception) {
@@ -219,7 +219,7 @@ class PublishingService(
         publicationRepository.findByEpisodeId(episodeId)
 
     fun rebuildSoundCloudPlaylist(podcast: Podcast, userId: String): List<Long> {
-        val publications = publicationRepository.findPublishedByPodcastIdAndTarget(podcast.id, "soundcloud")
+        val publications = publicationRepository.findPublishedByPodcastIdAndTarget(podcast.id, SoundCloudPublisher.TARGET_NAME)
         require(publications.isNotEmpty()) { "No published SoundCloud tracks found for this podcast" }
 
         val episodeIds = publications.map { it.episodeId }.distinct()

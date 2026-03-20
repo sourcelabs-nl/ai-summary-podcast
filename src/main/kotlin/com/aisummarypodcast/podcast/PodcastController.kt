@@ -2,7 +2,6 @@ package com.aisummarypodcast.podcast
 
 import com.aisummarypodcast.config.LlmModelOverrides
 import com.aisummarypodcast.config.ModelReference
-import com.aisummarypodcast.source.SourceAggregator
 import com.aisummarypodcast.store.Podcast
 import com.aisummarypodcast.store.PodcastStyle
 import com.aisummarypodcast.store.TtsProviderType
@@ -14,8 +13,11 @@ import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
+import jakarta.annotation.PreDestroy
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import java.net.URI
 
@@ -121,32 +123,39 @@ class PodcastController(
     private val userService: UserService,
     private val episodeService: EpisodeService,
     private val objectMapper: ObjectMapper,
-    private val sourceAggregator: SourceAggregator,
     private val pipelineStateTracker: PipelineStateTracker
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    private val previewScope = CoroutineScope(Dispatchers.IO)
-    private val dialogueProviders = setOf(TtsProviderType.ELEVENLABS, TtsProviderType.INWORLD)
+    private val previewScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
-    private fun validateTtsConfig(ttsProvider: TtsProviderType, style: PodcastStyle, ttsVoices: Map<String, String>?): String? {
-        if (style == PodcastStyle.DIALOGUE && ttsProvider !in dialogueProviders) {
-            return "Dialogue style requires ElevenLabs or Inworld as TTS provider"
+    @PreDestroy
+    fun onDestroy() {
+        previewScope.cancel()
+    }
+
+    companion object {
+        private val dialogueProviders = setOf(TtsProviderType.ELEVENLABS, TtsProviderType.INWORLD)
+
+        fun validateTtsConfig(ttsProvider: TtsProviderType, style: PodcastStyle, ttsVoices: Map<String, String>?): String? {
+            if (style == PodcastStyle.DIALOGUE && ttsProvider !in dialogueProviders) {
+                return "Dialogue style requires ElevenLabs or Inworld as TTS provider"
+            }
+            if (style == PodcastStyle.DIALOGUE && (ttsVoices == null || ttsVoices.size < 2)) {
+                return "Dialogue style requires at least two voice roles in ttsVoices (e.g., host and cohost)"
+            }
+            if (style == PodcastStyle.INTERVIEW && ttsProvider !in dialogueProviders) {
+                return "Interview style requires ElevenLabs or Inworld as TTS provider"
+            }
+            if (style == PodcastStyle.INTERVIEW && (ttsVoices == null || ttsVoices.size < 2)) {
+                return "Interview style requires at least two voice roles in ttsVoices (interviewer and expert)"
+            }
+            if (style == PodcastStyle.INTERVIEW && ttsVoices != null && ttsVoices.keys != setOf("interviewer", "expert")) {
+                return "Interview style requires exactly 'interviewer' and 'expert' voice roles"
+            }
+            return null
         }
-        if (style == PodcastStyle.DIALOGUE && (ttsVoices == null || ttsVoices.size < 2)) {
-            return "Dialogue style requires at least two voice roles in ttsVoices (e.g., host and cohost)"
-        }
-        if (style == PodcastStyle.INTERVIEW && ttsProvider !in dialogueProviders) {
-            return "Interview style requires ElevenLabs or Inworld as TTS provider"
-        }
-        if (style == PodcastStyle.INTERVIEW && (ttsVoices == null || ttsVoices.size < 2)) {
-            return "Interview style requires at least two voice roles in ttsVoices (interviewer and expert)"
-        }
-        if (style == PodcastStyle.INTERVIEW && ttsVoices != null && ttsVoices.keys != setOf("interviewer", "expert")) {
-            return "Interview style requires exactly 'interviewer' and 'expert' voice roles"
-        }
-        return null
     }
 
     @PostMapping
@@ -385,20 +394,9 @@ class PodcastController(
 
         val allArticles = (articleResponses + postResponses).sortedByDescending { it.relevanceScore }
 
-        // Pre-calculate effective article count after aggregation:
-        // unlinked posts from aggregatable sources count as 1 article per source
-        val unlinkedPostArticleCount = content.unlinkedPosts
-            .groupBy { it.sourceId }
-            .entries
-            .sumOf { (sourceId, posts) ->
-                val source = sourceMap[sourceId]
-                if (source != null && sourceAggregator.shouldAggregate(source) && posts.size > 1) 1L else posts.size.toLong()
-            }
-        val effectiveArticleCount = content.articles.size + unlinkedPostArticleCount
-
         val response = mapOf(
             "articles" to allArticles,
-            "articleCount" to effectiveArticleCount,
+            "articleCount" to content.effectiveArticleCount,
             "postCount" to content.totalPostCount
         )
         return ResponseEntity.ok(response)

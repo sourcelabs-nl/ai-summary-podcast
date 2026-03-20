@@ -5,9 +5,9 @@ import com.aisummarypodcast.store.PostRepository
 import com.aisummarypodcast.store.Source
 import com.aisummarypodcast.store.SourceRepository
 import com.aisummarypodcast.store.SourceType
+import com.aisummarypodcast.util.sha256
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
-import java.security.MessageDigest
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneOffset
@@ -131,8 +131,4 @@ class SourcePoller(
             LocalDateTime.parse(text.replace(' ', 'T')).toInstant(ZoneOffset.UTC)
         }
 
-    private fun sha256(text: String): String {
-        val digest = MessageDigest.getInstance("SHA-256")
-        return digest.digest(text.toByteArray()).joinToString("") { "%02x".format(it) }
-    }
 }

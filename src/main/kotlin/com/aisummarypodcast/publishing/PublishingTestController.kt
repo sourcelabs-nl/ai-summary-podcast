@@ -3,8 +3,7 @@ package com.aisummarypodcast.publishing
 import com.aisummarypodcast.store.ApiKeyCategory
 import com.aisummarypodcast.user.UserProviderConfigService
 import com.aisummarypodcast.user.UserService
-import tools.jackson.module.kotlin.jacksonObjectMapper
-import tools.jackson.module.kotlin.readValue
+import tools.jackson.databind.ObjectMapper
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 
@@ -13,10 +12,9 @@ import org.springframework.web.bind.annotation.*
 class PublishingTestController(
     private val userService: UserService,
     private val publishingTestService: PublishingTestService,
-    private val providerConfigService: UserProviderConfigService
+    private val providerConfigService: UserProviderConfigService,
+    private val objectMapper: ObjectMapper
 ) {
-
-    private val objectMapper = jacksonObjectMapper()
 
     @PostMapping("/ftp")
     fun testFtp(
@@ -56,7 +54,8 @@ class PublishingTestController(
         val config = providerConfigService.resolveConfig(userId, ApiKeyCategory.PUBLISHING, "ftp") ?: return null
         val apiKey = config.apiKey ?: return null
         return try {
-            val stored: Map<String, Any> = objectMapper.readValue(apiKey)
+            @Suppress("UNCHECKED_CAST")
+            val stored = objectMapper.readValue(apiKey, Map::class.java) as Map<String, Any>
             stored["password"] as? String
         } catch (_: Exception) {
             null
