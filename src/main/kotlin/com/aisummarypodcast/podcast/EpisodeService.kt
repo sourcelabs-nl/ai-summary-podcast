@@ -89,7 +89,9 @@ class EpisodeService(
         updateLastGenerated: Boolean = true
     ): Episode {
         val generatedAt = overrideGeneratedAt ?: generatingEpisode?.generatedAt ?: Instant.now().toString()
-        val baseEpisode = generatingEpisode ?: Episode(
+        val baseEpisode = generatingEpisode?.let {
+            episodeRepository.findById(it.id!!).orElse(it)
+        } ?: Episode(
             podcastId = podcast.id,
             generatedAt = generatedAt,
             scriptText = ""
@@ -257,8 +259,9 @@ class EpisodeService(
     @Transactional
     fun failEpisode(podcast: Podcast, errorMessage: String, generatingEpisode: Episode? = null): Episode {
         val episode = if (generatingEpisode != null) {
+            val fresh = episodeRepository.findById(generatingEpisode.id!!).orElse(generatingEpisode)
             episodeRepository.save(
-                generatingEpisode.copy(
+                fresh.copy(
                     status = EpisodeStatus.FAILED,
                     errorMessage = errorMessage,
                     pipelineStage = null
