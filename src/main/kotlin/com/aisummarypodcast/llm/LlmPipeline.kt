@@ -142,10 +142,10 @@ class LlmPipeline(
         val processedArticleIds = toCompose.mapNotNull { it.id }
 
         val dedupCostCents = CostEstimator.estimateLlmCostCents(
-            dedupResult.usage.inputTokens, dedupResult.usage.outputTokens, filterModelDef
+            dedupResult.usage.inputTokens, dedupResult.usage.outputTokens, filterModelDef.cost
         )
         val composeCostCents = CostEstimator.estimateLlmCostCents(
-            compositionResult.usage.inputTokens, compositionResult.usage.outputTokens, composeModelDef
+            compositionResult.usage.inputTokens, compositionResult.usage.outputTokens, composeModelDef.cost
         )
         val totalCostCents = CostEstimator.addNullableCosts(dedupCostCents, composeCostCents)
 
@@ -176,7 +176,7 @@ class LlmPipeline(
 
         val filterModelDef = modelResolver.resolve(podcast, PipelineStage.FILTER)
         val costCents = CostEstimator.estimateLlmCostCents(
-            compositionResult.usage.inputTokens, compositionResult.usage.outputTokens, composeModelDef
+            compositionResult.usage.inputTokens, compositionResult.usage.outputTokens, composeModelDef.cost
         )
 
         log.info("[LLM] Recompose complete for podcast '{}' ({}): {} articles", podcast.name, podcast.id, articles.size)

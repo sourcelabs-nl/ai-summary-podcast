@@ -1,43 +1,40 @@
 package com.aisummarypodcast.llm
 
-import com.aisummarypodcast.config.ModelDefinition
+import com.aisummarypodcast.config.ModelCost
 import com.aisummarypodcast.store.Article
 import kotlin.math.roundToInt
 
 object CostEstimator {
 
-    fun estimateLlmCostCents(inputTokens: Int, outputTokens: Int, modelDef: ModelDefinition): Int? {
-        val inputCost = modelDef.inputCostPerMtok ?: return null
-        val outputCost = modelDef.outputCostPerMtok ?: return null
+    fun estimateLlmCostCents(inputTokens: Int, outputTokens: Int, cost: ModelCost?): Int? {
+        val inputCost = cost?.inputCostPerMtok ?: return null
+        val outputCost = cost.outputCostPerMtok ?: return null
         val costUsd = (inputTokens * inputCost + outputTokens * outputCost) / 1_000_000.0
         return (costUsd * 100).roundToInt()
     }
 
-    fun estimateTtsCostCents(characters: Int, costPerMillionChars: Map<String, Double>, provider: String, model: String? = null): Int? {
-        val rate = (model?.let { costPerMillionChars[it] } ?: costPerMillionChars[provider]) ?: return null
+    fun estimateTtsCostCents(characters: Int, models: Map<String, Map<String, ModelCost>>, provider: String, model: String? = null): Int? {
+        val providerModels = models[provider] ?: return null
+        val cost = (model?.let { providerModels[it] } ?: providerModels.values.firstOrNull())
+            ?: return null
+        val rate = cost.costPerMillionChars ?: return null
         val costUsd = characters * rate / 1_000_000.0
         return (costUsd * 100).roundToInt()
     }
 
     fun estimatePipelineCostCents(
         articles: List<Article>,
-        filterModelDef: ModelDefinition,
-        composeModelDef: ModelDefinition,
+        filterModel: ResolvedModel,
+        composeModel: ResolvedModel,
         targetWords: Int
     ): Int? {
-        // Scoring stage: one call per article using the filter model
         val scoringInputTokens = articles.sumOf { it.body.length / 4 }
         val scoringOutputTokens = 200 * articles.size
+        val scoringCost = estimateLlmCostCents(scoringInputTokens, scoringOutputTokens, filterModel.cost)
 
-        val scoringCost = estimateLlmCostCents(scoringInputTokens, scoringOutputTokens, filterModelDef)
-
-        // Composition stage: assumes all articles pass relevance filtering (pessimistic)
-        // Input: N articles × 200 tokens per summary
         val compositionInputTokens = articles.size * 200
-        // Output: targetWords converted to tokens
         val compositionOutputTokens = (targetWords * 1.3).roundToInt()
-
-        val compositionCost = estimateLlmCostCents(compositionInputTokens, compositionOutputTokens, composeModelDef)
+        val compositionCost = estimateLlmCostCents(compositionInputTokens, compositionOutputTokens, composeModel.cost)
 
         if (scoringCost == null || compositionCost == null) return null
         return scoringCost + compositionCost

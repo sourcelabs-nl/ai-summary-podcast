@@ -20,17 +20,20 @@ spring:
 app:
   encryption:
     master-key: dGVzdC1rZXktZm9yLXVuaXQtdGVzdHMtb25seQ==
+  models:
+    openrouter:
+      "[anthropic/claude-haiku-4.5]":
+        type: llm
+      "[anthropic/claude-sonnet-4]":
+        type: llm
   llm:
-    models:
-      cheap:
+    defaults:
+      filter:
         provider: openrouter
         model: anthropic/claude-haiku-4.5
-      capable:
+      compose:
         provider: openrouter
         model: anthropic/claude-sonnet-4
-    defaults:
-      filter: cheap
-      compose: capable
   briefing:
     target-words: 1500
   episodes:

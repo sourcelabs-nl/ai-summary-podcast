@@ -1,7 +1,6 @@
 package com.aisummarypodcast.llm
 
 import com.aisummarypodcast.config.AppProperties
-import com.aisummarypodcast.config.ModelDefinition
 import com.aisummarypodcast.podcast.SupportedLanguage
 import com.aisummarypodcast.store.Article
 import com.aisummarypodcast.store.Podcast
@@ -40,7 +39,7 @@ class BriefingComposer(
         return compose(articles, podcast, composeModelDef, ttsScriptGuidelines, followUpAnnotations)
     }
 
-    fun compose(articles: List<Article>, podcast: Podcast, composeModelDef: ModelDefinition, ttsScriptGuidelines: String = "", followUpAnnotations: Map<Long, String> = emptyMap()): CompositionResult {
+    fun compose(articles: List<Article>, podcast: Podcast, composeModelDef: ResolvedModel, ttsScriptGuidelines: String = "", followUpAnnotations: Map<Long, String> = emptyMap()): CompositionResult {
         log.info("[LLM] Composing briefing from {} articles for podcast '{}' ({}) (style: {})", articles.size, podcast.name, podcast.id, podcast.style)
         val chatClient = chatClientFactory.createForModel(podcast.userId, composeModelDef)
         val prompt = buildPrompt(articles, podcast, ttsScriptGuidelines, followUpAnnotations)

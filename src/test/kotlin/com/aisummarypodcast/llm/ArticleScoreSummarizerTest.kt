@@ -6,7 +6,8 @@ import com.aisummarypodcast.config.EncryptionProperties
 import com.aisummarypodcast.config.EpisodesProperties
 import com.aisummarypodcast.config.FeedProperties
 import com.aisummarypodcast.config.LlmProperties
-import com.aisummarypodcast.config.ModelDefinition
+import com.aisummarypodcast.config.ModelCost
+import com.aisummarypodcast.config.ModelType
 import com.aisummarypodcast.config.ScoringProperties
 import com.aisummarypodcast.store.Article
 import com.aisummarypodcast.store.ArticleRepository
@@ -37,9 +38,9 @@ class ArticleScoreSummarizerTest {
     private val chatClientFactory = mockk<ChatClientFactory>()
     private val chatClient = mockk<ChatClient>()
 
-    private val filterModelDef = ModelDefinition(
+    private val filterModelDef = ResolvedModel(
         provider = "openrouter", model = "test-model",
-        inputCostPerMtok = 0.15, outputCostPerMtok = 0.60
+        cost = ModelCost(type = ModelType.LLM, inputCostPerMtok = 0.15, outputCostPerMtok = 0.60)
     )
 
     private fun appProperties(scoring: ScoringProperties = ScoringProperties(concurrency = 10, maxRetries = 1)): AppProperties =

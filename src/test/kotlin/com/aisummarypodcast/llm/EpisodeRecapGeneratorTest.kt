@@ -1,6 +1,6 @@
 package com.aisummarypodcast.llm
 
-import com.aisummarypodcast.config.ModelDefinition
+import com.aisummarypodcast.llm.ResolvedModel
 import com.aisummarypodcast.store.Podcast
 import io.mockk.every
 import io.mockk.mockk
@@ -20,7 +20,7 @@ class EpisodeRecapGeneratorTest {
     private val generator = EpisodeRecapGenerator(chatClientFactory)
 
     private val podcast = Podcast(id = "p1", userId = "u1", name = "Tech Daily", topic = "tech")
-    private val filterModelDef = ModelDefinition(provider = "openrouter", model = "anthropic/claude-haiku-4.5")
+    private val filterModelDef = ResolvedModel(provider = "openrouter", model = "anthropic/claude-haiku-4.5", cost = null)
 
     private fun mockChatClient(responseText: String, inputTokens: Int = 800, outputTokens: Int = 60): ChatClient {
         val metadata = ChatResponseMetadata.builder()

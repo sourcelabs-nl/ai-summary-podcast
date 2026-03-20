@@ -1,6 +1,5 @@
 package com.aisummarypodcast.llm
 
-import com.aisummarypodcast.config.ModelDefinition
 import com.aisummarypodcast.store.Article
 import org.slf4j.LoggerFactory
 import org.springframework.ai.openai.OpenAiChatOptions
@@ -46,7 +45,7 @@ class TopicDedupFilter(
         candidates: List<Article>,
         historicalArticles: List<Article>,
         userId: String,
-        filterModelDef: ModelDefinition
+        filterModelDef: ResolvedModel
     ): DedupFilterResult {
         if (candidates.isEmpty()) {
             return DedupFilterResult(emptyList(), TokenUsage(0, 0))

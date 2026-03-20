@@ -1,7 +1,6 @@
 package com.aisummarypodcast.llm
 
 import com.aisummarypodcast.config.AppProperties
-import com.aisummarypodcast.config.ModelDefinition
 import com.aisummarypodcast.config.ScoringProperties
 import com.aisummarypodcast.store.Article
 import com.aisummarypodcast.store.ArticleRepository
@@ -38,7 +37,7 @@ class ArticleScoreSummarizer(
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    fun scoreSummarize(articles: List<Article>, podcast: Podcast, filterModelDef: ModelDefinition, sourceLabels: Map<String, String> = emptyMap()): List<Article> {
+    fun scoreSummarize(articles: List<Article>, podcast: Podcast, filterModelDef: ResolvedModel, sourceLabels: Map<String, String> = emptyMap()): List<Article> {
         val chatClient = chatClientFactory.createForModel(podcast.userId, filterModelDef)
         val model = filterModelDef.model
         val semaphore = Semaphore(scoringProperties.concurrency)
@@ -70,7 +69,7 @@ class ArticleScoreSummarizer(
 
                                         val result = responseEntity.entity()
                                         val usage = TokenUsage.fromChatResponse(responseEntity.response())
-                                        val costCents = CostEstimator.estimateLlmCostCents(usage.inputTokens, usage.outputTokens, filterModelDef)
+                                        val costCents = CostEstimator.estimateLlmCostCents(usage.inputTokens, usage.outputTokens, filterModelDef.cost)
 
                                         val score = result?.relevanceScore ?: 0
                                         val summary = result?.summary?.takeIf { it.isNotBlank() }

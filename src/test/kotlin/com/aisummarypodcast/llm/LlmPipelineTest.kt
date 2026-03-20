@@ -6,7 +6,8 @@ import com.aisummarypodcast.config.EncryptionProperties
 import com.aisummarypodcast.config.EpisodesProperties
 import com.aisummarypodcast.config.FeedProperties
 import com.aisummarypodcast.config.LlmProperties
-import com.aisummarypodcast.config.ModelDefinition
+import com.aisummarypodcast.config.ModelCost
+import com.aisummarypodcast.config.ModelType
 import com.aisummarypodcast.config.SourceProperties
 import com.aisummarypodcast.source.SourceAggregator
 import com.aisummarypodcast.store.Article
@@ -60,8 +61,8 @@ class LlmPipelineTest {
         source = SourceProperties(maxArticleAgeDays = 7)
     )
 
-    private val filterModelDef = ModelDefinition(provider = "openrouter", model = "anthropic/claude-haiku-4.5")
-    private val composeModelDef = ModelDefinition(provider = "openrouter", model = "anthropic/claude-sonnet-4")
+    private val filterModelDef = ResolvedModel(provider = "openrouter", model = "anthropic/claude-haiku-4.5", cost = null)
+    private val composeModelDef = ResolvedModel(provider = "openrouter", model = "anthropic/claude-sonnet-4", cost = null)
 
     private val pipeline = LlmPipeline(
         articleScoreSummarizer, briefingComposer, dialogueComposer, interviewComposer, modelResolver, articleRepository,
@@ -261,13 +262,13 @@ class LlmPipelineTest {
 
     // --- Cost gate tests ---
 
-    private val pricedFilterModel = ModelDefinition(
+    private val pricedFilterModel = ResolvedModel(
         provider = "openrouter", model = "gpt-4o-mini",
-        inputCostPerMtok = 0.15, outputCostPerMtok = 0.60
+        cost = ModelCost(type = ModelType.LLM, inputCostPerMtok = 0.15, outputCostPerMtok = 0.60)
     )
-    private val pricedComposeModel = ModelDefinition(
+    private val pricedComposeModel = ResolvedModel(
         provider = "openrouter", model = "claude-sonnet",
-        inputCostPerMtok = 3.00, outputCostPerMtok = 15.00
+        cost = ModelCost(type = ModelType.LLM, inputCostPerMtok = 3.00, outputCostPerMtok = 15.00)
     )
 
     private fun articleWithBody(bodySize: Int) = Article(

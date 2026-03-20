@@ -1,5 +1,6 @@
 package com.aisummarypodcast.store
 
+import com.aisummarypodcast.config.LlmModelOverrides
 import org.springframework.data.annotation.Id
 import org.springframework.data.annotation.Version
 import org.springframework.data.relational.core.mapping.Table
@@ -10,7 +11,7 @@ data class Podcast(
     val userId: String,
     val name: String,
     val topic: String,
-    val llmModels: Map<String, String>? = null,
+    val llmModels: LlmModelOverrides? = null,
     val language: String = "en",
     val ttsProvider: TtsProviderType = TtsProviderType.OPENAI,
     val ttsVoices: Map<String, String>? = null,

@@ -7,7 +7,7 @@ import com.aisummarypodcast.llm.PipelineResult
 import com.aisummarypodcast.llm.PipelineStage
 import com.aisummarypodcast.llm.RecapResult
 import com.aisummarypodcast.llm.TokenUsage
-import com.aisummarypodcast.config.ModelDefinition
+import com.aisummarypodcast.llm.ResolvedModel
 import com.aisummarypodcast.store.Article
 import com.aisummarypodcast.store.ArticleRepository
 import com.aisummarypodcast.store.Episode
@@ -49,7 +49,7 @@ class EpisodeServiceTest {
     }
     private val eventPublisher = mockk<ApplicationEventPublisher>(relaxed = true)
 
-    private val filterModelDef = ModelDefinition(provider = "openrouter", model = "anthropic/claude-haiku-4.5")
+    private val filterModelDef = ResolvedModel(provider = "openrouter", model = "anthropic/claude-haiku-4.5", cost = null)
 
     private val episodeService = EpisodeService(
         episodeRepository, podcastRepository, ttsPipeline,

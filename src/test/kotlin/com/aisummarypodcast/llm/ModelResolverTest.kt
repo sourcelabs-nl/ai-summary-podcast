@@ -5,27 +5,37 @@ import com.aisummarypodcast.config.BriefingProperties
 import com.aisummarypodcast.config.EncryptionProperties
 import com.aisummarypodcast.config.EpisodesProperties
 import com.aisummarypodcast.config.FeedProperties
+import com.aisummarypodcast.config.LlmModelOverrides
 import com.aisummarypodcast.config.LlmProperties
-import com.aisummarypodcast.config.ModelDefinition
+import com.aisummarypodcast.config.ModelCost
+import com.aisummarypodcast.config.ModelReference
+import com.aisummarypodcast.config.ModelType
 import com.aisummarypodcast.config.StageDefaults
 import com.aisummarypodcast.store.Podcast
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.assertThrows
 
 class ModelResolverTest {
 
     private val models = mapOf(
-        "cheap" to ModelDefinition(provider = "openrouter", model = "anthropic/claude-haiku-4.5"),
-        "capable" to ModelDefinition(provider = "openrouter", model = "anthropic/claude-sonnet-4"),
-        "local" to ModelDefinition(provider = "ollama", model = "llama3")
+        "openrouter" to mapOf(
+            "anthropic/claude-haiku-4.5" to ModelCost(type = ModelType.LLM, inputCostPerMtok = 0.20),
+            "anthropic/claude-sonnet-4" to ModelCost(type = ModelType.LLM, inputCostPerMtok = 3.00)
+        ),
+        "ollama" to mapOf(
+            "llama3" to ModelCost(type = ModelType.LLM)
+        )
     )
 
     private val appProperties = AppProperties(
         llm = LlmProperties(
-            models = models,
-            defaults = StageDefaults(filter = "cheap", compose = "capable")
+            defaults = StageDefaults(
+                filter = ModelReference("openrouter", "anthropic/claude-haiku-4.5"),
+                compose = ModelReference("openrouter", "anthropic/claude-sonnet-4")
+            )
         ),
+        models = models,
         briefing = BriefingProperties(),
         episodes = EpisodesProperties(),
         feed = FeedProperties(),
@@ -49,7 +59,9 @@ class ModelResolverTest {
 
     @Test
     fun `podcast override takes precedence over global default`() {
-        val podcastWithOverride = podcast.copy(llmModels = mapOf("compose" to "local"))
+        val podcastWithOverride = podcast.copy(
+            llmModels = LlmModelOverrides(mapOf("compose" to ModelReference("ollama", "llama3")))
+        )
 
         val composeModel = resolver.resolve(podcastWithOverride, PipelineStage.COMPOSE)
 
@@ -59,7 +71,9 @@ class ModelResolverTest {
 
     @Test
     fun `partial override only affects specified stage`() {
-        val podcastWithOverride = podcast.copy(llmModels = mapOf("compose" to "local"))
+        val podcastWithOverride = podcast.copy(
+            llmModels = LlmModelOverrides(mapOf("compose" to ModelReference("ollama", "llama3")))
+        )
 
         val filterModel = resolver.resolve(podcastWithOverride, PipelineStage.FILTER)
         val composeModel = resolver.resolve(podcastWithOverride, PipelineStage.COMPOSE)
@@ -69,17 +83,15 @@ class ModelResolverTest {
     }
 
     @Test
-    fun `throws for unknown model name`() {
-        val podcastWithBadOverride = podcast.copy(llmModels = mapOf("filter" to "nonexistent"))
-
-        val exception = assertThrows<IllegalArgumentException> {
-            resolver.resolve(podcastWithBadOverride, PipelineStage.FILTER)
-        }
-
-        assertEquals(
-            "Unknown model name 'nonexistent'. Available models: [capable, cheap, local]",
-            exception.message
+    fun `returns null cost for unknown model`() {
+        val podcastWithBadOverride = podcast.copy(
+            llmModels = LlmModelOverrides(mapOf("filter" to ModelReference("openrouter", "nonexistent")))
         )
-    }
 
+        val result = resolver.resolve(podcastWithBadOverride, PipelineStage.FILTER)
+
+        assertEquals("openrouter", result.provider)
+        assertEquals("nonexistent", result.model)
+        assertNull(result.cost)
+    }
 }

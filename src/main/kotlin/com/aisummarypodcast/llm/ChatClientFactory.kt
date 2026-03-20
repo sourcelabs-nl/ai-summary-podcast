@@ -1,6 +1,5 @@
 package com.aisummarypodcast.llm
 
-import com.aisummarypodcast.config.ModelDefinition
 import com.aisummarypodcast.store.ApiKeyCategory
 import com.aisummarypodcast.store.LlmCacheRepository
 import com.aisummarypodcast.user.UserProviderConfigService
@@ -18,11 +17,11 @@ class ChatClientFactory(
     private val llmCacheRepository: LlmCacheRepository
 ) {
 
-    fun createForModel(userId: String, modelDefinition: ModelDefinition): ChatClient {
-        val config = providerConfigService.resolveConfig(userId, ApiKeyCategory.LLM, modelDefinition.provider)
+    fun createForModel(userId: String, resolvedModel: ResolvedModel): ChatClient {
+        val config = providerConfigService.resolveConfig(userId, ApiKeyCategory.LLM, resolvedModel.provider)
             ?: throw IllegalStateException(
-                "No provider config available for provider '${modelDefinition.provider}'. " +
-                    "Configure a user provider for '${modelDefinition.provider}' or set the appropriate environment variable."
+                "No provider config available for provider '${resolvedModel.provider}'. " +
+                    "Configure a user provider for '${resolvedModel.provider}' or set the appropriate environment variable."
             )
 
         val requestFactory = SimpleClientHttpRequestFactory().apply {

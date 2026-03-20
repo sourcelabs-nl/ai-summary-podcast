@@ -3,13 +3,23 @@ export interface User {
   name: string;
 }
 
+export interface ModelReference {
+  provider: string;
+  model: string;
+}
+
+export interface AvailableModel {
+  name: string;
+  type: string;
+}
+
 export interface Podcast {
   id: string;
   userId: string;
   name: string;
   topic: string;
   language: string;
-  llmModels?: Record<string, string>;
+  llmModels?: Record<string, ModelReference>;
   ttsProvider: string;
   ttsVoices?: Record<string, string>;
   ttsSettings?: Record<string, string>;
@@ -85,7 +95,8 @@ export interface UpcomingArticlesResponse {
 }
 
 export interface PodcastDefaults {
-  llmModels: Record<string, string>;
+  llmModels: Record<string, ModelReference>;
+  availableModels: Record<string, AvailableModel[]>;
   maxLlmCostCents: number;
   targetWords: number;
   fullBodyThreshold: number;

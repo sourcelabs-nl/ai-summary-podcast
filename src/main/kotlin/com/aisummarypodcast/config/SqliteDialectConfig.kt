@@ -35,6 +35,8 @@ class SqliteDialectConfig {
                 BooleanToIntegerConverter(),
                 StringToMapConverter(),
                 MapToStringConverter(),
+                StringToLlmModelOverridesConverter(),
+                LlmModelOverridesToStringConverter(),
                 StringToPodcastStyleConverter(),
                 PodcastStyleToStringConverter(),
                 StringToTtsProviderTypeConverter(),
@@ -65,6 +67,18 @@ class SqliteDialectConfig {
     class MapToStringConverter : Converter<Map<String, String>, String> {
         private val objectMapper = jacksonObjectMapper()
         override fun convert(source: Map<String, String>): String = objectMapper.writeValueAsString(source)
+    }
+
+    @ReadingConverter
+    class StringToLlmModelOverridesConverter : Converter<String, LlmModelOverrides> {
+        private val objectMapper = jacksonObjectMapper()
+        override fun convert(source: String): LlmModelOverrides = LlmModelOverrides(objectMapper.readValue(source))
+    }
+
+    @WritingConverter
+    class LlmModelOverridesToStringConverter : Converter<LlmModelOverrides, String> {
+        private val objectMapper = jacksonObjectMapper()
+        override fun convert(source: LlmModelOverrides): String = objectMapper.writeValueAsString(source.stages)
     }
 
     @ReadingConverter

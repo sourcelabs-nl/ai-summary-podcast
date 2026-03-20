@@ -9,9 +9,9 @@ data class AppProperties(
     val episodes: EpisodesProperties,
     val feed: FeedProperties,
     val encryption: EncryptionProperties,
+    val models: Map<String, Map<String, ModelCost>> = emptyMap(),
     val llmCache: LlmCacheProperties = LlmCacheProperties(),
     val source: SourceProperties = SourceProperties(),
-    val tts: TtsProperties = TtsProperties(),
     val soundcloud: SoundCloudProperties = SoundCloudProperties(),
     val x: XProperties = XProperties(),
     val episode: EpisodeProperties = EpisodeProperties()
@@ -22,7 +22,6 @@ data class EncryptionProperties(
 )
 
 data class LlmProperties(
-    val models: Map<String, ModelDefinition> = emptyMap(),
     val defaults: StageDefaults = StageDefaults(),
     val maxCostCents: Int = 200,
     val scoring: ScoringProperties = ScoringProperties()
@@ -33,16 +32,30 @@ data class ScoringProperties(
     val maxRetries: Int = 3
 )
 
-data class ModelDefinition(
-    val provider: String,
-    val model: String,
+enum class ModelType { LLM, TTS }
+
+data class ModelCost(
+    val type: ModelType,
     val inputCostPerMtok: Double? = null,
-    val outputCostPerMtok: Double? = null
+    val outputCostPerMtok: Double? = null,
+    val costPerMillionChars: Double? = null
 )
 
+data class ModelReference(
+    val provider: String,
+    val model: String
+)
+
+data class LlmModelOverrides(
+    val stages: Map<String, ModelReference> = emptyMap()
+) {
+    operator fun get(key: String): ModelReference? = stages[key]
+    fun isEmpty(): Boolean = stages.isEmpty()
+}
+
 data class StageDefaults(
-    val filter: String = "cheap",
-    val compose: String = "capable"
+    val filter: ModelReference = ModelReference("openrouter", "openai/gpt-5.4-nano"),
+    val compose: ModelReference = ModelReference("openrouter", "anthropic/claude-sonnet-4.6")
 )
 
 data class BriefingProperties(
@@ -81,9 +94,6 @@ data class HostOverride(
     val pollDelaySeconds: Int = 0
 )
 
-data class TtsProperties(
-    val costPerMillionChars: Map<String, Double> = emptyMap()
-)
 
 data class SoundCloudProperties(
     val clientId: String? = null,

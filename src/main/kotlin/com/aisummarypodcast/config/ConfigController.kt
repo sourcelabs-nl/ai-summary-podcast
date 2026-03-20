@@ -4,8 +4,14 @@ import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 
+data class AvailableModel(
+    val name: String,
+    val type: String
+)
+
 data class PodcastDefaultsResponse(
-    val llmModels: Map<String, String>,
+    val llmModels: Map<String, ModelReference>,
+    val availableModels: Map<String, List<AvailableModel>>,
     val maxLlmCostCents: Int,
     val targetWords: Int,
     val fullBodyThreshold: Int,
@@ -18,14 +24,18 @@ class ConfigController(private val appProperties: AppProperties) {
 
     @GetMapping("/defaults")
     fun defaults(): PodcastDefaultsResponse {
-        val resolvedModels = appProperties.llm.defaults.let { defaults ->
-            mapOf(
-                "filter" to (appProperties.llm.models[defaults.filter]?.model ?: defaults.filter),
-                "compose" to (appProperties.llm.models[defaults.compose]?.model ?: defaults.compose)
-            )
+        val llmModels = mapOf(
+            "filter" to appProperties.llm.defaults.filter,
+            "compose" to appProperties.llm.defaults.compose
+        )
+
+        val availableModels = appProperties.models.mapValues { (_, models) ->
+            models.map { (name, cost) -> AvailableModel(name = name, type = cost.type.name.lowercase()) }
         }
+
         return PodcastDefaultsResponse(
-            llmModels = resolvedModels,
+            llmModels = llmModels,
+            availableModels = availableModels,
             maxLlmCostCents = appProperties.llm.maxCostCents,
             targetWords = appProperties.briefing.targetWords,
             fullBodyThreshold = appProperties.briefing.fullBodyThreshold,

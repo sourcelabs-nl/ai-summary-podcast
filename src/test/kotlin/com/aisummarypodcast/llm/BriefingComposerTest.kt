@@ -2,7 +2,7 @@ package com.aisummarypodcast.llm
 
 import com.aisummarypodcast.config.AppProperties
 import com.aisummarypodcast.config.BriefingProperties
-import com.aisummarypodcast.config.ModelDefinition
+import com.aisummarypodcast.llm.ResolvedModel
 import com.aisummarypodcast.store.Article
 import com.aisummarypodcast.store.Podcast
 import io.mockk.every
@@ -231,7 +231,7 @@ class BriefingComposerTest {
 
     @Test
     fun `compose returns CompositionResult with token usage`() {
-        val composeModelDef = ModelDefinition(provider = "openrouter", model = "test-model")
+        val composeModelDef = ResolvedModel(provider = "openrouter", model = "test-model", cost = null)
         val podcast = Podcast(id = "p1", userId = "u1", name = "Test Pod", topic = "tech")
         val articles = listOf(
             Article(

@@ -1,6 +1,5 @@
 package com.aisummarypodcast.llm
 
-import com.aisummarypodcast.config.ModelDefinition
 import com.aisummarypodcast.store.Podcast
 import org.slf4j.LoggerFactory
 import org.springframework.ai.openai.OpenAiChatOptions
@@ -19,7 +18,7 @@ class EpisodeRecapGenerator(
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    fun generate(scriptText: String, podcast: Podcast, filterModelDef: ModelDefinition): RecapResult {
+    fun generate(scriptText: String, podcast: Podcast, filterModelDef: ResolvedModel): RecapResult {
         log.info("[LLM] Generating recap of previous episode for podcast '{}' ({})", podcast.name, podcast.id)
         val chatClient = chatClientFactory.createForModel(podcast.userId, filterModelDef)
         val prompt = buildPrompt(scriptText)

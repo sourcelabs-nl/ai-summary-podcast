@@ -1,6 +1,7 @@
 package com.aisummarypodcast.llm
 
-import com.aisummarypodcast.config.ModelDefinition
+import com.aisummarypodcast.config.ModelCost
+import com.aisummarypodcast.config.ModelType
 import com.aisummarypodcast.store.Article
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
@@ -10,52 +11,44 @@ class CostEstimatorTest {
 
     @Test
     fun `estimates LLM cost with configured pricing`() {
-        val modelDef = ModelDefinition(
-            provider = "openrouter", model = "test",
-            inputCostPerMtok = 3.00, outputCostPerMtok = 15.00
-        )
+        val cost = ModelCost(type = ModelType.LLM, inputCostPerMtok = 3.00, outputCostPerMtok = 15.00)
         // (10000 * 3.00 + 2000 * 15.00) / 1_000_000 = 0.06 USD = 6 cents
-        val cost = CostEstimator.estimateLlmCostCents(10000, 2000, modelDef)
-        assertEquals(6, cost)
+        assertEquals(6, CostEstimator.estimateLlmCostCents(10000, 2000, cost))
     }
 
     @Test
     fun `returns null when pricing not configured`() {
-        val modelDef = ModelDefinition(provider = "openrouter", model = "test")
-        assertNull(CostEstimator.estimateLlmCostCents(1000, 200, modelDef))
+        assertNull(CostEstimator.estimateLlmCostCents(1000, 200, null))
     }
 
     @Test
     fun `returns null when only input pricing configured`() {
-        val modelDef = ModelDefinition(
-            provider = "openrouter", model = "test",
-            inputCostPerMtok = 3.00, outputCostPerMtok = null
-        )
-        assertNull(CostEstimator.estimateLlmCostCents(1000, 200, modelDef))
+        val cost = ModelCost(type = ModelType.LLM, inputCostPerMtok = 3.00, outputCostPerMtok = null)
+        assertNull(CostEstimator.estimateLlmCostCents(1000, 200, cost))
     }
 
     @Test
     fun `rounds small costs to nearest cent`() {
-        val modelDef = ModelDefinition(
-            provider = "openrouter", model = "test",
-            inputCostPerMtok = 0.15, outputCostPerMtok = 0.60
-        )
-        // (1000 * 0.15 + 200 * 0.60) / 1_000_000 = 0.00027 USD = 0.027 cents → 0
-        val cost = CostEstimator.estimateLlmCostCents(1000, 200, modelDef)
-        assertEquals(0, cost)
+        val cost = ModelCost(type = ModelType.LLM, inputCostPerMtok = 0.15, outputCostPerMtok = 0.60)
+        // (1000 * 0.15 + 200 * 0.60) / 1_000_000 = 0.00027 USD = 0.027 cents -> 0
+        assertEquals(0, CostEstimator.estimateLlmCostCents(1000, 200, cost))
     }
 
     @Test
     fun `estimates TTS cost`() {
-        // 50000 * 15.00 / 1_000_000 = 0.75 USD = 75 cents... wait
-        // Actually: 50000 * 15.00 / 1_000_000 = 0.75 USD → 0.75 * 100 = 75 cents
-        val cost = CostEstimator.estimateTtsCostCents(50000, mapOf("openai" to 15.00), "openai")
-        assertEquals(75, cost)
+        val models = mapOf(
+            "openai" to mapOf("tts-1-hd" to ModelCost(type = ModelType.TTS, costPerMillionChars = 15.00))
+        )
+        // 50000 * 15.00 / 1_000_000 = 0.75 USD = 75 cents
+        assertEquals(75, CostEstimator.estimateTtsCostCents(50000, models, "openai", "tts-1-hd"))
     }
 
     @Test
     fun `returns null when TTS pricing not configured for provider`() {
-        assertNull(CostEstimator.estimateTtsCostCents(8000, mapOf("openai" to 15.00), "elevenlabs"))
+        val models = mapOf(
+            "openai" to mapOf("tts-1-hd" to ModelCost(type = ModelType.TTS, costPerMillionChars = 15.00))
+        )
+        assertNull(CostEstimator.estimateTtsCostCents(8000, models, "elevenlabs"))
     }
 
     @Test
@@ -65,59 +58,67 @@ class CostEstimatorTest {
 
     @Test
     fun `estimates ElevenLabs TTS cost`() {
-        val cost = CostEstimator.estimateTtsCostCents(8000, mapOf("elevenlabs" to 30.00), "elevenlabs")
-        assertEquals(24, cost)
+        val models = mapOf(
+            "elevenlabs" to mapOf("default" to ModelCost(type = ModelType.TTS, costPerMillionChars = 30.00))
+        )
+        assertEquals(24, CostEstimator.estimateTtsCostCents(8000, models, "elevenlabs", "default"))
     }
 
     @Test
     fun `estimates Inworld TTS Max cost by model name`() {
-        val pricing = mapOf("inworld-tts-1.5-max" to 10.00, "inworld-tts-1.5-mini" to 5.00)
-        // 8000 * 10.00 / 1_000_000 * 100 = 8 cents
-        val cost = CostEstimator.estimateTtsCostCents(8000, pricing, "inworld", "inworld-tts-1.5-max")
-        assertEquals(8, cost)
+        val models = mapOf(
+            "inworld" to mapOf(
+                "inworld-tts-1.5-max" to ModelCost(type = ModelType.TTS, costPerMillionChars = 10.00),
+                "inworld-tts-1.5-mini" to ModelCost(type = ModelType.TTS, costPerMillionChars = 5.00)
+            )
+        )
+        assertEquals(8, CostEstimator.estimateTtsCostCents(8000, models, "inworld", "inworld-tts-1.5-max"))
     }
 
     @Test
     fun `estimates Inworld TTS Mini cost by model name`() {
-        val pricing = mapOf("inworld-tts-1.5-max" to 10.00, "inworld-tts-1.5-mini" to 5.00)
-        // 8000 * 5.00 / 1_000_000 * 100 = 4 cents
-        val cost = CostEstimator.estimateTtsCostCents(8000, pricing, "inworld", "inworld-tts-1.5-mini")
-        assertEquals(4, cost)
+        val models = mapOf(
+            "inworld" to mapOf(
+                "inworld-tts-1.5-max" to ModelCost(type = ModelType.TTS, costPerMillionChars = 10.00),
+                "inworld-tts-1.5-mini" to ModelCost(type = ModelType.TTS, costPerMillionChars = 5.00)
+            )
+        )
+        assertEquals(4, CostEstimator.estimateTtsCostCents(8000, models, "inworld", "inworld-tts-1.5-mini"))
     }
 
     @Test
     fun `returns null when Inworld model pricing not configured`() {
-        val pricing = mapOf("openai" to 15.00)
-        assertNull(CostEstimator.estimateTtsCostCents(8000, pricing, "inworld", "inworld-tts-1.5-max"))
+        val models = mapOf(
+            "openai" to mapOf("tts-1-hd" to ModelCost(type = ModelType.TTS, costPerMillionChars = 15.00))
+        )
+        assertNull(CostEstimator.estimateTtsCostCents(8000, models, "inworld", "inworld-tts-1.5-max"))
     }
 
     @Test
-    fun `falls back to provider name when model not in pricing map`() {
-        val pricing = mapOf("openai" to 15.00)
-        // model "tts-1" not in map, falls back to "openai"
-        val cost = CostEstimator.estimateTtsCostCents(50000, pricing, "openai", "tts-1")
-        assertEquals(75, cost)
+    fun `falls back to first provider model when specific model not found`() {
+        val models = mapOf(
+            "openai" to mapOf("tts-1-hd" to ModelCost(type = ModelType.TTS, costPerMillionChars = 15.00))
+        )
+        // model "tts-1" not in map, falls back to first entry under "openai"
+        assertEquals(75, CostEstimator.estimateTtsCostCents(50000, models, "openai", "tts-1"))
     }
 
     @Test
     fun `handles zero tokens`() {
-        val modelDef = ModelDefinition(
-            provider = "openrouter", model = "test",
-            inputCostPerMtok = 3.00, outputCostPerMtok = 15.00
-        )
-        assertEquals(0, CostEstimator.estimateLlmCostCents(0, 0, modelDef))
+        val cost = ModelCost(type = ModelType.LLM, inputCostPerMtok = 3.00, outputCostPerMtok = 15.00)
+        assertEquals(0, CostEstimator.estimateLlmCostCents(0, 0, cost))
     }
 
     // --- estimatePipelineCostCents tests ---
 
-    private val cheapModel = ModelDefinition(
+    private val cheapModel = ResolvedModel(
         provider = "openrouter", model = "gpt-4o-mini",
-        inputCostPerMtok = 0.15, outputCostPerMtok = 0.60
+        cost = ModelCost(type = ModelType.LLM, inputCostPerMtok = 0.15, outputCostPerMtok = 0.60)
     )
 
-    private val capableModel = ModelDefinition(
+    private val capableModel = ResolvedModel(
         provider = "openrouter", model = "claude-sonnet",
-        inputCostPerMtok = 3.00, outputCostPerMtok = 15.00
+        cost = ModelCost(type = ModelType.LLM, inputCostPerMtok = 3.00, outputCostPerMtok = 15.00)
     )
 
     private fun article(body: String) = Article(
@@ -126,16 +127,8 @@ class CostEstimatorTest {
 
     @Test
     fun `estimates pipeline cost for articles with default models`() {
-        // 10 articles, each 2000 chars
         val articles = (1..10).map { article("x".repeat(2000)) }
-
         val cost = CostEstimator.estimatePipelineCostCents(articles, cheapModel, capableModel, 1500)
-
-        // Scoring: input = 10 * (2000/4) = 5000 tokens, output = 10 * 200 = 2000 tokens
-        // Scoring cost = (5000 * 0.15 + 2000 * 0.60) / 1_000_000 * 100 = 0.195 cents → 0
-        // Composition: input = 10 * 200 = 2000 tokens, output = 1500 * 1.3 = 1950 tokens
-        // Composition cost = (2000 * 3.00 + 1950 * 15.00) / 1_000_000 * 100 = 3.525 cents → 4
-        // Total: 0 + 4 = 4 cents
         assertEquals(4, cost)
     }
 
@@ -146,45 +139,28 @@ class CostEstimatorTest {
             article("x".repeat(3000)),
             article("x".repeat(8000))
         )
-
         val cost = CostEstimator.estimatePipelineCostCents(articles, cheapModel, capableModel, 1500)
-
-        // Scoring: input = (500/4) + (3000/4) + (8000/4) = 125 + 750 + 2000 = 2875 tokens
-        // Scoring: output = 3 * 200 = 600 tokens
-        // Scoring cost = (2875 * 0.15 + 600 * 0.60) / 1_000_000 * 100 ≈ 0.079 cents → 0
-        // Composition: input = 3 * 200 = 600 tokens, output = 1950 tokens
-        // Composition cost = (600 * 3.00 + 1950 * 15.00) / 1_000_000 * 100 ≈ 3.105 cents → 3
-        // Total: 0 + 3 = 3 cents
         assertEquals(3, cost)
     }
 
     @Test
     fun `returns null when pricing not configured for filter model`() {
-        val noPricingModel = ModelDefinition(provider = "openrouter", model = "test")
+        val noPricingModel = ResolvedModel(provider = "openrouter", model = "test", cost = null)
         val articles = listOf(article("x".repeat(1000)))
-
-        val cost = CostEstimator.estimatePipelineCostCents(articles, noPricingModel, capableModel, 1500)
-
-        assertNull(cost)
+        assertNull(CostEstimator.estimatePipelineCostCents(articles, noPricingModel, capableModel, 1500))
     }
 
     @Test
     fun `returns null when pricing not configured for compose model`() {
-        val noPricingModel = ModelDefinition(provider = "openrouter", model = "test")
+        val noPricingModel = ResolvedModel(provider = "openrouter", model = "test", cost = null)
         val articles = listOf(article("x".repeat(1000)))
-
-        val cost = CostEstimator.estimatePipelineCostCents(articles, cheapModel, noPricingModel, 1500)
-
-        assertNull(cost)
+        assertNull(CostEstimator.estimatePipelineCostCents(articles, cheapModel, noPricingModel, 1500))
     }
 
     @Test
     fun `returns null when pricing not configured for both models`() {
-        val noPricingModel = ModelDefinition(provider = "openrouter", model = "test")
+        val noPricingModel = ResolvedModel(provider = "openrouter", model = "test", cost = null)
         val articles = listOf(article("x".repeat(1000)))
-
-        val cost = CostEstimator.estimatePipelineCostCents(articles, noPricingModel, noPricingModel, 1500)
-
-        assertNull(cost)
+        assertNull(CostEstimator.estimatePipelineCostCents(articles, noPricingModel, noPricingModel, 1500))
     }
 }

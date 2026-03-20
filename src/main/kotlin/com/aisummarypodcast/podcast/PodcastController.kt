@@ -1,5 +1,7 @@
 package com.aisummarypodcast.podcast
 
+import com.aisummarypodcast.config.LlmModelOverrides
+import com.aisummarypodcast.config.ModelReference
 import com.aisummarypodcast.source.SourceAggregator
 import com.aisummarypodcast.store.Podcast
 import com.aisummarypodcast.store.PodcastStyle
@@ -21,7 +23,7 @@ data class CreatePodcastRequest(
     val name: String,
     val topic: String,
     val language: String? = null,
-    val llmModels: Map<String, String>? = null,
+    val llmModels: Map<String, ModelReference>? = null,
     val ttsProvider: String? = null,
     val ttsVoices: Map<String, String>? = null,
     val ttsSettings: Map<String, String>? = null,
@@ -44,7 +46,7 @@ data class UpdatePodcastRequest(
     val name: String,
     val topic: String,
     val language: String? = null,
-    val llmModels: Map<String, String>? = null,
+    val llmModels: Map<String, ModelReference>? = null,
     val ttsProvider: String? = null,
     val ttsVoices: Map<String, String>? = null,
     val ttsSettings: Map<String, String>? = null,
@@ -69,8 +71,9 @@ data class PodcastResponse(
     val name: String,
     val topic: String,
     val language: String,
-    val llmModels: Map<String, String>?,
+    val llmModels: Map<String, ModelReference>?,
     val ttsProvider: String,
+
     val ttsVoices: Map<String, String>?,
     val ttsSettings: Map<String, String>?,
     val style: String,
@@ -103,6 +106,12 @@ private fun Map<String, String>?.orKeep(existing: Map<String, String>?): Map<Str
     this == null -> existing
     this.isEmpty() -> null
     else -> this
+}
+
+private fun Map<String, ModelReference>?.toLlmModelOverrides(existing: LlmModelOverrides?): LlmModelOverrides? = when {
+    this == null -> existing
+    this.isEmpty() -> null
+    else -> LlmModelOverrides(this)
 }
 
 @RestController
@@ -171,7 +180,7 @@ class PodcastController(
                 name = request.name,
                 topic = request.topic,
                 language = language,
-                llmModels = request.llmModels,
+                llmModels = request.llmModels?.let { LlmModelOverrides(it) },
                 ttsProvider = ttsProvider,
                 ttsVoices = request.ttsVoices,
                 ttsSettings = request.ttsSettings,
@@ -241,7 +250,7 @@ class PodcastController(
                 name = request.name,
                 topic = request.topic,
                 language = request.language ?: existing.language,
-                llmModels = request.llmModels.orKeep(existing.llmModels),
+                llmModels = request.llmModels.toLlmModelOverrides(existing.llmModels),
                 ttsProvider = effectiveTtsProvider,
                 ttsVoices = request.ttsVoices.orKeep(existing.ttsVoices),
                 ttsSettings = request.ttsSettings.orKeep(existing.ttsSettings),
@@ -465,7 +474,7 @@ class PodcastController(
 
     private fun Podcast.toResponse() = PodcastResponse(
         id = id, userId = userId, name = name, topic = topic,
-        language = language, llmModels = llmModels, ttsProvider = ttsProvider.value, ttsVoices = ttsVoices,
+        language = language, llmModels = llmModels?.stages, ttsProvider = ttsProvider.value, ttsVoices = ttsVoices,
         ttsSettings = ttsSettings,
         style = style.value, targetWords = targetWords, cron = cron,
         customInstructions = customInstructions, relevanceThreshold = relevanceThreshold,

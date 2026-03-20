@@ -1,7 +1,6 @@
 package com.aisummarypodcast.llm
 
 import com.aisummarypodcast.config.AppProperties
-import com.aisummarypodcast.config.ModelDefinition
 import com.aisummarypodcast.podcast.SupportedLanguage
 import com.aisummarypodcast.store.Article
 import com.aisummarypodcast.store.Podcast
@@ -27,7 +26,7 @@ class InterviewComposer(
         return compose(articles, podcast, composeModelDef, ttsScriptGuidelines, followUpAnnotations)
     }
 
-    fun compose(articles: List<Article>, podcast: Podcast, composeModelDef: ModelDefinition, ttsScriptGuidelines: String = "", followUpAnnotations: Map<Long, String> = emptyMap()): CompositionResult {
+    fun compose(articles: List<Article>, podcast: Podcast, composeModelDef: ResolvedModel, ttsScriptGuidelines: String = "", followUpAnnotations: Map<Long, String> = emptyMap()): CompositionResult {
         log.info("[LLM] Composing interview from {} articles for podcast '{}' ({})", articles.size, podcast.name, podcast.id)
         val chatClient = chatClientFactory.createForModel(podcast.userId, composeModelDef)
         val prompt = buildPrompt(articles, podcast, ttsScriptGuidelines, followUpAnnotations)

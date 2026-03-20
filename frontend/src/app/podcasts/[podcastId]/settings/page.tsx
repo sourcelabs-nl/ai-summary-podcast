@@ -4,7 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useUser } from "@/lib/user-context";
-import type { Podcast, PodcastDefaults } from "@/lib/types";
+import type { Podcast, PodcastDefaults, ModelReference, AvailableModel } from "@/lib/types";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -74,17 +75,13 @@ export default function PodcastSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [defaults, setDefaults] = useState<PodcastDefaults | null>(null);
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [currentTab, setTab] = useTabParam("general", TABS);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
-  const [imageMessage, setImageMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [imageUploading, setImageUploading] = useState(false);
 
   // Publishing targets state
   const [pubTargets, setPubTargets] = useState<PublicationTarget[]>([]);
   const [pubForm, setPubForm] = useState<Record<string, { config: Record<string, string>; enabled: boolean }>>({});
-  const [pubSaving, setPubSaving] = useState<Record<string, boolean>>({});
-  const [pubMessage, setPubMessage] = useState<Record<string, { type: "success" | "error"; text: string }>>({});
   const [configuredProviders, setConfiguredProviders] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -153,40 +150,6 @@ export default function PodcastSettingsPage() {
     loadPubTargets();
   }, [loadPubTargets]);
 
-  async function handlePubTargetSave(target: string) {
-    if (!selectedUser) return;
-    const entry = pubForm[target];
-    if (!entry) return;
-    setPubSaving((prev) => ({ ...prev, [target]: true }));
-    setPubMessage((prev) => {
-      const next = { ...prev };
-      delete next[target];
-      return next;
-    });
-    try {
-      const res = await fetch(
-        `/api/users/${selectedUser.id}/podcasts/${params.podcastId}/publication-targets/${target}`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ config: entry.config, enabled: entry.enabled }),
-        }
-      );
-      if (!res.ok) {
-        const body = await res.json().catch(() => null);
-        throw new Error(body?.error || `Save failed (${res.status})`);
-      }
-      setPubMessage((prev) => ({ ...prev, [target]: { type: "success", text: "Saved." } }));
-    } catch (err) {
-      setPubMessage((prev) => ({
-        ...prev,
-        [target]: { type: "error", text: err instanceof Error ? err.message : "Save failed" },
-      }));
-    } finally {
-      setPubSaving((prev) => ({ ...prev, [target]: false }));
-    }
-  }
-
   function updatePubForm(target: string, field: string, value: string) {
     setPubForm((prev) => ({
       ...prev,
@@ -213,14 +176,12 @@ export default function PodcastSettingsPage() {
     // Reset the input so the same file can be re-selected
     e.target.value = "";
 
-    setImageMessage(null);
-
     if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
-      setImageMessage({ type: "error", text: "Only JPEG, PNG, and WebP images are accepted." });
+      toast.error("Only JPEG, PNG, and WebP images are accepted.");
       return;
     }
     if (file.size > MAX_IMAGE_SIZE) {
-      setImageMessage({ type: "error", text: "Image must be smaller than 1 MB." });
+      toast.error("Image must be smaller than 1 MB.");
       return;
     }
 
@@ -237,9 +198,9 @@ export default function PodcastSettingsPage() {
         throw new Error(body?.error || `Upload failed (${res.status})`);
       }
       setImageUrl(`/api/users/${selectedUser.id}/podcasts/${params.podcastId}/image?t=${Date.now()}`);
-      setImageMessage({ type: "success", text: "Image uploaded." });
+      toast.success("Image uploaded.");
     } catch (err) {
-      setImageMessage({ type: "error", text: err instanceof Error ? err.message : "Upload failed" });
+      toast.error(err instanceof Error ? err.message : "Upload failed");
     } finally {
       setImageUploading(false);
     }
@@ -247,7 +208,6 @@ export default function PodcastSettingsPage() {
 
   async function handleImageDelete() {
     if (!selectedUser) return;
-    setImageMessage(null);
     try {
       const res = await fetch(
         `/api/users/${selectedUser.id}/podcasts/${params.podcastId}/image`,
@@ -258,17 +218,17 @@ export default function PodcastSettingsPage() {
         throw new Error(body?.error || `Delete failed (${res.status})`);
       }
       setImageUrl(null);
-      setImageMessage({ type: "success", text: "Image deleted." });
+      toast.success("Image deleted.");
     } catch (err) {
-      setImageMessage({ type: "error", text: err instanceof Error ? err.message : "Delete failed" });
+      toast.error(err instanceof Error ? err.message : "Delete failed");
     }
   }
 
   async function handleSave() {
     if (!selectedUser || !form) return;
     setSaving(true);
-    setMessage(null);
     try {
+      // Save podcast settings
       const res = await fetch(
         `/api/users/${selectedUser.id}/podcasts/${params.podcastId}`,
         {
@@ -304,9 +264,35 @@ export default function PodcastSettingsPage() {
       const updated: Podcast = await res.json();
       setPodcast(updated);
       setForm(updated);
-      setMessage({ type: "success", text: "Settings saved." });
+
+      // Save publication targets
+      const pubErrors: string[] = [];
+      for (const [target, entry] of Object.entries(pubForm)) {
+        try {
+          const pubRes = await fetch(
+            `/api/users/${selectedUser.id}/podcasts/${params.podcastId}/publication-targets/${target}`,
+            {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ config: entry.config, enabled: entry.enabled }),
+            }
+          );
+          if (!pubRes.ok) {
+            const body = await pubRes.json().catch(() => null);
+            pubErrors.push(`${target}: ${body?.error || pubRes.status}`);
+          }
+        } catch (e) {
+          pubErrors.push(`${target}: ${e instanceof Error ? e.message : "failed"}`);
+        }
+      }
+
+      if (pubErrors.length > 0) {
+        toast.error(`Settings saved, but publishing targets failed: ${pubErrors.join(", ")}`);
+      } else {
+        toast.success("Settings saved.");
+      }
     } catch (err) {
-      setMessage({ type: "error", text: err instanceof Error ? err.message : "Save failed" });
+      toast.error(err instanceof Error ? err.message : "Save failed");
     } finally {
       setSaving(false);
     }
@@ -399,17 +385,6 @@ export default function PodcastSettingsPage() {
                     <p className="text-xs text-muted-foreground">
                       JPEG, PNG, or WebP. Max 1 MB.
                     </p>
-                    {imageMessage && (
-                      <p
-                        className={
-                          imageMessage.type === "success"
-                            ? "text-sm text-green-600"
-                            : "text-sm text-destructive"
-                        }
-                      >
-                        {imageMessage.text}
-                      </p>
-                    )}
                   </div>
                 </div>
               </div>
@@ -481,18 +456,81 @@ export default function PodcastSettingsPage() {
               <CardTitle>LLM Settings</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <FieldGroup label="LLM Models" description="Override the LLM model per pipeline stage. Keys: 'filter' (scoring/summarization, cheap model) and 'compose' (script writing, capable model). Values: OpenRouter model IDs.">
-                <KeyValueEditor
-                  value={form.llmModels}
-                  onChange={(v) => update("llmModels", v)}
-                  keyPlaceholder="Stage (e.g. filter, compose)"
-                  valuePlaceholder="Model name"
-                />
-                {defaults?.llmModels && (
-                  <p className="text-xs text-muted-foreground">
-                    System defaults: {Object.entries(defaults.llmModels).map(([k, v]) => `${k} = ${v}`).join(", ")}
-                  </p>
-                )}
+              <FieldGroup label="LLM Models" description="Override the LLM model per pipeline stage. Filter handles scoring/summarization. Compose handles script writing.">
+                {(["filter", "compose"] as const).map((stage) => {
+                  const override = form.llmModels?.[stage];
+                  const defaultRef = defaults?.llmModels?.[stage];
+                  const llmProviders = defaults?.availableModels
+                    ? Object.entries(defaults.availableModels)
+                        .filter(([, models]) => models.some((m) => m.type === "llm"))
+                        .map(([provider]) => provider)
+                    : [];
+                  const activeProvider = override?.provider ?? defaultRef?.provider ?? "";
+                  const modelsForProvider = activeProvider && defaults?.availableModels?.[activeProvider]
+                    ? defaults.availableModels[activeProvider].filter((m) => m.type === "llm")
+                    : [];
+                  const activeModel = override?.model ?? defaultRef?.model ?? "";
+
+                  return (
+                    <div key={stage} className="space-y-1">
+                      <p className="text-xs font-medium capitalize">{stage}</p>
+                      <div className="flex gap-2">
+                        <Select
+                          value={activeProvider}
+                          onValueChange={(provider) => {
+                            const currentModels = form.llmModels ?? {};
+                            const firstModel = defaults?.availableModels?.[provider]
+                              ?.find((m) => m.type === "llm")?.name ?? "";
+                            update("llmModels", { ...currentModels, [stage]: { provider, model: firstModel } });
+                          }}
+                        >
+                          <SelectTrigger className="w-[200px]">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {llmProviders.map((p) => (
+                              <SelectItem key={p} value={p}>{p}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Select
+                          value={activeModel}
+                          onValueChange={(model) => {
+                            const currentModels = form.llmModels ?? {};
+                            update("llmModels", { ...currentModels, [stage]: { provider: activeProvider, model } });
+                          }}
+                        >
+                          <SelectTrigger className="flex-1">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {modelsForProvider.map((m) => (
+                              <SelectItem key={m.name} value={m.name}>{m.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {override && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              const currentModels = { ...form.llmModels };
+                              delete currentModels[stage];
+                              update("llmModels", Object.keys(currentModels).length > 0 ? currentModels : undefined);
+                            }}
+                          >
+                            Reset
+                          </Button>
+                        )}
+                      </div>
+                      {defaultRef && !override && (
+                        <p className="text-xs text-muted-foreground">
+                          Using system default
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
               </FieldGroup>
               <FieldGroup label="Relevance Threshold" description="Minimum relevance score (1-10) an article must receive to be included in the episode. Higher = stricter filtering, fewer articles. Default: 5.">
                 <input
@@ -528,22 +566,48 @@ export default function PodcastSettingsPage() {
               <CardTitle>TTS Settings</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <FieldGroup label="TTS Provider" description="Text-to-speech engine: openai (OpenAI TTS), elevenlabs (ElevenLabs), inworld (Inworld AI TTS with expressive markup).">
-                <Select
-                  value={form.ttsProvider}
-                  onValueChange={(v) => update("ttsProvider", v)}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {TTS_PROVIDERS.map((p) => (
-                      <SelectItem key={p} value={p}>
-                        {p}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <FieldGroup label="TTS Provider & Model" description="Text-to-speech engine and model variant.">
+                <div className="flex gap-2">
+                  <Select
+                    value={form.ttsProvider}
+                    onValueChange={(v) => update("ttsProvider", v)}
+                  >
+                    <SelectTrigger className="w-[200px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TTS_PROVIDERS.map((p) => (
+                        <SelectItem key={p} value={p}>
+                          {p}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {(() => {
+                    const ttsModels = defaults?.availableModels?.[form.ttsProvider]
+                      ?.filter((m) => m.type === "tts") ?? [];
+                    if (ttsModels.length === 0) return null;
+                    const currentModel = form.ttsSettings?.model ?? ttsModels[0]?.name ?? "";
+                    return (
+                      <Select
+                        value={currentModel}
+                        onValueChange={(model) => {
+                          const current = form.ttsSettings ?? {};
+                          update("ttsSettings", { ...current, model });
+                        }}
+                      >
+                        <SelectTrigger className="flex-1">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {ttsModels.map((m) => (
+                            <SelectItem key={m.name} value={m.name}>{m.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    );
+                  })()}
+                </div>
               </FieldGroup>
               <FieldGroup label="TTS Voices" description="Voice assignment per role. For monologue styles use key 'default'. For dialogue/interview use role keys (e.g. 'interviewer', 'expert', 'host', 'cohost'). Values are provider-specific voice IDs.">
                 <KeyValueEditor
@@ -693,27 +757,6 @@ export default function PodcastSettingsPage() {
                         className={inputClass}
                       />
                     </FieldGroup>
-                    <div className="flex items-center gap-4">
-                      <Button
-                        size="sm"
-                        onClick={() => handlePubTargetSave("ftp")}
-                        disabled={pubSaving.ftp}
-                      >
-                        <Save className="mr-2 size-4" />
-                        {pubSaving.ftp ? "Saving..." : "Save"}
-                      </Button>
-                      {pubMessage.ftp && (
-                        <p
-                          className={
-                            pubMessage.ftp.type === "success"
-                              ? "text-sm text-green-600"
-                              : "text-sm text-destructive"
-                          }
-                        >
-                          {pubMessage.ftp.text}
-                        </p>
-                      )}
-                    </div>
                   </CardContent>
                 </Card>
               );
@@ -763,27 +806,6 @@ export default function PodcastSettingsPage() {
                         Auto-managed during publish. Read-only.
                       </p>
                     </FieldGroup>
-                    <div className="flex items-center gap-4">
-                      <Button
-                        size="sm"
-                        onClick={() => handlePubTargetSave("soundcloud")}
-                        disabled={pubSaving.soundcloud}
-                      >
-                        <Save className="mr-2 size-4" />
-                        {pubSaving.soundcloud ? "Saving..." : "Save"}
-                      </Button>
-                      {pubMessage.soundcloud && (
-                        <p
-                          className={
-                            pubMessage.soundcloud.type === "success"
-                              ? "text-sm text-green-600"
-                              : "text-sm text-destructive"
-                          }
-                        >
-                          {pubMessage.soundcloud.text}
-                        </p>
-                      )}
-                    </div>
                   </CardContent>
                 </Card>
               );
@@ -793,24 +815,12 @@ export default function PodcastSettingsPage() {
 
       </Tabs>
 
-      {currentTab !== "publishing" && (
-        <div className="mt-6 flex items-center gap-4">
-          <Button onClick={handleSave} disabled={saving}>
-            {saving ? "Saving..." : "Save"}
-          </Button>
-          {message && (
-            <p
-              className={
-                message.type === "success"
-                  ? "text-sm text-green-600"
-                  : "text-sm text-destructive"
-              }
-            >
-              {message.text}
-            </p>
-          )}
-        </div>
-      )}
+      <div className="mt-6">
+        <Button onClick={handleSave} disabled={saving}>
+          <Save className="mr-2 size-4" />
+          {saving ? "Saving..." : "Save"}
+        </Button>
+      </div>
     </div>
   );
 }
