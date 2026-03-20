@@ -339,139 +339,136 @@ function SettingsContent() {
         </TabsContent>
 
         <TabsContent value="publishing">
-          <div className="space-y-4">
-            {/* FTP Card */}
-            <Card>
-              <CardHeader>
-                <CardTitle>FTP</CardTitle>
-                {ftpHasExisting && (
-                  <p className="text-sm text-muted-foreground">
-                    Existing FTP credentials are stored. Fill in the form below to update them.
-                  </p>
-                )}
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="ftp-host">Host</Label>
-                      <input
-                        id="ftp-host"
-                        className={inputClass}
-                        value={ftp.host}
-                        onChange={(e) => setFtp({ ...ftp, host: e.target.value })}
-                        placeholder="ftp.example.com"
-                      />
+          <Card>
+            <CardContent className="pt-6">
+              <Tabs defaultValue="ftp">
+                <TabsList>
+                  <TabsTrigger value="ftp">FTP</TabsTrigger>
+                  <TabsTrigger value="soundcloud">SoundCloud</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="ftp">
+                  {ftpHasExisting && (
+                    <p className="mb-4 text-sm text-muted-foreground">
+                      Existing FTP credentials are stored. Fill in the form below to update them.
+                    </p>
+                  )}
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="ftp-host">Host</Label>
+                        <input
+                          id="ftp-host"
+                          className={inputClass}
+                          value={ftp.host}
+                          onChange={(e) => setFtp({ ...ftp, host: e.target.value })}
+                          placeholder="ftp.example.com"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="ftp-port">Port</Label>
+                        <input
+                          id="ftp-port"
+                          type="number"
+                          className={inputClass}
+                          value={ftp.port}
+                          onChange={(e) => setFtp({ ...ftp, port: parseInt(e.target.value) || 21 })}
+                        />
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="ftp-port">Port</Label>
-                      <input
-                        id="ftp-port"
-                        type="number"
-                        className={inputClass}
-                        value={ftp.port}
-                        onChange={(e) => setFtp({ ...ftp, port: parseInt(e.target.value) || 21 })}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="ftp-username">Username</Label>
+                        <input
+                          id="ftp-username"
+                          className={inputClass}
+                          value={ftp.username}
+                          onChange={(e) => setFtp({ ...ftp, username: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="ftp-password">Password</Label>
+                        <input
+                          id="ftp-password"
+                          type="password"
+                          className={inputClass}
+                          value={ftp.password}
+                          onChange={(e) => setFtp({ ...ftp, password: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        id="ftp-tls"
+                        checked={ftp.useTls}
+                        onCheckedChange={(checked) => setFtp({ ...ftp, useTls: checked })}
                       />
+                      <Label htmlFor="ftp-tls">Use TLS</Label>
+                    </div>
+                    <div className="flex items-center gap-2 pt-2">
+                      <Button size="sm" onClick={handleTestFtp} disabled={testingFtp || !ftp.host}>
+                        <TestTube className="mr-2 size-4" />
+                        {testingFtp ? "Testing..." : "Test Connection"}
+                      </Button>
+                      <Button size="sm" onClick={handleSaveFtp} disabled={savingFtp || !ftp.host}>
+                        <Save className="mr-2 size-4" />
+                        {savingFtp ? "Saving..." : "Save"}
+                      </Button>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                </TabsContent>
+
+                <TabsContent value="soundcloud">
+                  {scHasExisting && (
+                    <p className="mb-4 text-sm text-muted-foreground">
+                      Existing SoundCloud credentials are stored. Fill in the form below to update them.
+                    </p>
+                  )}
+                  <div className="space-y-4">
                     <div className="space-y-2">
-                      <Label htmlFor="ftp-username">Username</Label>
+                      <Label htmlFor="sc-client-id">Client ID</Label>
                       <input
-                        id="ftp-username"
+                        id="sc-client-id"
                         className={inputClass}
-                        value={ftp.username}
-                        onChange={(e) => setFtp({ ...ftp, username: e.target.value })}
+                        value={soundCloud.clientId}
+                        onChange={(e) => setSoundCloud({ ...soundCloud, clientId: e.target.value })}
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="ftp-password">Password</Label>
+                      <Label htmlFor="sc-client-secret">Client Secret</Label>
                       <input
-                        id="ftp-password"
+                        id="sc-client-secret"
                         type="password"
                         className={inputClass}
-                        value={ftp.password}
-                        onChange={(e) => setFtp({ ...ftp, password: e.target.value })}
+                        value={soundCloud.clientSecret}
+                        onChange={(e) => setSoundCloud({ ...soundCloud, clientSecret: e.target.value })}
                       />
                     </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="sc-callback-uri">Callback URI</Label>
+                      <input
+                        id="sc-callback-uri"
+                        className={inputClass}
+                        value={soundCloud.callbackUri}
+                        onChange={(e) => setSoundCloud({ ...soundCloud, callbackUri: e.target.value })}
+                        placeholder="https://example.com/callback"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2 pt-2">
+                      <Button size="sm" onClick={handleTestSoundCloud} disabled={testingSc}>
+                        <TestTube className="mr-2 size-4" />
+                        {testingSc ? "Testing..." : "Test Connection"}
+                      </Button>
+                      <Button size="sm" onClick={handleSaveSoundCloud} disabled={savingSc || !soundCloud.clientId}>
+                        <Save className="mr-2 size-4" />
+                        {savingSc ? "Saving..." : "Save"}
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Switch
-                      id="ftp-tls"
-                      checked={ftp.useTls}
-                      onCheckedChange={(checked) => setFtp({ ...ftp, useTls: checked })}
-                    />
-                    <Label htmlFor="ftp-tls">Use TLS</Label>
-                  </div>
-                  <div className="flex items-center gap-2 pt-2">
-                    <Button size="sm" onClick={handleTestFtp} disabled={testingFtp || !ftp.host}>
-                      <TestTube className="mr-2 size-4" />
-                      {testingFtp ? "Testing..." : "Test Connection"}
-                    </Button>
-                    <Button size="sm" onClick={handleSaveFtp} disabled={savingFtp || !ftp.host}>
-                      <Save className="mr-2 size-4" />
-                      {savingFtp ? "Saving..." : "Save"}
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* SoundCloud Card */}
-            <Card>
-              <CardHeader>
-                <CardTitle>SoundCloud</CardTitle>
-                {scHasExisting && (
-                  <p className="text-sm text-muted-foreground">
-                    Existing SoundCloud credentials are stored. Fill in the form below to update them.
-                  </p>
-                )}
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="sc-client-id">Client ID</Label>
-                    <input
-                      id="sc-client-id"
-                      className={inputClass}
-                      value={soundCloud.clientId}
-                      onChange={(e) => setSoundCloud({ ...soundCloud, clientId: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="sc-client-secret">Client Secret</Label>
-                    <input
-                      id="sc-client-secret"
-                      type="password"
-                      className={inputClass}
-                      value={soundCloud.clientSecret}
-                      onChange={(e) => setSoundCloud({ ...soundCloud, clientSecret: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="sc-callback-uri">Callback URI</Label>
-                    <input
-                      id="sc-callback-uri"
-                      className={inputClass}
-                      value={soundCloud.callbackUri}
-                      onChange={(e) => setSoundCloud({ ...soundCloud, callbackUri: e.target.value })}
-                      placeholder="https://example.com/callback"
-                    />
-                  </div>
-                  <div className="flex items-center gap-2 pt-2">
-                    <Button size="sm" onClick={handleTestSoundCloud} disabled={testingSc}>
-                      <TestTube className="mr-2 size-4" />
-                      {testingSc ? "Testing..." : "Test Connection"}
-                    </Button>
-                    <Button size="sm" onClick={handleSaveSoundCloud} disabled={savingSc || !soundCloud.clientId}>
-                      <Save className="mr-2 size-4" />
-                      {savingSc ? "Saving..." : "Save"}
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+                </TabsContent>
+              </Tabs>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
 

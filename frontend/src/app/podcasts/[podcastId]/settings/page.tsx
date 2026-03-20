@@ -691,126 +691,133 @@ export default function PodcastSettingsPage() {
         </TabsContent>
 
         <TabsContent value="publishing">
-          <div className="space-y-4">
-            <div className="flex items-center justify-between rounded-md border border-border bg-muted/50 px-4 py-3">
-              <p className="text-sm text-muted-foreground">
-                Publication credentials are managed in your user settings.
-              </p>
-              <Link href="/settings?tab=publishing">
-                <Button variant="outline" size="sm">
-                  <Settings2 className="mr-2 size-4" />
-                  Manage Credentials
-                </Button>
-              </Link>
-            </div>
-            {/* FTP Target */}
-            {(() => {
-              const hasCreds = configuredProviders.has("ftp");
-              const entry = pubForm.ftp ?? { config: { remotePath: "", publicUrl: "" }, enabled: false };
-              return (
-                <Card className={!hasCreds ? "opacity-50 pointer-events-none" : ""}>
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        {hasCreds ? (
-                          <Wifi className="size-4 text-green-600" />
-                        ) : (
-                          <WifiOff className="size-4 text-muted-foreground" />
-                        )}
-                        <CardTitle>FTP</CardTitle>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-muted-foreground">
-                          {entry.enabled ? "Enabled" : "Disabled"}
-                        </span>
-                        <Switch
-                          checked={entry.enabled}
-                          onCheckedChange={(checked) => togglePubTarget("ftp", checked)}
-                        />
-                      </div>
-                    </div>
-                    {!hasCreds && (
-                      <p className="text-sm text-muted-foreground">
-                        Configure credentials in Settings first.
-                      </p>
-                    )}
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <FieldGroup label="Remote Path">
-                      <input
-                        type="text"
-                        value={entry.config.remotePath ?? ""}
-                        onChange={(e) => updatePubForm("ftp", "remotePath", e.target.value)}
-                        placeholder={`/${params.podcastId}/`}
-                        className={inputClass}
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        FTP directory for this podcast. Defaults to /{"{podcastId}"}/ if empty.
-                      </p>
-                    </FieldGroup>
-                    <FieldGroup label="Public URL">
-                      <input
-                        type="text"
-                        value={entry.config.publicUrl ?? ""}
-                        onChange={(e) => updatePubForm("ftp", "publicUrl", e.target.value)}
-                        placeholder="https://example.com/shows/my-podcast"
-                        className={inputClass}
-                      />
-                    </FieldGroup>
-                  </CardContent>
-                </Card>
-              );
-            })()}
+          <Card>
+            <CardContent className="pt-6">
+              <div className="mb-4 flex items-center justify-between rounded-md border border-border bg-muted/50 px-4 py-3">
+                <p className="text-sm text-muted-foreground">
+                  Publication credentials are managed in your user settings.
+                </p>
+                <Link href="/settings?tab=publishing">
+                  <Button variant="outline" size="sm">
+                    <Settings2 className="mr-2 size-4" />
+                    Manage Credentials
+                  </Button>
+                </Link>
+              </div>
+              <Tabs defaultValue="ftp">
+                <TabsList>
+                  <TabsTrigger value="ftp">FTP</TabsTrigger>
+                  <TabsTrigger value="soundcloud">SoundCloud</TabsTrigger>
+                </TabsList>
 
-            {/* SoundCloud Target */}
-            {(() => {
-              const hasCreds = configuredProviders.has("soundcloud");
-              const entry = pubForm.soundcloud ?? { config: { playlistId: "" }, enabled: false };
-              return (
-                <Card className={!hasCreds ? "opacity-50 pointer-events-none" : ""}>
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        {hasCreds ? (
-                          <Wifi className="size-4 text-green-600" />
-                        ) : (
-                          <WifiOff className="size-4 text-muted-foreground" />
+                <TabsContent value="ftp">
+                  {(() => {
+                    const hasCreds = configuredProviders.has("ftp");
+                    const entry = pubForm.ftp ?? { config: { remotePath: "", publicUrl: "" }, enabled: false };
+                    return (
+                      <div className={!hasCreds ? "opacity-50 pointer-events-none" : ""}>
+                        <div className="mb-4 flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            {hasCreds ? (
+                              <Wifi className="size-4 text-green-600" />
+                            ) : (
+                              <WifiOff className="size-4 text-muted-foreground" />
+                            )}
+                            <span className="font-medium">FTP Target</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-muted-foreground">
+                              {entry.enabled ? "Enabled" : "Disabled"}
+                            </span>
+                            <Switch
+                              checked={entry.enabled}
+                              onCheckedChange={(checked) => togglePubTarget("ftp", checked)}
+                            />
+                          </div>
+                        </div>
+                        {!hasCreds && (
+                          <p className="mb-4 text-sm text-muted-foreground">
+                            Configure credentials in Settings first.
+                          </p>
                         )}
-                        <CardTitle>SoundCloud</CardTitle>
+                        <div className="space-y-4">
+                          <FieldGroup label="Remote Path">
+                            <input
+                              type="text"
+                              value={entry.config.remotePath ?? ""}
+                              onChange={(e) => updatePubForm("ftp", "remotePath", e.target.value)}
+                              placeholder={`/${params.podcastId}/`}
+                              className={inputClass}
+                            />
+                            <p className="text-xs text-muted-foreground">
+                              FTP directory for this podcast. Defaults to /{"{podcastId}"}/ if empty.
+                            </p>
+                          </FieldGroup>
+                          <FieldGroup label="Public URL">
+                            <input
+                              type="text"
+                              value={entry.config.publicUrl ?? ""}
+                              onChange={(e) => updatePubForm("ftp", "publicUrl", e.target.value)}
+                              placeholder="https://example.com/shows/my-podcast"
+                              className={inputClass}
+                            />
+                          </FieldGroup>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-muted-foreground">
-                          {entry.enabled ? "Enabled" : "Disabled"}
-                        </span>
-                        <Switch
-                          checked={entry.enabled}
-                          onCheckedChange={(checked) => togglePubTarget("soundcloud", checked)}
-                        />
+                    );
+                  })()}
+                </TabsContent>
+
+                <TabsContent value="soundcloud">
+                  {(() => {
+                    const hasCreds = configuredProviders.has("soundcloud");
+                    const entry = pubForm.soundcloud ?? { config: { playlistId: "" }, enabled: false };
+                    return (
+                      <div className={!hasCreds ? "opacity-50 pointer-events-none" : ""}>
+                        <div className="mb-4 flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            {hasCreds ? (
+                              <Wifi className="size-4 text-green-600" />
+                            ) : (
+                              <WifiOff className="size-4 text-muted-foreground" />
+                            )}
+                            <span className="font-medium">SoundCloud Target</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-muted-foreground">
+                              {entry.enabled ? "Enabled" : "Disabled"}
+                            </span>
+                            <Switch
+                              checked={entry.enabled}
+                              onCheckedChange={(checked) => togglePubTarget("soundcloud", checked)}
+                            />
+                          </div>
+                        </div>
+                        {!hasCreds && (
+                          <p className="mb-4 text-sm text-muted-foreground">
+                            Configure credentials in Settings first.
+                          </p>
+                        )}
+                        <div className="space-y-4">
+                          <FieldGroup label="Playlist ID">
+                            <input
+                              type="text"
+                              value={entry.config.playlistId ?? ""}
+                              readOnly
+                              className={`${inputClass} bg-muted`}
+                            />
+                            <p className="text-xs text-muted-foreground">
+                              Auto-managed during publish. Read-only.
+                            </p>
+                          </FieldGroup>
+                        </div>
                       </div>
-                    </div>
-                    {!hasCreds && (
-                      <p className="text-sm text-muted-foreground">
-                        Configure credentials in Settings first.
-                      </p>
-                    )}
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <FieldGroup label="Playlist ID">
-                      <input
-                        type="text"
-                        value={entry.config.playlistId ?? ""}
-                        readOnly
-                        className={`${inputClass} bg-muted`}
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Auto-managed during publish. Read-only.
-                      </p>
-                    </FieldGroup>
-                  </CardContent>
-                </Card>
-              );
-            })()}
-          </div>
+                    );
+                  })()}
+                </TabsContent>
+              </Tabs>
+            </CardContent>
+          </Card>
         </TabsContent>
 
       </Tabs>
