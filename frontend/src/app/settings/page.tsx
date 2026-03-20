@@ -97,8 +97,22 @@ function SettingsContent() {
       .then((data: ProviderConfig[]) => {
         setConfigs(data);
         const publishing = data.filter((c) => c.category === "PUBLISHING");
-        setFtpHasExisting(publishing.some((c) => c.provider === "ftp"));
-        setScHasExisting(publishing.some((c) => c.provider === "soundcloud"));
+        const ftpConfig = publishing.find((c) => c.provider === "ftp");
+        const scConfig = publishing.find((c) => c.provider === "soundcloud");
+        setFtpHasExisting(!!ftpConfig);
+        setScHasExisting(!!scConfig);
+        if (ftpConfig?.baseUrl) {
+          try {
+            const parsed = JSON.parse(ftpConfig.baseUrl);
+            setFtp((prev) => ({ ...prev, host: parsed.host ?? "", port: parsed.port ?? 21, username: parsed.username ?? "", useTls: parsed.useTls ?? true }));
+          } catch { /* ignore parse errors */ }
+        }
+        if (scConfig?.baseUrl) {
+          try {
+            const parsed = JSON.parse(scConfig.baseUrl);
+            setSoundCloud((prev) => ({ ...prev, clientId: parsed.clientId ?? "", callbackUri: parsed.callbackUri ?? "" }));
+          } catch { /* ignore parse errors */ }
+        }
       })
       .catch(() => setConfigs([]))
       .finally(() => setLoadingConfigs(false));
@@ -159,10 +173,11 @@ function SettingsContent() {
     if (!selectedUser) return;
     setSavingFtp(true);
     try {
+      const { password, ...ftpMeta } = ftp;
       const res = await fetch(`/api/users/${selectedUser.id}/api-keys/PUBLISHING`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ provider: "ftp", apiKey: JSON.stringify(ftp) }),
+        body: JSON.stringify({ provider: "ftp", apiKey: JSON.stringify(ftp), baseUrl: JSON.stringify(ftpMeta) }),
       });
       if (!res.ok) throw new Error("Failed to save FTP credentials");
       toast.success("FTP credentials saved.");
@@ -178,10 +193,11 @@ function SettingsContent() {
     if (!selectedUser) return;
     setSavingSc(true);
     try {
+      const { clientSecret, ...scMeta } = soundCloud;
       const res = await fetch(`/api/users/${selectedUser.id}/api-keys/PUBLISHING`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ provider: "soundcloud", apiKey: JSON.stringify(soundCloud) }),
+        body: JSON.stringify({ provider: "soundcloud", apiKey: JSON.stringify(soundCloud), baseUrl: JSON.stringify(scMeta) }),
       });
       if (!res.ok) throw new Error("Failed to save SoundCloud credentials");
       toast.success("SoundCloud credentials saved.");
