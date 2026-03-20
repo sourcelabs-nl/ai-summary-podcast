@@ -26,13 +26,16 @@ class UserProviderConfigService(
 
     fun setConfig(userId: String, category: ApiKeyCategory, provider: String, apiKey: String?, baseUrl: String?) {
         val encrypted = apiKey?.let { apiKeyEncryptor.encrypt(it) }
+        val existingEncryptedKey = if (encrypted == null) {
+            repository.findByUserIdAndCategoryAndProvider(userId, category, provider)?.encryptedApiKey
+        } else null
         repository.save(
             UserProviderConfig(
                 userId = userId,
                 provider = provider,
                 category = category,
                 baseUrl = baseUrl,
-                encryptedApiKey = encrypted
+                encryptedApiKey = encrypted ?: existingEncryptedKey
             )
         )
     }

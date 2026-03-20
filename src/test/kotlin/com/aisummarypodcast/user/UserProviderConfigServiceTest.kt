@@ -97,8 +97,9 @@ class UserProviderConfigServiceTest {
     }
 
     @Test
-    fun `setConfig saves null encrypted key when apiKey is null`() {
+    fun `setConfig saves null encrypted key when apiKey is null and no existing config`() {
         every { repository.save(any()) } returns Unit
+        every { repository.findByUserIdAndCategoryAndProvider(userId, ApiKeyCategory.LLM, "ollama") } returns null
 
         service.setConfig(userId, ApiKeyCategory.LLM, "ollama", null, null)
 

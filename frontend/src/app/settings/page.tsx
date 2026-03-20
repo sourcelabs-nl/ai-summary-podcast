@@ -177,7 +177,11 @@ function SettingsContent() {
       const res = await fetch(`/api/users/${selectedUser.id}/api-keys/PUBLISHING`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ provider: "ftp", apiKey: JSON.stringify(ftp), baseUrl: JSON.stringify(ftpMeta) }),
+        body: JSON.stringify({
+          provider: "ftp",
+          ...(password ? { apiKey: JSON.stringify(ftp) } : {}),
+          baseUrl: JSON.stringify(ftpMeta),
+        }),
       });
       if (!res.ok) throw new Error("Failed to save FTP credentials");
       toast.success("FTP credentials saved.");
@@ -197,7 +201,11 @@ function SettingsContent() {
       const res = await fetch(`/api/users/${selectedUser.id}/api-keys/PUBLISHING`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ provider: "soundcloud", apiKey: JSON.stringify(soundCloud), baseUrl: JSON.stringify(scMeta) }),
+        body: JSON.stringify({
+          provider: "soundcloud",
+          ...(clientSecret ? { apiKey: JSON.stringify(soundCloud) } : {}),
+          baseUrl: JSON.stringify(scMeta),
+        }),
       });
       if (!res.ok) throw new Error("Failed to save SoundCloud credentials");
       toast.success("SoundCloud credentials saved.");
@@ -424,8 +432,12 @@ function SettingsContent() {
                         type="password"
                         className={inputClass}
                         value={ftp.password}
+                        placeholder={ftpHasExisting ? "••••••••" : ""}
                         onChange={(e) => setFtp({ ...ftp, password: e.target.value })}
                       />
+                      {ftpHasExisting && !ftp.password && (
+                        <p className="text-xs text-muted-foreground">Leave empty to keep existing password</p>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -462,8 +474,12 @@ function SettingsContent() {
                       type="password"
                       className={inputClass}
                       value={soundCloud.clientSecret}
+                      placeholder={scHasExisting ? "••••••••" : ""}
                       onChange={(e) => setSoundCloud({ ...soundCloud, clientSecret: e.target.value })}
                     />
+                    {scHasExisting && !soundCloud.clientSecret && (
+                      <p className="text-xs text-muted-foreground">Leave empty to keep existing secret</p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="sc-callback-uri">Callback URI</Label>
@@ -482,7 +498,7 @@ function SettingsContent() {
           <div className="mt-6 flex items-center gap-2">
             {pubTab === "ftp" && (
               <>
-                <Button size="sm" onClick={handleTestFtp} disabled={testingFtp || !ftp.host}>
+                <Button variant="outline" onClick={handleTestFtp} disabled={testingFtp || !ftp.host}>
                   <TestTube className="mr-2 size-4" />
                   {testingFtp ? "Testing..." : "Test Connection"}
                 </Button>
@@ -494,7 +510,7 @@ function SettingsContent() {
             )}
             {pubTab === "soundcloud" && (
               <>
-                <Button size="sm" onClick={handleTestSoundCloud} disabled={testingSc}>
+                <Button variant="outline" onClick={handleTestSoundCloud} disabled={testingSc}>
                   <TestTube className="mr-2 size-4" />
                   {testingSc ? "Testing..." : "Test Connection"}
                 </Button>

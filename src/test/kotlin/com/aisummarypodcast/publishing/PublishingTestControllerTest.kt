@@ -2,6 +2,7 @@ package com.aisummarypodcast.publishing
 
 import com.aisummarypodcast.config.AppProperties
 import com.aisummarypodcast.store.User
+import com.aisummarypodcast.user.UserProviderConfigService
 import com.aisummarypodcast.user.UserService
 import com.ninjasquad.springmockk.MockkBean
 import io.mockk.every
@@ -24,6 +25,9 @@ class PublishingTestControllerTest {
 
     @MockkBean
     private lateinit var publishingTestService: PublishingTestService
+
+    @MockkBean
+    private lateinit var providerConfigService: UserProviderConfigService
 
     @MockkBean(relaxed = true)
     private lateinit var appProperties: AppProperties

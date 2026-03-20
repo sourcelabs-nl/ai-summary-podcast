@@ -1,6 +1,10 @@
 package com.aisummarypodcast.publishing
 
+import com.aisummarypodcast.store.ApiKeyCategory
+import com.aisummarypodcast.user.UserProviderConfigService
 import com.aisummarypodcast.user.UserService
+import tools.jackson.module.kotlin.jacksonObjectMapper
+import tools.jackson.module.kotlin.readValue
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 
@@ -8,8 +12,11 @@ import org.springframework.web.bind.annotation.*
 @RequestMapping("/users/{userId}/publishing/test")
 class PublishingTestController(
     private val userService: UserService,
-    private val publishingTestService: PublishingTestService
+    private val publishingTestService: PublishingTestService,
+    private val providerConfigService: UserProviderConfigService
 ) {
+
+    private val objectMapper = jacksonObjectMapper()
 
     @PostMapping("/ftp")
     fun testFtp(
@@ -17,7 +24,13 @@ class PublishingTestController(
         @RequestBody credentials: FtpTestCredentials
     ): ResponseEntity<TestConnectionResult> {
         userService.findById(userId) ?: return ResponseEntity.notFound().build()
-        val result = publishingTestService.testFtp(credentials)
+
+        val resolvedPassword = credentials.password?.takeIf { it.isNotBlank() }
+            ?: resolveStoredFtpPassword(userId)
+            ?: return ResponseEntity.ok(TestConnectionResult(success = false, message = "No password provided and no stored credentials found"))
+
+        val resolved = credentials.copy(password = resolvedPassword)
+        val result = publishingTestService.testFtp(resolved)
         return ResponseEntity.ok(result)
     }
 
@@ -37,5 +50,16 @@ class PublishingTestController(
     ): ResponseEntity<Any> {
         userService.findById(userId) ?: return ResponseEntity.notFound().build()
         return ResponseEntity.badRequest().body(mapOf("error" to "Unsupported target: $target"))
+    }
+
+    private fun resolveStoredFtpPassword(userId: String): String? {
+        val config = providerConfigService.resolveConfig(userId, ApiKeyCategory.PUBLISHING, "ftp") ?: return null
+        val apiKey = config.apiKey ?: return null
+        return try {
+            val stored: Map<String, Any> = objectMapper.readValue(apiKey)
+            stored["password"] as? String
+        } catch (_: Exception) {
+            null
+        }
     }
 }

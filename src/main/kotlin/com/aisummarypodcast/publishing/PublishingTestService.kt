@@ -15,7 +15,7 @@ data class FtpTestCredentials(
     val host: String,
     val port: Int = 21,
     val username: String,
-    val password: String,
+    val password: String? = null,
     val useTls: Boolean = true
 )
 
@@ -32,7 +32,7 @@ class PublishingTestService(
         return try {
             ftpClient.connectTimeout = 10_000
             ftpClient.connect(credentials.host, credentials.port)
-            if (!ftpClient.login(credentials.username, credentials.password)) {
+            if (!ftpClient.login(credentials.username, credentials.password ?: "")) {
                 return TestConnectionResult(success = false, message = "Authentication failed")
             }
             ftpClient.enterLocalPassiveMode()
