@@ -80,7 +80,7 @@ class PodcastServiceTest {
         )
 
         every { sourceRepository.findByPodcastId("p1") } returns listOf(source)
-        every { articleRepository.findAllSince(listOf("s1"), "2026-03-01T00:00:00Z") } returns listOf(article)
+        every { articleRepository.findUnprocessedBySourceIds(listOf("s1")) } returns listOf(article)
         every { postRepository.findUnlinkedSince(listOf("s1"), "2026-03-01T00:00:00Z") } returns listOf(post)
         every { postArticleRepository.countByArticleIds(listOf(1L)) } returns 3L
 
@@ -98,7 +98,7 @@ class PodcastServiceTest {
         val podcastNoGenerated = podcast.copy(lastGeneratedAt = null)
 
         every { sourceRepository.findByPodcastId("p1") } returns listOf(source)
-        every { articleRepository.findAllSince(eq(listOf("s1")), any()) } returns emptyList()
+        every { articleRepository.findUnprocessedBySourceIds(listOf("s1")) } returns emptyList()
         every { postRepository.findUnlinkedSince(eq(listOf("s1")), any()) } returns emptyList()
 
         val result = podcastService.getUpcomingContent(podcastNoGenerated)

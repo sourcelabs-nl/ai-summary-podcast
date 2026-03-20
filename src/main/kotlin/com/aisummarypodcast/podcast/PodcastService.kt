@@ -172,7 +172,7 @@ class PodcastService(
             (podcast.maxArticleAgeDays ?: appProperties.source.maxArticleAgeDays).toLong(), ChronoUnit.DAYS
         ).toString()
 
-        val articles = articleRepository.findAllSince(sourceIds, since)
+        val articles = articleRepository.findUnprocessedBySourceIds(sourceIds)
         val unlinkedPosts = postRepository.findUnlinkedSince(sourceIds, since)
 
         val articleIds = articles.mapNotNull { it.id }
