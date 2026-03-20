@@ -261,22 +261,22 @@ function SettingsContent() {
               <CardTitle>Profile</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex items-end gap-4">
-                <div className="flex-1 space-y-2">
-                  <Label htmlFor="user-name">Name</Label>
-                  <Input
-                    id="user-name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                  />
-                </div>
-                <Button size="sm" onClick={handleSaveName} disabled={savingName}>
-                  <Save className="mr-2 size-4" />
-                  {savingName ? "Saving..." : "Save"}
-                </Button>
+              <div className="space-y-2">
+                <Label htmlFor="user-name">Name</Label>
+                <Input
+                  id="user-name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                />
               </div>
             </CardContent>
           </Card>
+          <div className="mt-6">
+            <Button onClick={handleSaveName} disabled={savingName}>
+              <Save className="mr-2 size-4" />
+              {savingName ? "Saving..." : "Save"}
+            </Button>
+          </div>
         </TabsContent>
 
         <TabsContent value="api-keys">
