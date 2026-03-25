@@ -32,10 +32,13 @@ import java.util.*
 class EpisodeServiceTest {
 
     private val episodeRepository = mockk<EpisodeRepository>()
-    private val podcastRepository = mockk<PodcastRepository>()
+    private val podcastRepository = mockk<PodcastRepository> {
+        every { findById(any<String>()) } answers { Optional.of(Podcast(id = firstArg(), userId = "u1", name = "Test", topic = "tech")) }
+    }
     private val ttsPipeline = mockk<TtsPipeline>()
     private val episodeArticleRepository = mockk<EpisodeArticleRepository> {
         every { save(any()) } answers { firstArg() }
+        every { insertIgnore(any(), any(), any()) } returns Unit
     }
     private val articleRepository = mockk<ArticleRepository> {
         every { findById(any<Long>()) } returns Optional.empty()
@@ -83,8 +86,8 @@ class EpisodeServiceTest {
         val episode = episodeService.createEpisodeFromPipelineResult(reviewPodcast, result)
 
         assertEquals(EpisodeStatus.PENDING_REVIEW, episode.status)
-        verify { episodeArticleRepository.save(match { it.episodeId == 5L && it.articleId == 10L }) }
-        verify { episodeArticleRepository.save(match { it.episodeId == 5L && it.articleId == 20L }) }
+        verify { episodeArticleRepository.insertIgnore(5L, 10L, null) }
+        verify { episodeArticleRepository.insertIgnore(5L, 20L, null) }
     }
 
     @Test
@@ -103,7 +106,7 @@ class EpisodeServiceTest {
         val episode = episodeService.createEpisodeFromPipelineResult(podcast, result)
 
         verify { ttsPipeline.generateForExistingEpisode(any(), podcast) }
-        verify { episodeArticleRepository.save(match { it.episodeId == 5L && it.articleId == 10L }) }
+        verify { episodeArticleRepository.insertIgnore(5L, 10L, null) }
     }
 
     @Test
@@ -119,10 +122,10 @@ class EpisodeServiceTest {
 
         episodeService.createEpisodeFromPipelineResult(reviewPodcast, result)
 
-        verify(exactly = 3) { episodeArticleRepository.save(any()) }
-        verify { episodeArticleRepository.save(match { it.episodeId == 7L && it.articleId == 10L }) }
-        verify { episodeArticleRepository.save(match { it.episodeId == 7L && it.articleId == 20L }) }
-        verify { episodeArticleRepository.save(match { it.episodeId == 7L && it.articleId == 30L }) }
+        verify(exactly = 3) { episodeArticleRepository.insertIgnore(any(), any(), any()) }
+        verify { episodeArticleRepository.insertIgnore(7L, 10L, null) }
+        verify { episodeArticleRepository.insertIgnore(7L, 20L, null) }
+        verify { episodeArticleRepository.insertIgnore(7L, 30L, null) }
     }
 
     @Test

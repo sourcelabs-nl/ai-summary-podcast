@@ -22,7 +22,8 @@ data class PipelineResult(
     val llmInputTokens: Int = 0,
     val llmOutputTokens: Int = 0,
     val llmCostCents: Int? = null,
-    val processedArticleIds: List<Long> = emptyList()
+    val processedArticleIds: List<Long> = emptyList(),
+    val articleTopics: Map<Long, String> = emptyMap()
 )
 
 data class PreviewResult(
@@ -140,6 +141,9 @@ class LlmPipeline(
         }
 
         val processedArticleIds = toCompose.mapNotNull { it.id }
+        val articleTopics = dedupResult.filteredArticles
+            .filter { it.article.id != null && it.topic != null }
+            .associate { it.article.id!! to it.topic!! }
 
         val dedupCostCents = CostEstimator.estimateLlmCostCents(
             dedupResult.usage.inputTokens, dedupResult.usage.outputTokens, filterModelDef.cost
@@ -157,7 +161,8 @@ class LlmPipeline(
             llmInputTokens = dedupResult.usage.inputTokens + compositionResult.usage.inputTokens,
             llmOutputTokens = dedupResult.usage.outputTokens + compositionResult.usage.outputTokens,
             llmCostCents = totalCostCents,
-            processedArticleIds = processedArticleIds
+            processedArticleIds = processedArticleIds,
+            articleTopics = articleTopics
         )
     }
 

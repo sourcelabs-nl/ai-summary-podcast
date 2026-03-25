@@ -127,7 +127,8 @@ class EpisodeService(
         val finalEpisode = generateAndStoreShowNotes(recapEpisode)
         generateSourcesFile(finalEpisode, podcast)
         if (updateLastGenerated) {
-            podcastRepository.save(podcast.copy(lastGeneratedAt = Instant.now().toString()))
+            val freshPodcast = podcastRepository.findById(podcast.id).orElseThrow()
+            podcastRepository.save(freshPodcast.copy(lastGeneratedAt = Instant.now().toString()))
         }
 
         val eventName = if (podcast.requireReview) "episode.created" else "episode.generated"
@@ -141,7 +142,8 @@ class EpisodeService(
 
     private fun saveEpisodeArticleLinks(episode: Episode, result: PipelineResult) {
         for (articleId in result.processedArticleIds) {
-            episodeArticleRepository.save(EpisodeArticle(episodeId = episode.id!!, articleId = articleId))
+            val topic = result.articleTopics[articleId]
+            episodeArticleRepository.insertIgnore(episodeId = episode.id!!, articleId = articleId, topic = topic)
         }
     }
 
@@ -280,7 +282,8 @@ class EpisodeService(
                 )
             )
         }
-        podcastRepository.save(podcast.copy(lastGeneratedAt = Instant.now().toString()))
+        val freshPodcast = podcastRepository.findById(podcast.id).orElseThrow()
+        podcastRepository.save(freshPodcast.copy(lastGeneratedAt = Instant.now().toString()))
         eventPublisher.publishEvent(
             PodcastEvent(this, podcast.id, "episode", episode.id!!, "episode.failed",
                 mapOf("episodeNumber" to episode.id, "error" to errorMessage))

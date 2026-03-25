@@ -2,6 +2,8 @@ package com.aisummarypodcast.llm
 
 import com.aisummarypodcast.store.Article
 import org.slf4j.LoggerFactory
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.runBlocking
 import org.springframework.ai.openai.OpenAiChatOptions
 import org.springframework.stereotype.Component
 import kotlin.time.measureTimedValue
@@ -26,7 +28,8 @@ data class DedupResult(
 
 data class FilteredArticle(
     val article: Article,
-    val followUpContext: String? = null
+    val followUpContext: String? = null,
+    val topic: String? = null
 )
 
 data class DedupFilterResult(
@@ -55,18 +58,32 @@ class TopicDedupFilter(
         val chatClient = chatClientFactory.createForModel(userId, filterModelDef)
         val prompt = buildPrompt(candidates, historicalArticles)
 
+        val maxRetries = 3
         val (result, elapsed) = measureTimedValue {
-            val chatResponse = chatClient.prompt()
-                .user(prompt)
-                .options(OpenAiChatOptions.builder().model(filterModelDef.model).temperature(0.3).build())
-                .call()
-                .responseEntity(DedupResult::class.java)
+            var lastException: Exception? = null
+            for (attempt in 1..maxRetries) {
+                try {
+                    val chatResponse = chatClient.prompt()
+                        .user(prompt)
+                        .options(OpenAiChatOptions.builder().model(filterModelDef.model).temperature(0.3).build())
+                        .call()
+                        .responseEntity(DedupResult::class.java)
 
-            val dedupResult = chatResponse.entity()
-                ?: throw IllegalStateException("Empty response from LLM for topic dedup filter")
+                    val dedupResult = chatResponse.entity()
+                        ?: throw IllegalStateException("Empty response from LLM for topic dedup filter")
 
-            val usage = TokenUsage.fromChatResponse(chatResponse.response())
-            Pair(dedupResult, usage)
+                    val usage = TokenUsage.fromChatResponse(chatResponse.response())
+                    return@measureTimedValue Pair(dedupResult, usage)
+                } catch (e: Exception) {
+                    lastException = e
+                    if (attempt < maxRetries) {
+                        val backoffMs = 1000L * (1 shl (attempt - 1))
+                        log.warn("[Dedup] Retry {}/{} for topic dedup filter: {}", attempt, maxRetries, e.message)
+                        runBlocking { delay(backoffMs) }
+                    }
+                }
+            }
+            throw lastException!!
         }
 
         val (dedupResult, usage) = result
@@ -83,7 +100,7 @@ class TopicDedupFilter(
             for (articleIndex in cluster.selectedArticleIds) {
                 val article = candidateById[articleIndex]
                 if (article != null) {
-                    filteredArticles.add(FilteredArticle(article, followUpContext))
+                    filteredArticles.add(FilteredArticle(article, followUpContext, cluster.topic))
                 }
             }
         }

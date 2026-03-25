@@ -1,10 +1,4 @@
-# Capability: Episode-Article Tracking
-
-## Purpose
-
-Tracks which articles contributed to each episode, providing traceability from episodes back to their source articles.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Episode-article join table
 The system SHALL maintain an `episode_articles` join table with columns: `id` (auto-generated INTEGER PRIMARY KEY), `episode_id` (INTEGER, NOT NULL, FK to episodes), `article_id` (INTEGER, NOT NULL, FK to articles), `topic` (TEXT, nullable). A unique constraint SHALL exist on `(episode_id, article_id)` to prevent duplicate linkage. The `topic` column stores the dedup cluster topic label that groups related articles. This table enables traceability from episodes back to the articles that contributed to them.
@@ -30,17 +24,6 @@ Episode-article links SHALL be saved for ALL episode generation paths, including
 #### Scenario: Topic is null for recomposed episodes
 - **WHEN** an episode is recomposed (bypassing the dedup filter)
 - **THEN** rows are created in `episode_articles` with `topic` set to NULL
-
-### Requirement: Episode-article repository
-The system SHALL provide a Spring Data JDBC repository for the `EpisodeArticle` entity with methods to save links and query articles by episode.
-
-#### Scenario: Save episode-article links in bulk
-- **WHEN** an episode is created from 3 articles
-- **THEN** the repository saves 3 `EpisodeArticle` records
-
-#### Scenario: Find articles for an episode
-- **WHEN** querying articles for episode ID 42
-- **THEN** the repository returns all article IDs linked to episode 42
 
 ### Requirement: Pipeline returns processed article IDs
 The `LlmPipeline` SHALL return the list of processed article IDs in `PipelineResult` along with a mapping of article ID to topic label (`articleTopics: Map<Long, String>`). The topic mapping SHALL be built from the `DedupResult.clusters` by iterating each cluster's `selectedArticleIds` and mapping them to the cluster's `topic` string.

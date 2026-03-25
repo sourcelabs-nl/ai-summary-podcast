@@ -3,11 +3,13 @@ package com.aisummarypodcast.podcast
 import com.aisummarypodcast.config.AppProperties
 import com.aisummarypodcast.config.FeedProperties
 import com.aisummarypodcast.store.Episode
+import com.aisummarypodcast.store.EpisodeArticleRepository
+import com.aisummarypodcast.store.EpisodePublicationRepository
 import com.aisummarypodcast.store.EpisodeRepository
 import com.aisummarypodcast.store.EpisodeStatus
+import com.aisummarypodcast.store.FeedArticle
 import com.aisummarypodcast.store.Podcast
 import com.aisummarypodcast.store.User
-import com.aisummarypodcast.store.EpisodePublicationRepository
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -21,14 +23,23 @@ class FeedGeneratorTest {
     private val podcastImageService = mockk<PodcastImageService>()
     private val episodeSourcesGenerator = mockk<EpisodeSourcesGenerator>()
     private val publicationRepository = mockk<EpisodePublicationRepository>()
+    private val episodeArticleRepository = mockk<EpisodeArticleRepository>().also {
+        every { it.findArticlesByEpisodeIds(any()) } returns emptyMap()
+    }
     private val appProperties = mockk<AppProperties>().also {
         every { it.feed } returns FeedProperties(
             baseUrl = "http://localhost:8085",
             title = "AI Summary Podcast",
-            description = "Test feed"
+            description = "Test feed",
+            ownerName = "TestOwner",
+            ownerEmail = "test@example.com",
+            author = "TestAuthor"
         )
     }
-    private val feedGenerator = FeedGenerator(episodeRepository, appProperties, podcastImageService, episodeSourcesGenerator, publicationRepository)
+    private val feedGenerator = FeedGenerator(
+        episodeRepository, appProperties, podcastImageService,
+        episodeSourcesGenerator, publicationRepository, episodeArticleRepository
+    )
 
     private val podcast = Podcast(id = "p1", userId = "u1", name = "Tech Daily", topic = "tech")
     private val user = User(id = "u1", name = "Test User")
@@ -81,7 +92,7 @@ class FeedGeneratorTest {
     }
 
     @Test
-    fun `episode description includes sources link when publicUrl set`() {
+    fun `episode plain description has show notes without sources link`() {
         val episode = Episode(
             id = 1L, podcastId = "p1", generatedAt = "2025-01-01T00:00:00Z",
             scriptText = "Full script", status = EpisodeStatus.GENERATED,
@@ -91,27 +102,11 @@ class FeedGeneratorTest {
         every { episodeRepository.findByPodcastIdAndStatus("p1", "GENERATED") } returns listOf(episode)
         every { podcastImageService.get("p1") } returns null
         every { episodeSourcesGenerator.deriveSlug(episode) } returns "briefing-20250101-000000"
+        every { episodeArticleRepository.findArticlesByEpisodeIds(listOf(1L)) } returns emptyMap()
 
         val xml = feedGenerator.generate(podcast, user, publicUrl = "https://podcast.example.com/shows/tech/")
         assertTrue(xml.contains("Today's recap summary."), "Expected recap in description")
-        assertTrue(xml.contains("Sources: https://podcast.example.com/shows/tech/episodes/briefing-20250101-000000-sources.html"), "Expected sources link")
-    }
-
-    @Test
-    fun `episode description includes local sources link without publicUrl`() {
-        val episode = Episode(
-            id = 1L, podcastId = "p1", generatedAt = "2025-01-01T00:00:00Z",
-            scriptText = "Full script", status = EpisodeStatus.GENERATED,
-            audioFilePath = "/data/p1/episodes/briefing-20250101-000000.mp3", durationSeconds = 120,
-            showNotes = "Today's recap summary."
-        )
-        every { episodeRepository.findByPodcastIdAndStatus("p1", "GENERATED") } returns listOf(episode)
-        every { podcastImageService.get("p1") } returns null
-        every { episodeSourcesGenerator.deriveSlug(episode) } returns "briefing-20250101-000000"
-
-        val xml = feedGenerator.generate(podcast, user)
-        assertTrue(xml.contains("Today's recap summary."), "Expected recap in description")
-        assertTrue(xml.contains("Sources: http://localhost:8085/data/p1/episodes/briefing-20250101-000000-sources.html"), "Expected local sources link")
+        assertFalse(xml.contains("Sources: https://"), "Sources link should not be in plain description")
     }
 
     @Test
@@ -125,6 +120,7 @@ class FeedGeneratorTest {
         every { episodeRepository.findByPodcastIdAndStatus("p1", "GENERATED") } returns listOf(episode)
         every { podcastImageService.get("p1") } returns null
         every { episodeSourcesGenerator.deriveSlug(episode) } returns "briefing-20250101-000000"
+        every { episodeArticleRepository.findArticlesByEpisodeIds(listOf(1L)) } returns emptyMap()
 
         val xml = feedGenerator.generate(podcast, user)
         assertTrue(xml.contains("Recap summary."), "Expected show notes in feed description")
@@ -138,5 +134,176 @@ class FeedGeneratorTest {
 
         val xml = feedGenerator.generate(podcast, user)
         assertFalse(xml.contains("<item>"), "Expected no items in feed")
+    }
+
+    @Test
+    fun `feed includes itunes type and explicit at channel level`() {
+        every { episodeRepository.findByPodcastIdAndStatus("p1", "GENERATED") } returns emptyList()
+        every { podcastImageService.get("p1") } returns null
+
+        val xml = feedGenerator.generate(podcast, user)
+        assertTrue(xml.contains("<itunes:type>episodic</itunes:type>"), "Expected itunes:type")
+        assertTrue(xml.contains("<itunes:explicit>no</itunes:explicit>"), "Expected itunes:explicit")
+    }
+
+    @Test
+    fun `feed includes itunes category`() {
+        every { episodeRepository.findByPodcastIdAndStatus("p1", "GENERATED") } returns emptyList()
+        every { podcastImageService.get("p1") } returns null
+
+        val xml = feedGenerator.generate(podcast, user)
+        assertTrue(xml.contains("<itunes:category"), "Expected itunes:category")
+        assertTrue(xml.contains("Technology"), "Expected Technology category")
+    }
+
+    @Test
+    fun `feed includes itunes image when podcast image exists`() {
+        every { episodeRepository.findByPodcastIdAndStatus("p1", "GENERATED") } returns emptyList()
+        every { podcastImageService.get("p1") } returns Path.of("/data/p1/podcast-image.jpg")
+
+        val xml = feedGenerator.generate(podcast, user)
+        assertTrue(xml.contains("itunes:image"), "Expected itunes:image element")
+        assertTrue(xml.contains("podcast-image.jpg"), "Expected image filename in itunes:image")
+    }
+
+    @Test
+    fun `feed includes atom self link`() {
+        every { episodeRepository.findByPodcastIdAndStatus("p1", "GENERATED") } returns emptyList()
+        every { podcastImageService.get("p1") } returns null
+
+        val xml = feedGenerator.generate(podcast, user)
+        assertTrue(xml.contains("atom:link"), "Expected atom:link element")
+        assertTrue(xml.contains("rel=\"self\""), "Expected rel=self")
+        assertTrue(xml.contains("feed.xml"), "Expected feed.xml in self link")
+    }
+
+    @Test
+    fun `feed includes lastBuildDate`() {
+        every { episodeRepository.findByPodcastIdAndStatus("p1", "GENERATED") } returns emptyList()
+        every { podcastImageService.get("p1") } returns null
+
+        val xml = feedGenerator.generate(podcast, user)
+        assertTrue(xml.contains("<lastBuildDate>"), "Expected lastBuildDate element")
+    }
+
+    @Test
+    fun `episode includes itunes duration and episodeType`() {
+        val episode = Episode(
+            id = 1L, podcastId = "p1", generatedAt = "2025-01-01T00:00:00Z",
+            scriptText = "Script", status = EpisodeStatus.GENERATED,
+            audioFilePath = "/data/p1/episodes/briefing-20250101-000000.mp3", durationSeconds = 3661
+        )
+        every { episodeRepository.findByPodcastIdAndStatus("p1", "GENERATED") } returns listOf(episode)
+        every { podcastImageService.get("p1") } returns null
+        every { episodeSourcesGenerator.deriveSlug(episode) } returns "briefing-20250101-000000"
+        every { episodeArticleRepository.findArticlesByEpisodeIds(listOf(1L)) } returns emptyMap()
+
+        val xml = feedGenerator.generate(podcast, user)
+        assertTrue(xml.contains("<itunes:episodeType>full</itunes:episodeType>"), "Expected itunes:episodeType")
+        assertTrue(xml.contains("<itunes:duration>"), "Expected itunes:duration")
+    }
+
+    @Test
+    fun `episode link points to sources html not audio`() {
+        val episode = Episode(
+            id = 1L, podcastId = "p1", generatedAt = "2025-01-01T00:00:00Z",
+            scriptText = "Script", status = EpisodeStatus.GENERATED,
+            audioFilePath = "/data/p1/episodes/briefing-20250101-000000.mp3", durationSeconds = 120
+        )
+        every { episodeRepository.findByPodcastIdAndStatus("p1", "GENERATED") } returns listOf(episode)
+        every { podcastImageService.get("p1") } returns null
+        every { episodeSourcesGenerator.deriveSlug(episode) } returns "briefing-20250101-000000"
+        every { episodeArticleRepository.findArticlesByEpisodeIds(listOf(1L)) } returns emptyMap()
+
+        val xml = feedGenerator.generate(podcast, user)
+        // The <link> should point to the sources HTML page
+        assertTrue(xml.contains("briefing-20250101-000000-sources.html"), "Expected sources HTML link")
+    }
+
+    @Test
+    fun `episode includes content encoded with html and article links`() {
+        val episode = Episode(
+            id = 1L, podcastId = "p1", generatedAt = "2025-01-01T00:00:00Z",
+            scriptText = "Script", status = EpisodeStatus.GENERATED,
+            audioFilePath = "/data/p1/episodes/briefing-20250101-000000.mp3", durationSeconds = 120,
+            showNotes = "Great episode about AI."
+        )
+        every { episodeRepository.findByPodcastIdAndStatus("p1", "GENERATED") } returns listOf(episode)
+        every { podcastImageService.get("p1") } returns null
+        every { episodeSourcesGenerator.deriveSlug(episode) } returns "briefing-20250101-000000"
+        every { episodeArticleRepository.findArticlesByEpisodeIds(listOf(1L)) } returns mapOf(
+            1L to listOf(
+                FeedArticle("OpenAI launches GPT-5", "https://example.com/gpt5"),
+                FeedArticle("Anthropic updates Claude", "https://example.com/claude")
+            )
+        )
+
+        val xml = feedGenerator.generate(podcast, user)
+        assertTrue(xml.contains("content:encoded"), "Expected content:encoded element")
+        assertTrue(xml.contains("Great episode about AI."), "Expected show notes in content:encoded")
+        assertTrue(xml.contains("href=\"https://example.com/gpt5\""), "Expected article link in content:encoded")
+        assertTrue(xml.contains("OpenAI launches GPT-5"), "Expected article title in content:encoded")
+        assertTrue(xml.contains("Anthropic updates Claude"), "Expected second article in content:encoded")
+    }
+
+    @Test
+    fun `content encoded shows one article per topic when topics present`() {
+        val episode = Episode(
+            id = 1L, podcastId = "p1", generatedAt = "2025-01-01T00:00:00Z",
+            scriptText = "Script", status = EpisodeStatus.GENERATED,
+            audioFilePath = "/data/p1/episodes/briefing-20250101-000000.mp3", durationSeconds = 120,
+            showNotes = "AI news roundup."
+        )
+        every { episodeRepository.findByPodcastIdAndStatus("p1", "GENERATED") } returns listOf(episode)
+        every { podcastImageService.get("p1") } returns null
+        every { episodeSourcesGenerator.deriveSlug(episode) } returns "briefing-20250101-000000"
+        every { episodeArticleRepository.findArticlesByEpisodeIds(listOf(1L)) } returns mapOf(
+            1L to listOf(
+                FeedArticle("GPT-5 launched", "https://example.com/gpt5", topic = "GPT-5 release"),
+                FeedArticle("GPT-5 benchmarks", "https://example.com/gpt5-bench", topic = "GPT-5 release"),
+                FeedArticle("Claude update", "https://example.com/claude", topic = "Anthropic Claude"),
+                FeedArticle("Claude pricing", "https://example.com/claude-price", topic = "Anthropic Claude"),
+                FeedArticle("New MCP tools", "https://example.com/mcp", topic = "MCP ecosystem")
+            )
+        )
+
+        val xml = feedGenerator.generate(podcast, user)
+        // Should show only 3 topic links (one per topic), not all 5 article titles
+        assertTrue(xml.contains("GPT-5 release"), "Expected GPT-5 topic as link")
+        assertTrue(xml.contains("Anthropic Claude"), "Expected Claude topic as link")
+        assertTrue(xml.contains("MCP ecosystem"), "Expected MCP topic as link")
+        assertFalse(xml.contains("GPT-5 benchmarks"), "Expected second GPT-5 article to be excluded")
+        assertFalse(xml.contains("Claude pricing"), "Expected second Claude article to be excluded")
+        assertTrue(xml.contains("Topics covered:"), "Expected topics header")
+        assertTrue(xml.contains("GPT-5 release"), "Expected topic label as link text")
+        assertFalse(xml.contains("GPT-5 launched"), "Expected article title replaced by topic label")
+        assertTrue(xml.contains("view all sources and show notes"), "Expected sources link text")
+        assertTrue(xml.contains("mailto:test@example.com"), "Expected mailto link in footer")
+    }
+
+    @Test
+    fun `content encoded shows all articles when no topics present`() {
+        val episode = Episode(
+            id = 1L, podcastId = "p1", generatedAt = "2025-01-01T00:00:00Z",
+            scriptText = "Script", status = EpisodeStatus.GENERATED,
+            audioFilePath = "/data/p1/episodes/briefing-20250101-000000.mp3", durationSeconds = 120,
+            showNotes = "Legacy episode."
+        )
+        every { episodeRepository.findByPodcastIdAndStatus("p1", "GENERATED") } returns listOf(episode)
+        every { podcastImageService.get("p1") } returns null
+        every { episodeSourcesGenerator.deriveSlug(episode) } returns "briefing-20250101-000000"
+        every { episodeArticleRepository.findArticlesByEpisodeIds(listOf(1L)) } returns mapOf(
+            1L to listOf(
+                FeedArticle("Article one", "https://example.com/1"),
+                FeedArticle("Article two", "https://example.com/2"),
+                FeedArticle("Article three", "https://example.com/3")
+            )
+        )
+
+        val xml = feedGenerator.generate(podcast, user)
+        // All articles should be shown (no topic data = legacy fallback)
+        assertTrue(xml.contains("Article one"), "Expected all articles in legacy mode")
+        assertTrue(xml.contains("Article two"), "Expected all articles in legacy mode")
+        assertTrue(xml.contains("Article three"), "Expected all articles in legacy mode")
     }
 }

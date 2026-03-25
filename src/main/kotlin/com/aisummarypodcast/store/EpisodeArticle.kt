@@ -7,5 +7,6 @@ import org.springframework.data.relational.core.mapping.Table
 data class EpisodeArticle(
     @Id val id: Long? = null,
     val episodeId: Long,
-    val articleId: Long
+    val articleId: Long,
+    val topic: String? = null
 )

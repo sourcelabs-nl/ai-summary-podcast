@@ -75,7 +75,9 @@ data class FeedProperties(
     val staticBaseUrl: String? = null,
     val ownerName: String? = null,
     val ownerEmail: String? = null,
-    val author: String? = null
+    val author: String? = null,
+    val itunesCategory: String = "Technology",
+    val explicit: Boolean = false
 )
 
 data class LlmCacheProperties(

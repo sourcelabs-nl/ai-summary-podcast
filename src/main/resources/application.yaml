@@ -81,6 +81,8 @@ app:
     owner-name: Sourcelabs
     owner-email: podcast@sourcelabs.nl
     author: Sourcelabs
+    itunes-category: Technology
+    explicit: false
   soundcloud:
     client-id: ${APP_SOUNDCLOUD_CLIENT_ID:}
     client-secret: ${APP_SOUNDCLOUD_CLIENT_SECRET:}

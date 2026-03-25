@@ -1,11 +1,16 @@
 package com.aisummarypodcast.store
 
+import org.springframework.data.jdbc.repository.query.Modifying
 import org.springframework.data.jdbc.repository.query.Query
 import org.springframework.data.repository.CrudRepository
 
 interface EpisodeArticleRepository : CrudRepository<EpisodeArticle, Long>, EpisodeArticleRepositoryCustom {
 
     fun findByEpisodeId(episodeId: Long): List<EpisodeArticle>
+
+    @Modifying
+    @Query("INSERT OR IGNORE INTO episode_articles (episode_id, article_id, topic) VALUES (:episodeId, :articleId, :topic)")
+    fun insertIgnore(episodeId: Long, articleId: Long, topic: String? = null)
 
     // Status values must match EpisodeStatus enum names
     @Query("""

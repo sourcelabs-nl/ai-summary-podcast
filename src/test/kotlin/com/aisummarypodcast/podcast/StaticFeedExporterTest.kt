@@ -7,6 +7,7 @@ import com.aisummarypodcast.publishing.PodcastPublicationTargetService
 import com.aisummarypodcast.store.Episode
 import com.aisummarypodcast.store.EpisodePublication
 import com.aisummarypodcast.store.EpisodePublicationRepository
+import com.aisummarypodcast.store.EpisodeArticleRepository
 import com.aisummarypodcast.store.EpisodeRepository
 import com.aisummarypodcast.store.EpisodeStatus
 import com.aisummarypodcast.store.Podcast
@@ -34,6 +35,9 @@ class StaticFeedExporterTest {
     private val episodeSourcesGenerator = mockk<EpisodeSourcesGenerator>()
     private val publicationRepository = mockk<EpisodePublicationRepository>()
     private val targetService = mockk<PodcastPublicationTargetService>()
+    private val episodeArticleRepository = mockk<EpisodeArticleRepository>().also {
+        every { it.findArticlesByEpisodeIds(any()) } returns emptyMap()
+    }
     private val objectMapper = JsonMapper.builder().build()
 
     @TempDir
@@ -50,7 +54,7 @@ class StaticFeedExporterTest {
             every { it.feed } returns feedProperties
             every { it.episodes } returns EpisodesProperties(directory = tempDir.toString())
         }
-        val feedGenerator = FeedGenerator(episodeRepository, appProperties, podcastImageService, episodeSourcesGenerator, publicationRepository)
+        val feedGenerator = FeedGenerator(episodeRepository, appProperties, podcastImageService, episodeSourcesGenerator, publicationRepository, episodeArticleRepository)
         return StaticFeedExporter(feedGenerator, userRepository, appProperties, targetService, objectMapper)
     }
 
@@ -87,6 +91,7 @@ class StaticFeedExporterTest {
         every { podcastImageService.get("p1") } returns null
         every { targetService.get("p1", "ftp") } returns null
         every { episodeSourcesGenerator.deriveSlug(episode) } returns "briefing-20250101-000000"
+        every { episodeArticleRepository.findArticlesByEpisodeIds(listOf(1L)) } returns emptyMap()
 
         val exporter = createExporter(staticBaseUrl = "https://cdn.example.com")
         exporter.export(podcast)
@@ -118,6 +123,7 @@ class StaticFeedExporterTest {
         every { publicationRepository.findPublishedByPodcastIdAndTarget("p1", "ftp") } returns listOf(publication)
         every { podcastImageService.get("p1") } returns null
         every { episodeSourcesGenerator.deriveSlug(episode) } returns "briefing-20250101-000000"
+        every { episodeArticleRepository.findArticlesByEpisodeIds(listOf(1L)) } returns emptyMap()
         every { targetService.get("p1", "ftp") } returns PodcastPublicationTarget(
             id = 1, podcastId = "p1", target = "ftp",
             config = """{"remotePath":"/shows/tech/","publicUrl":"https://podcast.example.com"}""",
@@ -128,7 +134,8 @@ class StaticFeedExporterTest {
         exporter.export(podcast)
 
         val content = Files.readString(tempDir.resolve("p1/feed.xml"))
-        assertTrue(content.contains("Sources: https://podcast.example.com/shows/tech/episodes/briefing-20250101-000000-sources.html"))
+        assertTrue(content.contains("Today's recap."), "Expected show notes in description")
+        assertTrue(content.contains("https://podcast.example.com/shows/tech/episodes/briefing-20250101-000000-sources.html"), "Expected sources URL in content:encoded")
     }
 
     @Test
