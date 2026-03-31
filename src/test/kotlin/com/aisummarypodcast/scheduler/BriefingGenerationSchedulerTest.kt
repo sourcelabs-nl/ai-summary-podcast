@@ -155,4 +155,44 @@ class BriefingGenerationSchedulerTest {
 
         verify(exactly = 0) { podcastService.generateBriefing(any()) }
     }
+
+    @Test
+    fun `timezone-aware cron triggers at correct local time`() {
+        // Cron: daily at 06:00. Timezone: Europe/Amsterdam (CET = UTC+1 in winter).
+        // 06:00 CET = 05:00 UTC. Clock is at 05:05 UTC = 06:05 CET.
+        val now = Instant.parse("2026-02-23T05:05:00Z")
+        val podcast = Podcast(
+            id = "p1", userId = "u1", name = "Test", topic = "tech",
+            cron = "0 0 6 * * *",
+            timezone = "Europe/Amsterdam",
+            lastGeneratedAt = "2026-02-22T05:00:00Z"
+        )
+        val episode = Episode(id = 1, podcastId = "p1", generatedAt = now.toString(), scriptText = "Script")
+
+        every { podcastRepository.findAll() } returns listOf(podcast)
+        every { podcastService.generateBriefing(podcast) } returns GenerateBriefingResult(episode = episode)
+
+        schedulerWithClock(now).checkAndGenerate()
+
+        verify { podcastService.generateBriefing(podcast) }
+    }
+
+    @Test
+    fun `timezone-aware cron does not trigger before local time`() {
+        // Cron: daily at 06:00. Timezone: Europe/Amsterdam (CET = UTC+1 in winter).
+        // 06:00 CET = 05:00 UTC. Clock is at 04:50 UTC = 05:50 CET (before 06:00 CET).
+        val now = Instant.parse("2026-02-23T04:50:00Z")
+        val podcast = Podcast(
+            id = "p1", userId = "u1", name = "Test", topic = "tech",
+            cron = "0 0 6 * * *",
+            timezone = "Europe/Amsterdam",
+            lastGeneratedAt = "2026-02-22T05:00:00Z"
+        )
+
+        every { podcastRepository.findAll() } returns listOf(podcast)
+
+        schedulerWithClock(now).checkAndGenerate()
+
+        verify(exactly = 0) { podcastService.generateBriefing(any()) }
+    }
 }

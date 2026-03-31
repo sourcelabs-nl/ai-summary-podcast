@@ -44,9 +44,10 @@ class EpisodeService(
 
     @EventListener(ApplicationReadyEvent::class)
     fun cleanupStaleGeneratingEpisodes() {
-        val stale = episodeRepository.findByStatus(EpisodeStatus.GENERATING.name)
+        val stale = episodeRepository.findByStatus(EpisodeStatus.GENERATING.name) +
+            episodeRepository.findByStatus(EpisodeStatus.GENERATING_AUDIO.name)
         if (stale.isNotEmpty()) {
-            log.info("[Startup] Found {} stale GENERATING episodes, marking as FAILED", stale.size)
+            log.info("[Startup] Found {} stale GENERATING/GENERATING_AUDIO episodes, marking as FAILED", stale.size)
             for (episode in stale) {
                 episodeRepository.save(
                     episode.copy(
@@ -349,7 +350,7 @@ class EpisodeService(
 
     fun hasActiveEpisode(podcastId: String): Boolean {
         return episodeRepository.findByPodcastIdAndStatusIn(
-            podcastId, listOf(EpisodeStatus.GENERATING.name, EpisodeStatus.PENDING_REVIEW.name, EpisodeStatus.APPROVED.name)
+            podcastId, listOf(EpisodeStatus.GENERATING.name, EpisodeStatus.PENDING_REVIEW.name, EpisodeStatus.APPROVED.name, EpisodeStatus.GENERATING_AUDIO.name)
         ).isNotEmpty()
     }
 
@@ -370,6 +371,7 @@ class EpisodeService(
 
         try {
             log.info("Starting async TTS generation for episode {} (podcast '{}' ({}))", episodeId, podcast.name, podcastId)
+            episodeRepository.save(episode.copy(status = EpisodeStatus.GENERATING_AUDIO))
             eventPublisher.publishEvent(
                 PodcastEvent(this, podcastId, "episode", episodeId, "episode.audio.started",
                     mapOf("episodeNumber" to episodeId))

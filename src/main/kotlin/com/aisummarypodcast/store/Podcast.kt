@@ -19,6 +19,7 @@ data class Podcast(
     val style: PodcastStyle = PodcastStyle.NEWS_BRIEFING,
     val targetWords: Int? = null,
     val cron: String = "0 0 6 * * *",
+    val timezone: String = "UTC",
     val customInstructions: String? = null,
     val relevanceThreshold: Int = 5,
     val requireReview: Boolean = false,

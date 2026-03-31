@@ -247,6 +247,7 @@ export default function PodcastSettingsPage() {
             style: form.style,
             targetWords: form.targetWords ?? null,
             cron: form.cron,
+            timezone: form.timezone,
             customInstructions: form.customInstructions ?? "",
             relevanceThreshold: form.relevanceThreshold,
             requireReview: form.requireReview,
@@ -429,13 +430,36 @@ export default function PodcastSettingsPage() {
                   </SelectContent>
                 </Select>
               </FieldGroup>
-              <FieldGroup label="Cron Schedule" description="When to auto-generate episodes. Standard cron format: second minute hour day month weekday (e.g. '0 0 6 * * *' = daily at 6:00 UTC).">
+              <FieldGroup label="Cron Schedule" description="When to auto-generate episodes. Standard cron format: second minute hour day month weekday (e.g. '0 0 6 * * *' = daily at 6:00).">
                 <input
                   type="text"
                   value={form.cron}
                   onChange={(e) => update("cron", e.target.value)}
                   className={inputClass}
                 />
+              </FieldGroup>
+              <FieldGroup label="Timezone" description="IANA timezone for the cron schedule (e.g. Europe/Amsterdam). Handles daylight saving automatically.">
+                <input
+                  type="text"
+                  value={form.timezone}
+                  onChange={(e) => update("timezone", e.target.value)}
+                  list="timezone-suggestions"
+                  className={inputClass}
+                />
+                <datalist id="timezone-suggestions">
+                  <option value="UTC" />
+                  <option value="Europe/Amsterdam" />
+                  <option value="Europe/London" />
+                  <option value="Europe/Berlin" />
+                  <option value="Europe/Paris" />
+                  <option value="America/New_York" />
+                  <option value="America/Chicago" />
+                  <option value="America/Denver" />
+                  <option value="America/Los_Angeles" />
+                  <option value="Asia/Tokyo" />
+                  <option value="Asia/Shanghai" />
+                  <option value="Australia/Sydney" />
+                </datalist>
               </FieldGroup>
               <div className="flex items-center gap-2">
                 <input

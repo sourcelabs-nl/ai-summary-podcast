@@ -33,6 +33,7 @@ const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "
   GENERATED: "outline",
   PENDING_REVIEW: "default",
   APPROVED: "default",
+  GENERATING_AUDIO: "default",
   FAILED: "default",
   DISCARDED: "secondary",
 };
@@ -251,7 +252,7 @@ export default function EpisodeDetailPage() {
             )}
             </>
           )}
-          {episode.status === "DISCARDED" && !sameDayPublished && (
+          {(episode.status === "DISCARDED" || episode.status === "FAILED") && !sameDayPublished && (
             <Button
               size="icon-lg"
               title="Regenerate episode"

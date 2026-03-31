@@ -201,6 +201,21 @@ class EpisodeControllerTest {
             .andExpect(status().isConflict)
     }
 
+    @Test
+    fun `discard GENERATING_AUDIO episode returns 409 with audio message`() {
+        val generatingAudioEpisode = Episode(
+            id = 4L, podcastId = podcastId, generatedAt = "2025-01-01T00:00:00Z",
+            scriptText = "Test script", status = EpisodeStatus.GENERATING_AUDIO
+        )
+        every { userService.findById(userId) } returns user
+        every { podcastService.findById(podcastId) } returns podcast
+        every { episodeService.findById(4L) } returns generatingAudioEpisode
+
+        mockMvc.perform(post("/users/$userId/podcasts/$podcastId/episodes/4/discard"))
+            .andExpect(status().isConflict)
+            .andExpect(jsonPath("$.error").value("Audio generation is in progress"))
+    }
+
     // --- regenerate-recap tests ---
 
     @Test

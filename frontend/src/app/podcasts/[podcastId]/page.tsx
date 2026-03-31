@@ -45,6 +45,7 @@ const TABS = ["episodes", "publications", "sources"] as const;
 
 const STATUSES = [
   "GENERATING",
+  "GENERATING_AUDIO",
   "GENERATED",
   "PENDING_REVIEW",
   "APPROVED",
@@ -225,7 +226,7 @@ export default function EpisodesPage() {
     }
     function computeCountdown() {
       try {
-        const expr = CronExpressionParser.parse(podcast!.cron, { tz: 'UTC' });
+        const expr = CronExpressionParser.parse(podcast!.cron, { tz: podcast!.timezone || 'UTC' });
         const next = expr.next().toDate();
         const diff = next.getTime() - Date.now();
         if (diff <= 0) { setCountdown(null); return; }
@@ -246,7 +247,7 @@ export default function EpisodesPage() {
     computeCountdown();
     const id = setInterval(computeCountdown, 1_000);
     return () => clearInterval(id);
-  }, [podcast?.cron]);
+  }, [podcast?.cron, podcast?.timezone]);
 
   if (userLoading || loading) {
     return <p className="text-muted-foreground">Loading...</p>;
@@ -272,7 +273,7 @@ export default function EpisodesPage() {
           <p className="text-sm text-muted-foreground">
             {podcast.topic}
             {podcast.cron && cronDescription && (
-              <span> &middot; {cronDescription.toLowerCase()}</span>
+              <span> &middot; {cronDescription.toLowerCase()}{podcast.timezone && podcast.timezone !== "UTC" ? ` (${podcast.timezone})` : ""}</span>
             )}
           </p>
         </div>
@@ -355,8 +356,8 @@ export default function EpisodesPage() {
                 {episodes.map((episode) => (
                   <TableRow
                     key={episode.id}
-                    className={episode.status === "GENERATING" ? "bg-primary/5" : "cursor-pointer"}
-                    onClick={episode.status !== "GENERATING" ? () => router.push(`/podcasts/${params.podcastId}/episodes/${episode.id}`) : undefined}
+                    className={episode.status === "GENERATING" || episode.status === "GENERATING_AUDIO" ? "bg-primary/5" : "cursor-pointer"}
+                    onClick={episode.status !== "GENERATING" && episode.status !== "GENERATING_AUDIO" ? () => router.push(`/podcasts/${params.podcastId}/episodes/${episode.id}`) : undefined}
                   >
                     <TableCell className="text-sm font-medium">{episode.status === "GENERATING" ? "—" : episode.id}</TableCell>
                     <TableCell className="text-sm">
@@ -366,15 +367,19 @@ export default function EpisodesPage() {
                       {new Date(episode.generatedAt).toLocaleDateString(undefined, { weekday: "short" })}
                     </TableCell>
                     <TableCell>
-                      {episode.status === "GENERATING" ? (
+                      {episode.status === "GENERATING" || episode.status === "GENERATING_AUDIO" ? (
                         <span className="flex items-center gap-2 text-sm font-medium text-primary">
                           <Loader2 className="size-3.5 animate-spin" />
-                          {episode.pipelineStage === "aggregating" && "Aggregating..."}
-                          {episode.pipelineStage === "scoring" && "Scoring..."}
-                          {episode.pipelineStage === "deduplicating" && "Deduplicating..."}
-                          {episode.pipelineStage === "composing" && "Composing..."}
-                          {episode.pipelineStage === "tts" && "Generating audio..."}
-                          {!episode.pipelineStage && "Starting..."}
+                          {episode.status === "GENERATING_AUDIO" ? "Generating audio..." : (
+                            <>
+                              {episode.pipelineStage === "aggregating" && "Aggregating..."}
+                              {episode.pipelineStage === "scoring" && "Scoring..."}
+                              {episode.pipelineStage === "deduplicating" && "Deduplicating..."}
+                              {episode.pipelineStage === "composing" && "Composing..."}
+                              {episode.pipelineStage === "tts" && "Generating audio..."}
+                              {!episode.pipelineStage && "Starting..."}
+                            </>
+                          )}
                         </span>
                       ) : (
                         <div className="flex items-center gap-1.5">
@@ -390,20 +395,20 @@ export default function EpisodesPage() {
                       )}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-                      {episode.status === "GENERATING" ? "—" : (episode.composeModel ?? "—")}
+                      {episode.status === "GENERATING" || episode.status === "GENERATING_AUDIO" ? "—" : (episode.composeModel ?? "—")}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-                      {episode.status === "GENERATING" ? "—" : (episode.ttsModel ?? "—")}
+                      {episode.status === "GENERATING" || episode.status === "GENERATING_AUDIO" ? "—" : (episode.ttsModel ?? "—")}
                     </TableCell>
                     <TableCell className="text-sm text-right text-muted-foreground">
-                      {episode.status === "GENERATING" ? "—" : (
+                      {episode.status === "GENERATING" || episode.status === "GENERATING_AUDIO" ? "—" : (
                         ((episode.llmCostCents ?? 0) + (episode.ttsCostCents ?? 0)) > 0
                           ? `$${(((episode.llmCostCents ?? 0) + (episode.ttsCostCents ?? 0)) / 100).toFixed(2)}`
                           : "—"
                       )}
                     </TableCell>
                     <TableCell className="text-right h-12">
-                      {episode.status === "GENERATING" ? null : (
+                      {episode.status === "GENERATING" || episode.status === "GENERATING_AUDIO" ? null : (
                       <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
                         {episode.status === "PENDING_REVIEW" && (
                           <>
@@ -457,7 +462,7 @@ export default function EpisodesPage() {
                           )}
                           </>
                         )}
-                        {episode.status === "DISCARDED" && !publishedDates.has(new Date(episode.generatedAt).toLocaleDateString()) && (
+                        {(episode.status === "DISCARDED" || episode.status === "FAILED") && !publishedDates.has(new Date(episode.generatedAt).toLocaleDateString()) && (
                           <Button
                             size="icon-lg"
                             title="Regenerate episode"

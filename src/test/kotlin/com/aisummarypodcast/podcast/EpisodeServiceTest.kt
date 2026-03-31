@@ -205,10 +205,12 @@ class EpisodeServiceTest {
         val generatedEpisode = approvedEpisode.copy(status = EpisodeStatus.GENERATED, audioFilePath = "/audio.mp3", durationSeconds = 120)
         every { episodeRepository.findById(1L) } returns Optional.of(approvedEpisode)
         every { podcastRepository.findById("p1") } returns Optional.of(podcast)
+        every { episodeRepository.save(any()) } answers { firstArg() }
         every { ttsPipeline.generateForExistingEpisode(approvedEpisode, podcast) } returns generatedEpisode
 
         episodeService.generateAudioAsync(1L, "p1")
 
+        verify { episodeRepository.save(match { it.status == EpisodeStatus.GENERATING_AUDIO }) }
         verify { ttsPipeline.generateForExistingEpisode(approvedEpisode, podcast) }
     }
 
@@ -426,7 +428,7 @@ class EpisodeServiceTest {
 
     @Test
     fun `hasActiveEpisode returns true when pending episodes exist`() {
-        every { episodeRepository.findByPodcastIdAndStatusIn("p1", listOf("GENERATING", "PENDING_REVIEW", "APPROVED")) } returns listOf(
+        every { episodeRepository.findByPodcastIdAndStatusIn("p1", listOf("GENERATING", "PENDING_REVIEW", "APPROVED", "GENERATING_AUDIO")) } returns listOf(
             Episode(id = 1L, podcastId = "p1", generatedAt = "now", scriptText = "Script", status = EpisodeStatus.PENDING_REVIEW)
         )
 
@@ -435,8 +437,17 @@ class EpisodeServiceTest {
 
     @Test
     fun `hasActiveEpisode returns false when no pending episodes`() {
-        every { episodeRepository.findByPodcastIdAndStatusIn("p1", listOf("GENERATING", "PENDING_REVIEW", "APPROVED")) } returns emptyList()
+        every { episodeRepository.findByPodcastIdAndStatusIn("p1", listOf("GENERATING", "PENDING_REVIEW", "APPROVED", "GENERATING_AUDIO")) } returns emptyList()
 
         assertEquals(false, episodeService.hasActiveEpisode("p1"))
+    }
+
+    @Test
+    fun `hasActiveEpisode returns true when GENERATING_AUDIO episode exists`() {
+        every { episodeRepository.findByPodcastIdAndStatusIn("p1", listOf("GENERATING", "PENDING_REVIEW", "APPROVED", "GENERATING_AUDIO")) } returns listOf(
+            Episode(id = 1L, podcastId = "p1", generatedAt = "now", scriptText = "Script", status = EpisodeStatus.GENERATING_AUDIO)
+        )
+
+        assertEquals(true, episodeService.hasActiveEpisode("p1"))
     }
 }

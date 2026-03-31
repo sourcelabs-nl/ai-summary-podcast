@@ -152,7 +152,8 @@ class EpisodeController(
         if (episode.podcastId != podcastId) return ResponseEntity.notFound().build()
 
         if (episode.status != EpisodeStatus.PENDING_REVIEW && episode.status != EpisodeStatus.GENERATED) {
-            return ResponseEntity.status(409).body(mapOf("error" to "Episode is not in PENDING_REVIEW or GENERATED status"))
+            val message = if (episode.status == EpisodeStatus.GENERATING_AUDIO) "Audio generation is in progress" else "Episode is not in PENDING_REVIEW or GENERATED status"
+            return ResponseEntity.status(409).body(mapOf("error" to message))
         }
 
         episodeService.discardAndResetArticles(episode, podcastId)

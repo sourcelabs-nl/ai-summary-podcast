@@ -20,6 +20,7 @@ import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.ZoneOffset
 import kotlin.time.TimeSource
 
@@ -58,13 +59,19 @@ class BriefingGenerationScheduler(
 
     fun checkAndGenerate() {
         val podcasts = podcastRepository.findAll()
-        val now = LocalDateTime.now(clock)
 
         for (podcast in podcasts) {
             try {
+                val zone = try {
+                    ZoneId.of(podcast.timezone)
+                } catch (_: Exception) {
+                    log.warn("[Pipeline] Invalid timezone '{}' for podcast '{}' ({}), falling back to UTC", podcast.timezone, podcast.name, podcast.id)
+                    ZoneOffset.UTC
+                }
+                val now = LocalDateTime.now(clock.withZone(zone))
                 val cronExpression = CronExpression.parse(podcast.cron)
                 val lastGenerated = podcast.lastGeneratedAt?.let {
-                    LocalDateTime.ofInstant(Instant.parse(it), ZoneOffset.UTC)
+                    LocalDateTime.ofInstant(Instant.parse(it), zone)
                 }
 
                 var nextExecution = if (lastGenerated != null) {

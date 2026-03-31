@@ -26,6 +26,7 @@ export interface Podcast {
   style: string;
   targetWords?: number;
   cron: string;
+  timezone: string;
   customInstructions?: string;
   relevanceThreshold: number;
   requireReview: boolean;

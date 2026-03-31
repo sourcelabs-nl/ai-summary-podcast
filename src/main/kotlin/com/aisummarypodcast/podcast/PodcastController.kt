@@ -20,6 +20,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import java.net.URI
+import java.time.ZoneId
 
 data class CreatePodcastRequest(
     val name: String,
@@ -32,6 +33,7 @@ data class CreatePodcastRequest(
     val style: String? = null,
     @JsonProperty("targetWords") val targetWords: Int? = null,
     val cron: String? = null,
+    val timezone: String? = null,
     val customInstructions: String? = null,
     @JsonProperty("relevanceThreshold") val relevanceThreshold: Int? = null,
     @JsonProperty("requireReview") val requireReview: Boolean? = null,
@@ -55,6 +57,7 @@ data class UpdatePodcastRequest(
     val style: String? = null,
     @JsonProperty("targetWords") val targetWords: Int? = null,
     val cron: String? = null,
+    val timezone: String? = null,
     val customInstructions: String? = null,
     @JsonProperty("relevanceThreshold") val relevanceThreshold: Int? = null,
     @JsonProperty("requireReview") val requireReview: Boolean? = null,
@@ -81,6 +84,7 @@ data class PodcastResponse(
     val style: String,
     val targetWords: Int?,
     val cron: String,
+    val timezone: String,
     val customInstructions: String?,
     val relevanceThreshold: Int,
     val requireReview: Boolean,
@@ -176,6 +180,11 @@ class PodcastController(
         validateTtsConfig(ttsProvider, style, request.ttsVoices)?.let {
             return ResponseEntity.badRequest().body(mapOf("error" to it))
         }
+        if (request.timezone != null) {
+            try { ZoneId.of(request.timezone) } catch (_: Exception) {
+                return ResponseEntity.badRequest().body(mapOf("error" to "Invalid timezone: ${request.timezone}"))
+            }
+        }
         if (request.fullBodyThreshold != null && request.fullBodyThreshold < 1) {
             return ResponseEntity.badRequest().body(mapOf("error" to "fullBodyThreshold must be at least 1"))
         }
@@ -196,6 +205,7 @@ class PodcastController(
                 style = style,
                 targetWords = request.targetWords,
                 cron = request.cron ?: "0 0 6 * * *",
+                timezone = request.timezone ?: "UTC",
                 customInstructions = request.customInstructions,
                 relevanceThreshold = request.relevanceThreshold ?: 5,
                 requireReview = request.requireReview ?: false,
@@ -250,6 +260,11 @@ class PodcastController(
         validateTtsConfig(effectiveTtsProvider, effectiveStyle, effectiveVoices)?.let {
             return ResponseEntity.badRequest().body(mapOf("error" to it))
         }
+        if (request.timezone != null) {
+            try { ZoneId.of(request.timezone) } catch (_: Exception) {
+                return ResponseEntity.badRequest().body(mapOf("error" to "Invalid timezone: ${request.timezone}"))
+            }
+        }
         if (request.fullBodyThreshold != null && request.fullBodyThreshold < 1) {
             return ResponseEntity.badRequest().body(mapOf("error" to "fullBodyThreshold must be at least 1"))
         }
@@ -266,6 +281,7 @@ class PodcastController(
                 style = effectiveStyle,
                 targetWords = request.targetWords,
                 cron = request.cron ?: existing.cron,
+                timezone = request.timezone ?: existing.timezone,
                 customInstructions = request.customInstructions.orKeep(existing.customInstructions),
                 relevanceThreshold = request.relevanceThreshold ?: existing.relevanceThreshold,
                 requireReview = request.requireReview ?: existing.requireReview,
@@ -472,7 +488,7 @@ class PodcastController(
         id = id, userId = userId, name = name, topic = topic,
         language = language, llmModels = llmModels?.stages, ttsProvider = ttsProvider.value, ttsVoices = ttsVoices,
         ttsSettings = ttsSettings,
-        style = style.value, targetWords = targetWords, cron = cron,
+        style = style.value, targetWords = targetWords, cron = cron, timezone = timezone,
         customInstructions = customInstructions, relevanceThreshold = relevanceThreshold,
         requireReview = requireReview, maxLlmCostCents = maxLlmCostCents,
         maxArticleAgeDays = maxArticleAgeDays, speakerNames = speakerNames,
