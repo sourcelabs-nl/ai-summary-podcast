@@ -33,16 +33,17 @@ class AudioGenerationServiceTest {
 
     @Test
     fun `sets GENERATING_AUDIO and generates audio on success`() {
-        val generatedEpisode = approvedEpisode.copy(status = EpisodeStatus.GENERATED, audioFilePath = "/audio.mp3", durationSeconds = 120)
+        val generatingEpisode = approvedEpisode.copy(status = EpisodeStatus.GENERATING_AUDIO)
+        val generatedEpisode = generatingEpisode.copy(status = EpisodeStatus.GENERATED, audioFilePath = "/audio.mp3", durationSeconds = 120)
         every { episodeRepository.findById(1L) } returns Optional.of(approvedEpisode)
         every { podcastRepository.findById("p1") } returns Optional.of(podcast)
         every { episodeRepository.save(any()) } answers { firstArg() }
-        every { ttsPipeline.generateForExistingEpisode(approvedEpisode, podcast) } returns generatedEpisode
+        every { ttsPipeline.generateForExistingEpisode(generatingEpisode, podcast) } returns generatedEpisode
 
         service.generateAudioAsync(1L, "p1")
 
         verify { episodeRepository.save(match { it.status == EpisodeStatus.GENERATING_AUDIO }) }
-        verify { ttsPipeline.generateForExistingEpisode(approvedEpisode, podcast) }
+        verify { ttsPipeline.generateForExistingEpisode(generatingEpisode, podcast) }
     }
 
     @Test
