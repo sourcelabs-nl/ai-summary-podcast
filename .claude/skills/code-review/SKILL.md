@@ -26,7 +26,13 @@ For each file in scope, read it fully before applying rules. Also read relevant 
 
 ## Rules
 
-### 1. Controller Hygiene
+Apply rules based on file types:
+
+- **All `.kt` files**: Apply rules from the `architecture` skill (A1-A5), `kotlin-quality` skill (K1-K9), and `spring-boot` skill (SB1-SB6), plus the inline rules below (Controller Hygiene, Service Layer, Testing, Jackson 3.x, Concurrency, LLM Prompt Grounding).
+- **`*Entity.kt`, `*Repository.kt`, `*.sql` files**: Additionally apply rules from the `spring-data-jdbc` skill (14 rules) and `database-design` skill (DB1-DB5). Use the `flyway-migration` skill to validate migration files.
+- **Jackson-related files**: Use the `jackson-migration` skill as reference for Jackson 2.x vs 3.x patterns.
+
+### Controller Hygiene
 
 Controllers must validate input, delegate to service or domain classes, and map responses. They must not contain business logic.
 
@@ -39,58 +45,21 @@ Controllers must validate input, delegate to service or domain classes, and map 
 
 **Violations to flag:**
 - Multi-step orchestration logic (should be in a service)
-- Direct repository calls for mutations (save/delete) — reads for simple lookups are acceptable
+- Direct repository calls for mutations (save/delete) -- reads for simple lookups are acceptable
 - Domain calculations or business rule evaluation
 - Duplicating logic that already exists in a service
 
-### 2. Service Layer
+### Service Layer
 
-Services are the single home for business logic. When the same operation can be triggered from multiple entry points (API endpoint, scheduler), the shared logic must live in a single service method — all entry points call that method.
+Services are the single home for business logic. When the same operation can be triggered from multiple entry points (API endpoint, scheduler), the shared logic must live in a single service method, all entry points call that method.
 
 **Violations to flag:**
-- Duplicate logic — reimplementing something that already exists in another service method
+- Duplicate logic: reimplementing something that already exists in another service method
 - Multiple entry points (controller + scheduler) implementing the same operation with duplicated logic instead of sharing a service method
 - Missing `@Transactional` on methods that call save/delete on multiple repositories
 - Bypassing a service to directly access a repository owned by another service (e.g., calling `articleRepository` from `EpisodeService` instead of going through `ArticleService`, if one exists)
 
-### 3. Type-Safe Constants
-
-Domain values that represent a fixed set of states, categories, or types must be defined as enums, not hardcoded strings.
-
-**Violations to flag:**
-- Status values compared or assigned as string literals (e.g., `"ACTIVE"`, `"PENDING"`)
-- Any fixed set of values used in `when` expressions or `if` chains that could be an enum
-- New string constants introduced for values that already have an enum
-
-### 4. Spring Data JDBC
-
-**Entity rules:**
-- Entity classes must be Kotlin `data class`
-- Must have `@Table("<table_name>")` annotation
-- Must have `@Id` on the primary key field
-- Entities with concurrent write risk (shared resources) should use `@Version` for optimistic locking
-- Foreign keys should be scalar fields (`String` or `Long`) referencing the parent entity's ID
-- No business logic in entity classes
-
-**Repository rules:**
-- Repository interfaces extend `CrudRepository<Entity, IdType>`
-- `@Query` annotations must use named parameters (`:paramName`), not positional (`?`)
-- Non-SELECT queries (`DELETE`, `UPDATE`, `INSERT`) must have `@Modifying`
-- No business logic in repositories
-- Do not use `@Query` when Spring Data can derive the query from the method name. Standard derived query methods (e.g., `findBySourceId`, `findBySourceIdAndContentHash`, `deleteBySourceId`, `countByStatus`, `existsByEmail`) do not need `@Query`. Only use `@Query` for queries that cannot be expressed via method naming: `IN` clauses, complex conditions (`>=`, `IS NULL`, `IS NOT NULL`), `OR` logic, or multi-table queries.
-
-**Data access rules:**
-- All database queries must go through Spring Data repositories, not raw `JdbcClient` or `JdbcTemplate` in services. For complex queries (JOINs, custom projections), use `@Query` on a repository method with a custom row mapper or DTO projection.
-- If a query spans multiple tables, it belongs on the repository of the primary entity being queried (e.g., a query joining `episode_articles` and `articles` belongs on `EpisodeArticleRepository`).
-
-### 5. Database Consistency
-
-**Violations to flag:**
-- Foreign key columns used in `@Query` WHERE clauses that have no corresponding `CREATE INDEX` in any Flyway migration
-- Entity field names that don't correspond to their database column names (Kotlin camelCase should map to SQL snake_case via Spring Data JDBC's default naming strategy)
-- New entities without a corresponding Flyway migration
-
-### 6. Testing — MockK Only
+### Testing: MockK Only
 
 This project uses **MockK** (not Mockito) for all Kotlin tests, and `@MockkBean` from `springmockk` (`com.ninja-squad:springmockk`) for Spring integration tests.
 
@@ -99,7 +68,7 @@ This project uses **MockK** (not Mockito) for all Kotlin tests, and `@MockkBean`
 - Use of `@MockBean` (Spring's Mockito-based annotation) instead of `@MockkBean`
 - Use of Mockito syntax (`when(...).thenReturn(...)`) instead of MockK syntax (`every { ... } returns ...`)
 
-### 7. Jackson 3.x
+### Jackson 3.x
 
 This is a Spring Boot 4 project using Jackson 3.x. The `com.fasterxml.jackson.annotation` package is unchanged in 3.x and is still correct.
 
@@ -110,9 +79,9 @@ This is a Spring Boot 4 project using Jackson 3.x. The `com.fasterxml.jackson.an
 - Use of `JsonProcessingException` (should be `JacksonException`)
 
 **Not a violation:**
-- Imports from `com.fasterxml.jackson.annotation` — these are correct in Jackson 3.x
+- Imports from `com.fasterxml.jackson.annotation` -- these are correct in Jackson 3.x
 
-### 8. Concurrency — Coroutines Only
+### Concurrency: Coroutines Only
 
 This project uses Kotlin coroutines for all async/background work. No Java concurrency primitives are allowed.
 
@@ -123,25 +92,9 @@ This project uses Kotlin coroutines for all async/background work. No Java concu
 - Using `Dispatchers.Default` for I/O-bound work (must use `Dispatchers.IO` for HTTP requests, database calls, file I/O)
 
 **Not a violation:**
-- `@Async` on Spring-managed methods (this is the Spring async mechanism)
 - `Semaphore` from `kotlinx.coroutines.sync` (coroutine-aware concurrency primitive)
 
-### 9. Code Reuse and Consistency
-
-New code must reuse existing functionality rather than reimplementing it. Similar operations must follow consistent patterns.
-
-**Violations to flag:**
-- Reimplementing logic that already exists in a service method (e.g., writing a new cost calculation when `CostEstimator` already does it)
-- Copy-pasting blocks of code across functions instead of extracting a shared function (look for 5+ lines that are structurally identical)
-- Inconsistent patterns: if function A resolves a model with `modelResolver.resolve()` and function B does the same thing differently (e.g., manual lookup), flag the inconsistency
-- Adding a new utility function that duplicates an existing one (e.g., a new date formatter when one exists)
-
-**How to check:**
-- When reviewing a new function, search the codebase for similar operations
-- When reviewing changes to an existing pattern, check if the same pattern exists elsewhere and was updated consistently
-- Flag cases where the same concept is implemented with different approaches in different places
-
-### 10. LLM Prompt Grounding
+### LLM Prompt Grounding
 
 Composer prompts (briefing, dialogue, interview) must include grounding instructions that constrain LLM output to the provided article content only.
 
@@ -149,30 +102,6 @@ Composer prompts (briefing, dialogue, interview) must include grounding instruct
 - A new or modified composer prompt that lacks explicit instructions to only use provided article content
 - Removal of existing grounding constraints from prompts
 - Prompts that encourage the LLM to add external knowledge or speculation
-
-### 11. Dead Code
-
-Public functions and properties in services, repositories, and utility classes must have at least one caller. Dead code increases maintenance burden and obscures the actual API surface.
-
-**Scope:** Services, repositories (including custom repository implementations), domain classes, and utility classes. **Exclude controllers** from this check, as their public methods are HTTP endpoints invoked by external clients.
-
-**Violations to flag:**
-- Public functions in a service that are never called from any other file (controller, scheduler, other service, or test)
-- Repository methods (including custom repository methods) that are never called from any service or test
-- Public utility or helper functions with zero callers
-- Data class properties that are written but never read outside the class
-
-**How to check:**
-- For each public function in the reviewed file, grep the codebase for its name
-- A function referenced only in its own file (e.g., a private helper calling it) does not count as "used"
-- Test-only usage counts as used (the function is exercised, even if no production code calls it yet)
-- Functions annotated with `@Scheduled`, `@EventListener`, or similar Spring lifecycle annotations are considered used by the framework
-
-**Not a violation:**
-- Controller methods (they are HTTP endpoints)
-- Functions annotated with framework lifecycle annotations (`@Scheduled`, `@EventListener`, `@PostConstruct`)
-- Interface method declarations that are implemented elsewhere
-- Overrides of `CrudRepository` inherited methods
 
 ## Output Format
 
@@ -186,9 +115,9 @@ Group findings by category. For each finding, include:
 ```
 
 Severities:
-- **violation** — must fix, breaks architectural rules
-- **warning** — should fix, potential issue
-- **note** — consider, style or best practice suggestion
+- **violation** -- must fix, breaks architectural rules
+- **warning** -- should fix, potential issue
+- **note** -- consider, style or best practice suggestion
 
 If no issues are found, confirm the reviewed files pass all checks.
 
