@@ -13,7 +13,7 @@ spring:
       - org.springframework.ai.model.openai.autoconfigure.OpenAiModerationAutoConfiguration
       - org.springframework.ai.model.chat.client.autoconfigure.ChatClientAutoConfiguration
   datasource:
-    url: jdbc:sqlite:./data/ai-summary-podcast.db
+    url: jdbc:sqlite:./data/ai-summary-podcast.db?busy_timeout=5000&journal_mode=WAL
     driver-class-name: org.sqlite.JDBC
     hikari:
       connection-init-sql: "PRAGMA foreign_keys = ON"
