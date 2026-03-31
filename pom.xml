@@ -5,7 +5,7 @@
 	<parent>
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
-		<version>4.0.2</version>
+		<version>4.0.4</version>
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>com.aisummarypodcast</groupId>
@@ -13,23 +13,10 @@
 	<version>0.0.1-SNAPSHOT</version>
 	<name>ai-summary-podcast</name>
 	<description>AI-powered podcast pipeline that monitors content sources, summarizes with LLM, and delivers audio briefings via RSS</description>
-	<url/>
-	<licenses>
-		<license/>
-	</licenses>
-	<developers>
-		<developer/>
-	</developers>
-	<scm>
-		<connection/>
-		<developerConnection/>
-		<tag/>
-		<url/>
-	</scm>
 	<properties>
-		<java.version>24</java.version>
-		<kotlin.version>2.2.21</kotlin.version>
-		<spring-ai.version>2.0.0-M2</spring-ai.version>
+		<java.version>25</java.version>
+		<kotlin.version>2.3.20</kotlin.version>
+		<spring-ai.version>2.0.0-M4</spring-ai.version>
 	</properties>
 	<dependencyManagement>
 		<dependencies>
