@@ -197,6 +197,15 @@ class EpisodeService(
         }
     }
 
+    fun discardOnly(episode: Episode, podcastId: String) {
+        episodeRepository.save(episode.copy(status = EpisodeStatus.DISCARDED))
+        eventPublisher.publishEvent(
+            PodcastEvent(this, podcastId, "episode", episode.id!!, "episode.discarded",
+                mapOf("episodeNumber" to episode.id))
+        )
+        log.info("Episode {} discarded (no article reset)", episode.id)
+    }
+
     @Transactional
     fun discardAndResetArticles(episode: Episode, podcastId: String) {
         episodeRepository.save(episode.copy(status = EpisodeStatus.DISCARDED))

@@ -188,6 +188,24 @@ class EpisodeControllerTest {
     }
 
     @Test
+    fun `discard failed episode calls discardOnly`() {
+        val failedEpisode = Episode(
+            id = 5L, podcastId = podcastId, generatedAt = "2025-01-01T00:00:00Z",
+            scriptText = "", status = EpisodeStatus.FAILED, errorMessage = "TTS failure"
+        )
+        every { userService.findById(userId) } returns user
+        every { podcastService.findById(podcastId) } returns podcast
+        every { episodeService.findById(5L) } returns failedEpisode
+        justRun { episodeService.discardOnly(failedEpisode, podcastId) }
+
+        mockMvc.perform(post("/users/$userId/podcasts/$podcastId/episodes/5/discard"))
+            .andExpect(status().isOk)
+
+        verify { episodeService.discardOnly(failedEpisode, podcastId) }
+        verify(exactly = 0) { episodeService.discardAndResetArticles(any(), any()) }
+    }
+
+    @Test
     fun `discard non-discardable episode returns 409`() {
         val approvedEpisode = Episode(
             id = 3L, podcastId = podcastId, generatedAt = "2025-01-01T00:00:00Z",

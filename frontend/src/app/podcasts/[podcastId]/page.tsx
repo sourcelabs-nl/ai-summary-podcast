@@ -472,6 +472,16 @@ export default function EpisodesPage() {
                             <RefreshCw className={`size-4 ${regeneratingId === episode.id ? "animate-spin" : ""}`} />
                           </Button>
                         )}
+                        {episode.status === "FAILED" && (
+                          <Button
+                            size="icon-lg"
+                            variant="destructive"
+                            title="Discard episode"
+                            onClick={() => handleAction(episode.id, "discard")}
+                          >
+                            <X className="size-4" />
+                          </Button>
+                        )}
                         <Button
                           size="icon-lg"
                           title="View details"
