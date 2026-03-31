@@ -20,7 +20,6 @@ import org.slf4j.LoggerFactory
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.boot.context.event.ApplicationReadyEvent
 import org.springframework.context.event.EventListener
-import org.springframework.scheduling.annotation.Async
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
@@ -37,7 +36,8 @@ class EpisodeService(
     private val postArticleRepository: PostArticleRepository,
     private val episodeSourcesGenerator: EpisodeSourcesGenerator,
     private val articleEligibilityService: ArticleEligibilityService,
-    private val eventPublisher: ApplicationEventPublisher
+    private val eventPublisher: ApplicationEventPublisher,
+    private val audioGenerationService: AudioGenerationService
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -258,7 +258,7 @@ class EpisodeService(
             PodcastEvent(this, podcast.id, "episode", episode.id!!, "episode.approved",
                 mapOf("episodeNumber" to episode.id))
         )
-        generateAudioAsync(episode.id, podcast.id)
+        audioGenerationService.generateAudioAsync(episode.id, podcast.id)
     }
 
     @Transactional
@@ -354,41 +354,4 @@ class EpisodeService(
         ).isNotEmpty()
     }
 
-    @Async
-    fun generateAudioAsync(episodeId: Long, podcastId: String) {
-        val episode = episodeRepository.findById(episodeId).orElse(null)
-        if (episode == null) {
-            log.error("Episode {} not found for async TTS generation", episodeId)
-            return
-        }
-
-        val podcast = podcastRepository.findById(podcastId).orElse(null)
-        if (podcast == null) {
-            log.error("Podcast {} not found for async TTS generation", podcastId)
-            episodeRepository.save(episode.copy(status = EpisodeStatus.FAILED, errorMessage = "Podcast not found"))
-            return
-        }
-
-        try {
-            log.info("Starting async TTS generation for episode {} (podcast '{}' ({}))", episodeId, podcast.name, podcastId)
-            episodeRepository.save(episode.copy(status = EpisodeStatus.GENERATING_AUDIO))
-            eventPublisher.publishEvent(
-                PodcastEvent(this, podcastId, "episode", episodeId, "episode.audio.started",
-                    mapOf("episodeNumber" to episodeId))
-            )
-            ttsPipeline.generateForExistingEpisode(episode, podcast)
-            log.info("Async TTS generation complete for episode {} (podcast '{}' ({}))", episodeId, podcast.name, podcastId)
-            eventPublisher.publishEvent(
-                PodcastEvent(this, podcastId, "episode", episodeId, "episode.generated",
-                    mapOf("episodeNumber" to episodeId))
-            )
-        } catch (e: Exception) {
-            log.error("Async TTS generation failed for episode {} (podcast '{}' ({})): {}", episodeId, podcast.name, podcastId, e.message, e)
-            episodeRepository.save(episode.copy(status = EpisodeStatus.FAILED, errorMessage = e.message))
-            eventPublisher.publishEvent(
-                PodcastEvent(this, podcastId, "episode", episodeId, "episode.failed",
-                    mapOf("episodeNumber" to episodeId, "error" to (e.message ?: "Unknown error")))
-            )
-        }
-    }
 }

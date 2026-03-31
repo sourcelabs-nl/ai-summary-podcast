@@ -30,11 +30,14 @@ class ShowNotesTest {
 
     private val articleEligibilityService = mockk<com.aisummarypodcast.llm.ArticleEligibilityService>()
 
+    private val audioGenerationService = mockk<AudioGenerationService>(relaxed = true)
+
     private val service = EpisodeService(
         episodeRepository, podcastRepository, ttsPipeline,
         episodeArticleRepository, articleRepository,
         episodeRecapGenerator, modelResolver, postArticleRepository,
-        episodeSourcesGenerator, articleEligibilityService, eventPublisher
+        episodeSourcesGenerator, articleEligibilityService, eventPublisher,
+        audioGenerationService
     )
 
     private val buildShowNotes: Method = EpisodeService::class.java
