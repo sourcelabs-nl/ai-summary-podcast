@@ -31,7 +31,6 @@ class InworldTtsProvider(
             |- Non-verbal tags: [sigh], [laugh], [breathe], [cough], [clear_throat], [yawn] — use sparingly for natural effect
             |- Emphasis: use *word* (single asterisks) for stressed words. NEVER use **double asterisks** — the TTS engine will read the asterisk characters aloud
             |- Pacing: use ellipsis (...) for trailing pauses, exclamation marks for excitement
-            |- IPA phonemes: use /phoneme/ for precise pronunciation of proper nouns
             |Text formatting rules:
             |- Write all numbers, dates, currencies, and symbols in fully spoken form (e.g. "twenty twenty-six" not "2026", "five thousand dollars" not "${'$'}5,000", "ten percent" not "10%")
             |- NEVER use markdown formatting (headers, bold, bullet points, links) — write everything as natural spoken sentences
@@ -57,6 +56,7 @@ class InworldTtsProvider(
             appendLine()
             appendLine("Pronunciation Guide:")
             appendLine("On EVERY occurrence of each term below, REPLACE the word with its IPA phoneme notation (e.g. write /jɑrnoː/ instead of Jarno). Do NOT write both the word and the phoneme — only the phoneme.")
+            appendLine("IMPORTANT: Place the IPA phoneme naturally in the sentence flow. Do NOT add commas, pauses, or extra punctuation around the phoneme. When addressing someone by name (vocative), place the name at the START of the sentence so the comma follows naturally. Wrong: \"you teased, /jɑrnoː/, because\" — Right: \"you teased /jɑrnoː/ because\". Wrong: \"What do you think, /jɑrnoː/?\" — Right: \"/jɑrnoː/, what do you think?\".")
             appendLine("CRITICAL: ONLY use IPA notation for the exact terms listed below. Do NOT invent or add IPA pronunciation for ANY other words. If a word is not in the list below, write it normally.")
             for ((term, ipa) in pronunciations) {
                 appendLine("- $term → $ipa")

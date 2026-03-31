@@ -395,7 +395,6 @@ class InworldTtsProviderTest {
             assertTrue(guidelines.contains("[sigh]"), "Missing non-verbal tags for $style")
             assertTrue(guidelines.contains("*word*"), "Missing emphasis for $style")
             assertTrue(guidelines.contains("..."), "Missing pacing for $style")
-            assertTrue(guidelines.contains("/phoneme/"), "Missing IPA for $style")
         }
     }
 

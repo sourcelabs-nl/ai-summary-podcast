@@ -41,12 +41,10 @@ fun buildArticleSummaryBlock(articles: List<Article>, useFullBody: Boolean, foll
     }
 }
 
-fun buildToneBlock(): String =
-    if (LocalDate.now().dayOfWeek == DayOfWeek.FRIDAY) {
-        "\n            - It's Friday! Go loose and have fun with it. Be playful, crack jokes, use humor freely, riff on the topics. Let the energy be high and the vibe relaxed, as if wrapping up the week with friends over drinks."
-    } else {
-        "\n            - Adopt a casual and lighthearted tone. Sprinkle in a few nuanced, witty jokes or observations related to the topics, but keep it subtle and don't overdo it."
-    }
+fun buildToneBlock(): String {
+    val fridayExtra = if (LocalDate.now().dayOfWeek == DayOfWeek.FRIDAY) " It's Friday! Extra energy, wrap up the week with friends over drinks." else ""
+    return "\n            - Go loose and have fun with it. Be playful, crack jokes, use humor freely, riff on the topics. Let the energy be high and the vibe relaxed.$fridayExtra"
+}
 
 fun buildCurrentDate(language: String): String {
     val locale = SupportedLanguage.fromCode(language)?.toLocale() ?: Locale.ENGLISH
