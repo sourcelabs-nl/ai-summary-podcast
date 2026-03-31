@@ -4,9 +4,14 @@ import com.aisummarypodcast.store.EpisodeRepository
 import com.aisummarypodcast.store.EpisodeStatus
 import com.aisummarypodcast.store.PodcastRepository
 import com.aisummarypodcast.tts.TtsPipeline
+import jakarta.annotation.PreDestroy
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import org.slf4j.LoggerFactory
 import org.springframework.context.ApplicationEventPublisher
-import org.springframework.scheduling.annotation.Async
 import org.springframework.stereotype.Service
 
 @Service
@@ -18,9 +23,20 @@ class AudioGenerationService(
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
+    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
-    @Async
+    @PreDestroy
+    fun stop() {
+        scope.cancel()
+    }
+
     fun generateAudioAsync(episodeId: Long, podcastId: String) {
+        scope.launch {
+            doGenerateAudio(episodeId, podcastId)
+        }
+    }
+
+    internal fun doGenerateAudio(episodeId: Long, podcastId: String) {
         val episode = episodeRepository.findById(episodeId).orElse(null)
         if (episode == null) {
             log.error("Episode {} not found for async TTS generation", episodeId)

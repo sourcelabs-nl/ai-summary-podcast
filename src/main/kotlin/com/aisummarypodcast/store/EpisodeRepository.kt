@@ -5,6 +5,10 @@ import org.springframework.data.repository.CrudRepository
 
 interface EpisodeRepository : CrudRepository<Episode, Long> {
 
+    fun findByPodcastIdOrderByGeneratedAtDescIdDesc(podcastId: String): List<Episode>
+
+    fun findByPodcastIdAndStatusOrderByGeneratedAtDescIdDesc(podcastId: String, status: String): List<Episode>
+
     fun findByPodcastId(podcastId: String): List<Episode>
 
     fun findByPodcastIdAndStatus(podcastId: String, status: String): List<Episode>

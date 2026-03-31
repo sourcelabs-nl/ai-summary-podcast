@@ -40,7 +40,7 @@ class AudioGenerationServiceTest {
         every { episodeRepository.save(any()) } answers { firstArg() }
         every { ttsPipeline.generateForExistingEpisode(generatingEpisode, podcast) } returns generatedEpisode
 
-        service.generateAudioAsync(1L, "p1")
+        service.doGenerateAudio(1L, "p1")
 
         verify { episodeRepository.save(match { it.status == EpisodeStatus.GENERATING_AUDIO }) }
         verify { ttsPipeline.generateForExistingEpisode(generatingEpisode, podcast) }
@@ -53,7 +53,7 @@ class AudioGenerationServiceTest {
         every { ttsPipeline.generateForExistingEpisode(approvedEpisode, podcast) } throws RuntimeException("TTS failure")
         every { episodeRepository.save(any()) } answers { firstArg() }
 
-        service.generateAudioAsync(1L, "p1")
+        service.doGenerateAudio(1L, "p1")
 
         verify { episodeRepository.save(match { it.status == EpisodeStatus.FAILED }) }
     }
@@ -64,7 +64,7 @@ class AudioGenerationServiceTest {
         every { podcastRepository.findById("p1") } returns Optional.empty()
         every { episodeRepository.save(any()) } answers { firstArg() }
 
-        service.generateAudioAsync(1L, "p1")
+        service.doGenerateAudio(1L, "p1")
 
         verify { episodeRepository.save(match { it.status == EpisodeStatus.FAILED }) }
     }

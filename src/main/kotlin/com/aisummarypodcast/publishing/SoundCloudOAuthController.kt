@@ -1,29 +1,24 @@
 package com.aisummarypodcast.publishing
 
-import com.aisummarypodcast.config.AppProperties
+import com.aisummarypodcast.config.OAuthPkceHelper
 import com.aisummarypodcast.user.UserService
 import org.slf4j.LoggerFactory
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 import java.net.URLEncoder
-import java.security.MessageDigest
-import java.security.SecureRandom
 import java.time.Instant
-import java.util.Base64
 import java.util.concurrent.ConcurrentHashMap
-import javax.crypto.Mac
-import javax.crypto.spec.SecretKeySpec
 
 data class AuthorizeResponse(val authorizationUrl: String)
 
 @RestController
 class SoundCloudOAuthController(
-    private val appProperties: AppProperties,
     private val userService: UserService,
     private val soundCloudClient: SoundCloudClient,
     private val oauthConnectionService: OAuthConnectionService,
-    private val credentialResolver: SoundCloudCredentialResolver
+    private val credentialResolver: SoundCloudCredentialResolver,
+    private val pkceHelper: OAuthPkceHelper
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -46,9 +41,9 @@ class SoundCloudOAuthController(
 
         cleanExpiredVerifiers()
 
-        val codeVerifier = generateCodeVerifier()
-        val codeChallenge = generateCodeChallenge(codeVerifier)
-        val state = createSignedState(userId)
+        val codeVerifier = pkceHelper.generateCodeVerifier()
+        val codeChallenge = pkceHelper.generateCodeChallenge(codeVerifier)
+        val state = pkceHelper.createSignedState(userId)
 
         pendingVerifiers[state] = PendingOAuth(codeVerifier)
 
@@ -79,7 +74,7 @@ class SoundCloudOAuthController(
             return htmlResponse("SoundCloud authorization failed: $error")
         }
 
-        val userId = verifySignedState(state)
+        val userId = pkceHelper.verifySignedState(state)
         if (userId == null) {
             return ResponseEntity.badRequest()
                 .contentType(MediaType.TEXT_HTML)
@@ -190,39 +185,6 @@ class SoundCloudOAuthController(
         } else {
             ResponseEntity.notFound().build()
         }
-    }
-
-    private fun generateCodeVerifier(): String {
-        val bytes = ByteArray(32)
-        SecureRandom().nextBytes(bytes)
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
-    }
-
-    private fun generateCodeChallenge(verifier: String): String {
-        val digest = MessageDigest.getInstance("SHA-256").digest(verifier.toByteArray(Charsets.US_ASCII))
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(digest)
-    }
-
-    private fun createSignedState(userId: String): String {
-        val payload = Base64.getUrlEncoder().withoutPadding().encodeToString(userId.toByteArray())
-        val signature = hmacSign(payload)
-        return "$payload.$signature"
-    }
-
-    private fun verifySignedState(state: String): String? {
-        val parts = state.split(".", limit = 2)
-        if (parts.size != 2) return null
-        val (payload, signature) = parts
-        val expectedSignature = hmacSign(payload)
-        if (!MessageDigest.isEqual(signature.toByteArray(), expectedSignature.toByteArray())) return null
-        return String(Base64.getUrlDecoder().decode(payload))
-    }
-
-    private fun hmacSign(data: String): String {
-        val keyBytes = Base64.getDecoder().decode(appProperties.encryption.masterKey)
-        val mac = Mac.getInstance("HmacSHA256")
-        mac.init(SecretKeySpec(keyBytes, "HmacSHA256"))
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(mac.doFinal(data.toByteArray()))
     }
 
     private fun cleanExpiredVerifiers() {

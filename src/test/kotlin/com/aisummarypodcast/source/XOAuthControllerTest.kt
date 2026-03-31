@@ -1,8 +1,8 @@
 package com.aisummarypodcast.source
 
 import com.aisummarypodcast.config.AppProperties
-import com.aisummarypodcast.config.EncryptionProperties
 import com.aisummarypodcast.config.FeedProperties
+import com.aisummarypodcast.config.OAuthPkceHelper
 import com.aisummarypodcast.config.XProperties
 import com.aisummarypodcast.publishing.OAuthConnectionService
 import com.aisummarypodcast.publishing.OAuthConnectionStatus
@@ -35,6 +35,9 @@ class XOAuthControllerTest {
     @MockkBean(relaxed = true)
     private lateinit var appProperties: AppProperties
 
+    @MockkBean
+    private lateinit var pkceHelper: OAuthPkceHelper
+
     private val userId = "user-1"
     private val user = User(id = userId, name = "Test User")
 
@@ -44,9 +47,10 @@ class XOAuthControllerTest {
             clientSecret = "test-client-secret"
         )
         every { appProperties.feed } returns FeedProperties(baseUrl = "http://localhost:8085")
-        every { appProperties.encryption } returns EncryptionProperties(
-            masterKey = "dGVzdC1tYXN0ZXIta2V5LTMyYnl0ZXMhIQ=="
-        )
+        every { pkceHelper.generateCodeVerifier() } returns "test-verifier"
+        every { pkceHelper.generateCodeChallenge("test-verifier") } returns "test-challenge"
+        every { pkceHelper.createSignedState(any()) } returns "test-state"
+        every { pkceHelper.verifySignedState(any()) } returns null
     }
 
     @Test
@@ -132,6 +136,8 @@ class XOAuthControllerTest {
 
     @Test
     fun `callback with invalid state returns 400`() {
+        every { pkceHelper.verifySignedState("invalid-state") } returns null
+
         mockMvc.perform(get("/oauth/x/callback")
             .param("code", "test-code")
             .param("state", "invalid-state"))

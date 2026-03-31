@@ -81,6 +81,10 @@ class SqliteDialectConfig {
         override fun convert(source: LlmModelOverrides): String = objectMapper.writeValueAsString(source.stages)
     }
 
+    // Enum converters below are required because these enums use custom `value` fields
+    // (e.g., "news-briefing") that differ from the enum name. Spring Data JDBC's built-in
+    // valueOf() would fail, so we use fromValue() for correct round-tripping.
+
     @ReadingConverter
     class StringToPodcastStyleConverter : Converter<String, PodcastStyle> {
         override fun convert(source: String): PodcastStyle =

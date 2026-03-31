@@ -1,7 +1,7 @@
 package com.aisummarypodcast.publishing
 
 import com.aisummarypodcast.config.AppProperties
-import com.aisummarypodcast.config.EncryptionProperties
+import com.aisummarypodcast.config.OAuthPkceHelper
 import com.aisummarypodcast.store.User
 import com.aisummarypodcast.user.UserService
 import com.ninjasquad.springmockk.MockkBean
@@ -34,6 +34,9 @@ class SoundCloudOAuthControllerTest {
     @MockkBean(relaxed = true)
     private lateinit var appProperties: AppProperties
 
+    @MockkBean
+    private lateinit var pkceHelper: OAuthPkceHelper
+
     private val userId = "user-1"
     private val user = User(id = userId, name = "Test User")
 
@@ -44,9 +47,10 @@ class SoundCloudOAuthControllerTest {
             callbackUri = "http://localhost:8085/oauth/soundcloud/callback"
         )
         every { credentialResolver.isConfigured(any()) } returns true
-        every { appProperties.encryption } returns EncryptionProperties(
-            masterKey = "dGVzdC1tYXN0ZXIta2V5LTMyYnl0ZXMhIQ=="
-        )
+        every { pkceHelper.generateCodeVerifier() } returns "test-verifier"
+        every { pkceHelper.generateCodeChallenge("test-verifier") } returns "test-challenge"
+        every { pkceHelper.createSignedState(any()) } returns "test-state"
+        every { pkceHelper.verifySignedState(any()) } returns null
     }
 
     @Test
@@ -139,6 +143,8 @@ class SoundCloudOAuthControllerTest {
 
     @Test
     fun `callback with invalid state returns 400`() {
+        every { pkceHelper.verifySignedState("invalid-state") } returns null
+
         mockMvc.perform(get("/oauth/soundcloud/callback")
             .param("code", "test-code")
             .param("state", "invalid-state"))

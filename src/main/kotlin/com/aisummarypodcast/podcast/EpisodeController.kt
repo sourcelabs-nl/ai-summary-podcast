@@ -71,7 +71,7 @@ class EpisodeController(
 
         val episodes = episodeService.findByPodcastId(podcastId, status)
 
-        return ResponseEntity.ok(episodes.sortedWith(compareByDescending<Episode> { it.generatedAt }.thenByDescending { it.id }).map { it.toResponse() })
+        return ResponseEntity.ok(episodes.map { it.toResponse() })
     }
 
     @GetMapping("/{episodeId}")

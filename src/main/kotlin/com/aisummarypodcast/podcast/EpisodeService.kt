@@ -42,6 +42,7 @@ class EpisodeService(
 
     private val log = LoggerFactory.getLogger(javaClass)
 
+    @Transactional
     @EventListener(ApplicationReadyEvent::class)
     fun cleanupStaleGeneratingEpisodes() {
         val stale = episodeRepository.findByStatus(EpisodeStatus.GENERATING.name) +
@@ -60,6 +61,7 @@ class EpisodeService(
         }
     }
 
+    @Transactional
     fun createGeneratingEpisode(podcast: Podcast): Episode {
         val now = Instant.now().toString()
         val episode = episodeRepository.save(
@@ -197,6 +199,7 @@ class EpisodeService(
         }
     }
 
+    @Transactional
     fun discardOnly(episode: Episode, podcastId: String) {
         episodeRepository.save(episode.copy(status = EpisodeStatus.DISCARDED))
         eventPublisher.publishEvent(
@@ -319,6 +322,7 @@ class EpisodeService(
             .sortedByDescending { it.relevanceScore ?: 0 }
     }
 
+    @Transactional
     fun regenerateAllShowNotes(): Map<String, Int> {
         val episodes = episodeRepository.findAll()
         var updatedShowNotes = 0
@@ -351,9 +355,9 @@ class EpisodeService(
 
     fun findByPodcastId(podcastId: String, status: String? = null): List<Episode> {
         return if (status != null) {
-            episodeRepository.findByPodcastIdAndStatus(podcastId, status)
+            episodeRepository.findByPodcastIdAndStatusOrderByGeneratedAtDescIdDesc(podcastId, status)
         } else {
-            episodeRepository.findByPodcastId(podcastId)
+            episodeRepository.findByPodcastIdOrderByGeneratedAtDescIdDesc(podcastId)
         }
     }
 
