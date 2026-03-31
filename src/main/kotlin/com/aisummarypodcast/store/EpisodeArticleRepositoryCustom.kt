@@ -10,6 +10,7 @@ data class FeedArticle(val title: String, val url: String, val topic: String? = 
 interface EpisodeArticleRepositoryCustom {
     fun findArticlesWithSourcesByEpisodeId(episodeId: Long): List<EpisodeArticleResponse>
     fun findArticlesByEpisodeIds(episodeIds: List<Long>): Map<Long, List<FeedArticle>>
+    fun findRawArticlesByEpisodeId(episodeId: Long): List<Article>
 }
 
 @Repository
@@ -46,6 +47,38 @@ class EpisodeArticleRepositoryCustomImpl(
                         url = rs.getString("source_url"),
                         label = rs.getString("source_label")
                     )
+                )
+            }
+            .list()
+    }
+
+    override fun findRawArticlesByEpisodeId(episodeId: Long): List<Article> {
+        return jdbcClient.sql(
+            """
+            SELECT a.*
+            FROM episode_articles ea
+            JOIN articles a ON ea.article_id = a.id
+            WHERE ea.episode_id = :episodeId
+            ORDER BY a.relevance_score DESC NULLS LAST
+            """.trimIndent()
+        )
+            .param("episodeId", episodeId)
+            .query { rs, _ ->
+                Article(
+                    id = rs.getLong("id"),
+                    sourceId = rs.getString("source_id"),
+                    title = rs.getString("title"),
+                    body = rs.getString("body"),
+                    url = rs.getString("url"),
+                    publishedAt = rs.getString("published_at"),
+                    author = rs.getString("author"),
+                    contentHash = rs.getString("content_hash"),
+                    relevanceScore = rs.getObject("relevance_score") as? Int,
+                    isProcessed = (rs.getObject("is_processed") as? Number)?.toInt() != 0,
+                    summary = rs.getString("summary"),
+                    llmInputTokens = rs.getObject("llm_input_tokens") as? Int,
+                    llmOutputTokens = rs.getObject("llm_output_tokens") as? Int,
+                    llmCostCents = rs.getObject("llm_cost_cents") as? Int
                 )
             }
             .list()

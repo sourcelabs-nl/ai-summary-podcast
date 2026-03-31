@@ -3,15 +3,18 @@ package com.aisummarypodcast.podcast
 import com.aisummarypodcast.llm.EpisodeRecapGenerator
 import com.aisummarypodcast.llm.ModelResolver
 import com.aisummarypodcast.store.ArticleRepository
+import com.aisummarypodcast.store.Episode
 import com.aisummarypodcast.store.EpisodeArticleRepository
 import com.aisummarypodcast.store.EpisodeRepository
+import com.aisummarypodcast.store.EpisodeStatus
 import com.aisummarypodcast.store.PodcastRepository
 import com.aisummarypodcast.store.PostArticleRepository
 import com.aisummarypodcast.tts.TtsPipeline
+import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import org.springframework.context.ApplicationEventPublisher
 import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
 import java.lang.reflect.Method
 
@@ -40,23 +43,35 @@ class ShowNotesTest {
         audioGenerationService
     )
 
-    private val buildShowNotes: Method = EpisodeService::class.java
-        .getDeclaredMethod("buildShowNotes", String::class.java)
+    private val generateAndStoreShowNotes: Method = EpisodeService::class.java
+        .getDeclaredMethod("generateAndStoreShowNotes", Episode::class.java)
         .also { it.isAccessible = true }
 
-    private fun invoke(recap: String?): String? {
-        return buildShowNotes.invoke(service, recap) as String?
+    @Test
+    fun `show notes stores recap text`() {
+        val episode = Episode(
+            id = 1L, podcastId = "p1", generatedAt = "2025-01-01T00:00:00Z",
+            scriptText = "Script", status = EpisodeStatus.GENERATED,
+            recap = "Today's recap summary."
+        )
+        val saved = episode.copy(showNotes = "Today's recap summary.")
+        every { episodeRepository.save(any()) } returns saved
+
+        val result = generateAndStoreShowNotes.invoke(service, episode) as Episode
+        assertEquals("Today's recap summary.", result.showNotes)
+        verify { episodeRepository.save(match { it.showNotes == "Today's recap summary." }) }
     }
 
     @Test
-    fun `show notes returns recap text`() {
-        val result = invoke("Today's recap summary.")
-        assertEquals("Today's recap summary.", result)
-    }
+    fun `show notes returns episode unchanged when recap is null`() {
+        val episode = Episode(
+            id = 1L, podcastId = "p1", generatedAt = "2025-01-01T00:00:00Z",
+            scriptText = "Script", status = EpisodeStatus.GENERATED,
+            recap = null
+        )
 
-    @Test
-    fun `show notes returns null when recap is null`() {
-        val result = invoke(null)
-        assertNull(result)
+        val result = generateAndStoreShowNotes.invoke(service, episode) as Episode
+        assertEquals(episode, result)
+        verify(exactly = 0) { episodeRepository.save(any()) }
     }
 }

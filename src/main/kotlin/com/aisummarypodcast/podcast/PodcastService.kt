@@ -141,7 +141,6 @@ class PodcastService(
         }
     }
 
-    @Transactional
     fun regenerateEpisode(sourceEpisode: Episode, podcast: Podcast): Episode {
         val linkedArticles = episodeArticleRepository.findByEpisodeId(sourceEpisode.id!!)
         val articles = linkedArticles.mapNotNull { link ->
@@ -177,7 +176,7 @@ class PodcastService(
         val articles = articleRepository.findUnprocessedSince(sourceIds, since)
         val unlinkedPosts = postRepository.findUnlinkedSince(sourceIds, since)
 
-        val articleIds = articles.mapNotNull { it.id }
+        val articleIds = articles.map { it.id!! }
         val linkedPostCount = if (articleIds.isNotEmpty()) postArticleRepository.countByArticleIds(articleIds) else 0L
         val totalPostCount = linkedPostCount + unlinkedPosts.size
 

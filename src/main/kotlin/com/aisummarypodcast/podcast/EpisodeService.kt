@@ -159,21 +159,15 @@ class EpisodeService(
     }
 
     private fun generateAndStoreShowNotes(episode: Episode): Episode {
-        val showNotes = buildShowNotes(episode.recap) ?: return episode
+        val showNotes = episode.recap ?: return episode
         val updated = episodeRepository.save(episode.copy(showNotes = showNotes))
         log.info("[Pipeline] Show notes generated for episode {}", episode.id)
         return updated
     }
 
-    private fun buildShowNotes(recap: String?): String? {
-        return recap
-    }
-
     private fun generateSourcesFile(episode: Episode, podcast: Podcast) {
         try {
-            val links = episodeArticleRepository.findByEpisodeId(episode.id!!)
-            val articles = links.mapNotNull { link -> articleRepository.findById(link.articleId).orElse(null) }
-                .sortedByDescending { it.relevanceScore ?: 0 }
+            val articles = episodeArticleRepository.findRawArticlesByEpisodeId(episode.id!!)
             episodeSourcesGenerator.generate(episode, podcast, articles)
         } catch (e: Exception) {
             log.warn("Failed to generate sources.md for episode {}: {}", episode.id, e.message)
@@ -305,6 +299,7 @@ class EpisodeService(
         return episode
     }
 
+    @Transactional
     fun regenerateRecap(episode: Episode, podcast: Podcast): Episode {
         val recapEpisode = generateAndStoreRecap(episode, podcast)
         val finalEpisode = generateAndStoreShowNotes(recapEpisode)
@@ -317,9 +312,7 @@ class EpisodeService(
     }
 
     fun findRawArticlesForEpisode(episodeId: Long): List<Article> {
-        val links = episodeArticleRepository.findByEpisodeId(episodeId)
-        return links.mapNotNull { link -> articleRepository.findById(link.articleId).orElse(null) }
-            .sortedByDescending { it.relevanceScore ?: 0 }
+        return episodeArticleRepository.findRawArticlesByEpisodeId(episodeId)
     }
 
     @Transactional

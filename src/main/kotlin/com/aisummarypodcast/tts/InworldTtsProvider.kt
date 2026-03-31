@@ -26,13 +26,13 @@ class InworldTtsProvider(
         private const val MAX_RETRY_ATTEMPTS = 3
         private val RETRY_DELAYS_MS = longArrayOf(1000, 2000, 4000)
 
-        private val CORE_GUIDELINES = """
+        private val CORE_GUIDELINES = $$"""
             |The TTS engine supports rich expressiveness markup:
             |- Non-verbal tags: [sigh], [laugh], [breathe], [cough], [clear_throat], [yawn] — use sparingly for natural effect
             |- Emphasis: use *word* (single asterisks) for stressed words. NEVER use **double asterisks** — the TTS engine will read the asterisk characters aloud
             |- Pacing: use ellipsis (...) for trailing pauses, exclamation marks for excitement
             |Text formatting rules:
-            |- Write all numbers, dates, currencies, and symbols in fully spoken form (e.g. "twenty twenty-six" not "2026", "five thousand dollars" not "${'$'}5,000", "ten percent" not "10%")
+            |- Write all numbers, dates, currencies, and symbols in fully spoken form (e.g. "twenty twenty-six" not "2026", "five thousand dollars" not "$5,000", "ten percent" not "10%")
             |- NEVER use markdown formatting (headers, bold, bullet points, links) — write everything as natural spoken sentences
             |- Use natural contractions throughout (don't, we're, it's, they've) for spoken naturalness
             |- Always end sentences with proper punctuation (period, question mark, or exclamation mark) — the TTS engine uses these for pacing""".trimMargin()

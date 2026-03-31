@@ -19,7 +19,7 @@ class ModelResolver(
 
     fun resolve(podcast: Podcast, stage: PipelineStage): ResolvedModel {
         val ref = podcast.llmModels?.get(stage.value)
-            ?: getDefaultForStage(stage)
+            ?: stage.default(appProperties.llm.defaults)
 
         val cost = appProperties.models[ref.provider]?.get(ref.model)
 
@@ -28,10 +28,5 @@ class ModelResolver(
             model = ref.model,
             cost = cost
         )
-    }
-
-    private fun getDefaultForStage(stage: PipelineStage): ModelReference = when (stage) {
-        PipelineStage.FILTER -> appProperties.llm.defaults.filter
-        PipelineStage.COMPOSE -> appProperties.llm.defaults.compose
     }
 }

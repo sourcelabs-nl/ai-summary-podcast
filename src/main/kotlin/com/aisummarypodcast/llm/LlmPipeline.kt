@@ -140,7 +140,7 @@ class LlmPipeline(
             else -> briefingComposer.compose(toCompose, podcast, composeModelDef, ttsScriptGuidelines, followUpAnnotations)
         }
 
-        val processedArticleIds = toCompose.mapNotNull { it.id }
+        val processedArticleIds = toCompose.map { it.id!! }
         val articleTopics = dedupResult.filteredArticles
             .filter { it.article.id != null && it.topic != null }
             .associate { it.article.id!! to it.topic!! }
@@ -192,7 +192,7 @@ class LlmPipeline(
             llmInputTokens = compositionResult.usage.inputTokens,
             llmOutputTokens = compositionResult.usage.outputTokens,
             llmCostCents = costCents,
-            processedArticleIds = articles.mapNotNull { it.id }
+            processedArticleIds = articles.map { it.id!! }
         )
     }
 
@@ -263,7 +263,7 @@ class LlmPipeline(
         log.info("[LLM Preview] Preview complete for podcast '{}' ({}): {} articles composed", podcast.name, podcast.id, toCompose.size)
         return PreviewResult(
             script = compositionResult.script,
-            articleIds = toCompose.mapNotNull { it.id }
+            articleIds = toCompose.map { it.id!! }
         )
     }
 

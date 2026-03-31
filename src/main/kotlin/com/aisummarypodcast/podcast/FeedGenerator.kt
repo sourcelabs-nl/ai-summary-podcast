@@ -99,16 +99,16 @@ class FeedGenerator(
         modules.add(atomModule)
         feed.modules = modules
 
-        val allEpisodes = episodeRepository.findByPodcastIdAndStatus(podcast.id, EpisodeStatus.GENERATED.name)
+        val allEpisodes = episodeRepository.findByPodcastIdAndStatusOrderByGeneratedAtDescIdDesc(podcast.id, EpisodeStatus.GENERATED.name)
         val episodes = if (publishedTarget != null) {
             val publishedEpisodeIds = publicationRepository.findPublishedByPodcastIdAndTarget(podcast.id, publishedTarget)
                 .map { it.episodeId }.toSet()
             allEpisodes.filter { it.id in publishedEpisodeIds }
         } else {
             allEpisodes
-        }.sortedByDescending { it.generatedAt }
+        }
 
-        val episodeIds = episodes.mapNotNull { it.id }
+        val episodeIds = episodes.map { it.id!! }
         val articlesByEpisode = episodeArticleRepository.findArticlesByEpisodeIds(episodeIds)
 
         feed.entries = episodes.mapNotNull { episode ->
