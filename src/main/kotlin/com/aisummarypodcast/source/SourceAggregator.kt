@@ -12,10 +12,6 @@ import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
 import java.net.URI
-import java.time.Instant
-import java.time.ZoneOffset
-import java.time.format.DateTimeFormatter
-import java.util.Locale
 
 @Component
 class SourceAggregator(
@@ -24,9 +20,6 @@ class SourceAggregator(
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
-
-    private val dateFormatter = DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.ENGLISH)
-        .withZone(ZoneOffset.UTC)
 
     @Transactional
     fun aggregateAndPersist(posts: List<Post>, source: Source): List<Article> {
@@ -38,28 +31,21 @@ class SourceAggregator(
             mapIndividualPosts(posts, source)
         }
 
-        val savedArticles = articles.map { article ->
+        val savedArticles = articles.map { (article, threadPosts) ->
             val existing = articleRepository.findBySourceIdAndContentHash(source.id, article.contentHash)
-            existing ?: articleRepository.save(article)
+            val saved = existing ?: articleRepository.save(article)
+            saved to threadPosts
         }
 
-        // Link posts to articles
-        if (shouldAggregate(source) && posts.size > 1) {
-            // All posts linked to the single aggregated article
-            val article = savedArticles.first()
-            for (post in posts) {
-                postArticleRepository.save(PostArticle(postId = post.id!!, articleId = article.id!!))
-            }
-        } else {
-            // 1:1 mapping
-            for ((index, article) in savedArticles.withIndex()) {
-                val post = posts[index]
+        for ((article, threadPosts) in savedArticles) {
+            for (post in threadPosts) {
                 postArticleRepository.save(PostArticle(postId = post.id!!, articleId = article.id!!))
             }
         }
 
-        log.info("[Aggregator] Created {} articles from {} posts for source {}", savedArticles.size, posts.size, source.id)
-        return savedArticles
+        val result = savedArticles.map { it.first }
+        log.info("[Aggregator] Created {} articles from {} posts for source {}", result.size, posts.size, source.id)
+        return result
     }
 
     internal fun shouldAggregate(source: Source): Boolean {
@@ -67,37 +53,56 @@ class SourceAggregator(
         return source.type == SourceType.TWITTER || source.url.contains("nitter.net")
     }
 
-    private fun aggregatePosts(posts: List<Post>, source: Source): List<Article> {
-        log.info("[Aggregator] Aggregating {} posts from source {}", posts.size, source.id)
+    internal fun groupPostsByThread(posts: List<Post>): List<List<Post>> {
+        val sorted = posts.sortedBy { it.publishedAt ?: "" }
+        val threads = mutableListOf<MutableList<Post>>()
 
-        val author = posts.firstNotNullOfOrNull { it.author }
-        val titlePrefix = author ?: extractDomain(source.url)
-        val mostRecentPublishedAt = posts.mapNotNull { it.publishedAt }.maxOrNull()
-        val dateStr = mostRecentPublishedAt?.let {
-            dateFormatter.format(Instant.parse(it))
-        } ?: "Unknown date"
-
-        val body = posts.joinToString("\n\n---\n\n") { post ->
-            val timestamp = post.publishedAt ?: ""
-            if (timestamp.isNotEmpty()) "$timestamp\n${post.body}" else post.body
+        for (post in sorted) {
+            if (isReply(post)) {
+                if (threads.isNotEmpty()) {
+                    threads.last().add(post)
+                } else {
+                    // Orphan reply: start a new thread
+                    threads.add(mutableListOf(post))
+                }
+            } else {
+                threads.add(mutableListOf(post))
+            }
         }
 
-        val article = Article(
-            sourceId = source.id,
-            title = "Posts from $titlePrefix — $dateStr",
-            body = body,
-            url = source.url,
-            publishedAt = mostRecentPublishedAt,
-            author = author,
-            contentHash = sha256(body)
-        )
-
-        return listOf(article)
+        return threads
     }
 
-    private fun mapIndividualPosts(posts: List<Post>, source: Source): List<Article> {
+    private fun isReply(post: Post): Boolean = post.title.startsWith("R to @")
+
+    private fun aggregatePosts(posts: List<Post>, source: Source): List<Pair<Article, List<Post>>> {
+        val threads = groupPostsByThread(posts)
+        log.info("[Aggregator] Grouped {} posts into {} threads for source {}", posts.size, threads.size, source.id)
+
+        return threads.map { threadPosts ->
+            val parent = threadPosts.first()
+            val body = threadPosts.joinToString("\n\n---\n\n") { post ->
+                val timestamp = post.publishedAt ?: ""
+                if (timestamp.isNotEmpty()) "$timestamp\n${post.body}" else post.body
+            }
+
+            val article = Article(
+                sourceId = source.id,
+                title = parent.title,
+                body = body,
+                url = rewriteNitterUrl(parent.url),
+                publishedAt = parent.publishedAt,
+                author = parent.author,
+                contentHash = sha256(body)
+            )
+
+            article to threadPosts
+        }
+    }
+
+    private fun mapIndividualPosts(posts: List<Post>, source: Source): List<Pair<Article, List<Post>>> {
         return posts.map { post ->
-            Article(
+            val article = Article(
                 sourceId = source.id,
                 title = post.title,
                 body = post.body,
@@ -106,15 +111,20 @@ class SourceAggregator(
                 author = post.author,
                 contentHash = sha256(post.body)
             )
+            article to listOf(post)
         }
     }
 
-    private fun extractDomain(url: String): String {
+    internal fun rewriteNitterUrl(url: String): String {
         return try {
-            URI(url).host ?: url
+            val uri = URI(url)
+            if (uri.host?.equals("nitter.net", ignoreCase = true) == true) {
+                URI(uri.scheme, uri.userInfo, "x.com", uri.port, uri.path, uri.query, uri.fragment).toString()
+            } else {
+                url
+            }
         } catch (_: Exception) {
             url
         }
     }
-
 }

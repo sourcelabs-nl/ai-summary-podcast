@@ -79,14 +79,14 @@ class EpisodeSourcesGenerator(private val appProperties: AppProperties) {
                             appendLine("<ul>")
                             currentTopic = topicLabel
                         }
-                        appendLine("<li><a href=\"${escapeHtml(article.url)}\">${escapeHtml(article.title)}</a></li>")
+                        appendLine("<li><a href=\"${escapeHtml(article.url)}\">${escapeHtml(truncateTitle(article.title))}</a></li>")
                     }
                     if (currentTopic != null) appendLine("</ul>")
                 } else {
                     appendLine("<h2>Sources</h2>")
                     appendLine("<ul>")
                     for (article in articles) {
-                        appendLine("<li><a href=\"${escapeHtml(article.url)}\">${escapeHtml(article.title)}</a></li>")
+                        appendLine("<li><a href=\"${escapeHtml(article.url)}\">${escapeHtml(truncateTitle(article.title))}</a></li>")
                     }
                     appendLine("</ul>")
                 }
@@ -104,6 +104,9 @@ class EpisodeSourcesGenerator(private val appProperties: AppProperties) {
         log.info("Generated sources.html for episode {} at {}", episode.id, sourcesPath)
         return sourcesPath
     }
+
+    private fun truncateTitle(title: String): String =
+        if (title.length > 120) title.take(120) + "..." else title
 
     private fun escapeHtml(text: String): String =
         text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")

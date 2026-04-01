@@ -146,4 +146,32 @@ class EpisodeSourcesGeneratorTest {
         val topicBIndex = content.indexOf("<h3>Topic B</h3>")
         assertTrue(topicAIndex < topicBIndex, "Topic A (order 0) should appear before Topic B (order 1)")
     }
+
+    @Test
+    fun `truncates long article titles`() {
+        val longTitle = "A".repeat(200)
+        val articles = listOf(
+            TopicGroupedArticle(longTitle, "https://example.com/long", null, null)
+        )
+
+        val path = generator.generate(episode, podcast, articles)
+
+        val content = Files.readString(path!!)
+        val expectedTruncated = "A".repeat(120) + "..."
+        assertTrue(content.contains(expectedTruncated))
+        assertFalse(content.contains(longTitle))
+    }
+
+    @Test
+    fun `does not truncate short article titles`() {
+        val shortTitle = "Short Title"
+        val articles = listOf(
+            TopicGroupedArticle(shortTitle, "https://example.com/short", null, null)
+        )
+
+        val path = generator.generate(episode, podcast, articles)
+
+        val content = Files.readString(path!!)
+        assertTrue(content.contains(">Short Title</a>"))
+    }
 }
