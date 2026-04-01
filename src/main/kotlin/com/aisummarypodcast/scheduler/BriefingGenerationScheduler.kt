@@ -74,13 +74,19 @@ class BriefingGenerationScheduler(
                     LocalDateTime.ofInstant(Instant.parse(it), zone)
                 }
 
-                var nextExecution = if (lastGenerated != null) {
-                    cronExpression.next(lastGenerated)
+                // Start from the later of lastGeneratedAt or (now - staleness window)
+                // to avoid iterating through old triggers that can never fire
+                val earliest = now.minus(STALENESS_WINDOW)
+                val startFrom = if (lastGenerated != null && lastGenerated.isAfter(earliest)) {
+                    lastGenerated
+                } else if (lastGenerated != null) {
+                    earliest
                 } else {
-                    // Never generated — check if it should have run today
                     val startOfDay = now.toLocalDate().atStartOfDay()
-                    cronExpression.next(startOfDay)
+                    if (startOfDay.isAfter(earliest)) startOfDay else earliest
                 }
+
+                var nextExecution = cronExpression.next(startFrom)
 
                 // Skip stale triggers that are beyond the staleness window
                 while (nextExecution != null && !nextExecution.isAfter(now)
