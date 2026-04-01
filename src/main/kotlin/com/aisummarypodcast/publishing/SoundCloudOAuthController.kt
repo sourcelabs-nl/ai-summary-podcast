@@ -10,8 +10,6 @@ import java.net.URLEncoder
 import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
 
-data class AuthorizeResponse(val authorizationUrl: String)
-
 @RestController
 class SoundCloudOAuthController(
     private val userService: UserService,
@@ -23,11 +21,6 @@ class SoundCloudOAuthController(
 
     private val log = LoggerFactory.getLogger(javaClass)
     private val pendingVerifiers = ConcurrentHashMap<String, PendingOAuth>()
-
-    private data class PendingOAuth(
-        val codeVerifier: String,
-        val createdAt: Instant = Instant.now()
-    )
 
     @GetMapping("/users/{userId}/oauth/soundcloud/authorize")
     fun authorize(@PathVariable userId: String): ResponseEntity<Any> {

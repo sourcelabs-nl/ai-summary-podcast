@@ -6,23 +6,6 @@ import com.aisummarypodcast.store.OAuthConnectionRepository
 import org.springframework.stereotype.Service
 import java.time.Instant
 
-data class DecryptedOAuthConnection(
-    val userId: String,
-    val provider: String,
-    val accessToken: String,
-    val refreshToken: String?,
-    val expiresAt: Instant?,
-    val scopes: String?,
-    val createdAt: String,
-    val updatedAt: String
-)
-
-data class OAuthConnectionStatus(
-    val connected: Boolean,
-    val scopes: String? = null,
-    val connectedAt: String? = null
-)
-
 @Service
 class OAuthConnectionService(
     private val repository: OAuthConnectionRepository,

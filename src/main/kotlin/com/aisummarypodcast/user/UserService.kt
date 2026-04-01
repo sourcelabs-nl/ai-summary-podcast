@@ -4,6 +4,7 @@ import com.aisummarypodcast.publishing.OAuthConnectionService
 import com.aisummarypodcast.store.User
 import com.aisummarypodcast.store.UserProviderConfigRepository
 import com.aisummarypodcast.store.UserRepository
+import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.util.UUID
@@ -23,7 +24,7 @@ class UserService(
 
     fun findAll(): List<User> = userRepository.findAll().toList()
 
-    fun findById(userId: String): User? = userRepository.findById(userId).orElse(null)
+    fun findById(userId: String): User? = userRepository.findByIdOrNull(userId)
 
     fun update(userId: String, name: String): User? {
         val user = findById(userId) ?: return null

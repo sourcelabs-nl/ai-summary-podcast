@@ -6,16 +6,11 @@ import com.aisummarypodcast.store.Source
 import com.aisummarypodcast.store.SourceRepository
 import com.aisummarypodcast.store.SourceType
 import org.slf4j.LoggerFactory
+import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
 import java.util.UUID
-
-data class SourceArticleCounts(
-    val sourceId: String,
-    val total: Int,
-    val relevant: Int
-)
 
 @Service
 class SourceService(
@@ -94,7 +89,7 @@ class SourceService(
 
     fun findByPodcastId(podcastId: String): List<Source> = sourceRepository.findByPodcastId(podcastId)
 
-    fun findById(sourceId: String): Source? = sourceRepository.findById(sourceId).orElse(null)
+    fun findById(sourceId: String): Source? = sourceRepository.findByIdOrNull(sourceId)
 
     fun update(sourceId: String, type: SourceType, url: String, pollIntervalMinutes: Int, enabled: Boolean, aggregate: Boolean? = null, maxFailures: Int? = null, maxBackoffHours: Int? = null, pollDelaySeconds: Int? = null, categoryFilter: String? = null, label: String? = null): Source? {
         val source = findById(sourceId) ?: return null

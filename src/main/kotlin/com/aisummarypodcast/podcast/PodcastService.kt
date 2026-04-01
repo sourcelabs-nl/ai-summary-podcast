@@ -7,6 +7,7 @@ import com.aisummarypodcast.llm.PreviewResult
 import com.aisummarypodcast.source.SourceAggregator
 import com.aisummarypodcast.store.*
 import jakarta.annotation.PreDestroy
+import org.springframework.data.repository.findByIdOrNull
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -21,26 +22,6 @@ import java.nio.file.Path
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.UUID
-
-enum class ResumePoint {
-    FULL_PIPELINE,
-    COMPOSE,
-    POST_COMPOSE
-}
-
-data class GenerateBriefingResult(
-    val episode: Episode?,
-    val failed: Boolean = false,
-    val errorMessage: String? = null
-)
-
-data class UpcomingContent(
-    val articles: List<Article>,
-    val unlinkedPosts: List<Post>,
-    val sources: List<Source>,
-    val totalPostCount: Long,
-    val effectiveArticleCount: Long
-)
 
 @Service
 class PodcastService(
@@ -137,6 +118,26 @@ class PodcastService(
         }
     }
 
+    fun validateTtsConfig(ttsProvider: TtsProviderType, style: PodcastStyle, ttsVoices: Map<String, String>?): String? {
+        val dialogueProviders = setOf(TtsProviderType.ELEVENLABS, TtsProviderType.INWORLD)
+        if (style == PodcastStyle.DIALOGUE && ttsProvider !in dialogueProviders) {
+            return "Dialogue style requires ElevenLabs or Inworld as TTS provider"
+        }
+        if (style == PodcastStyle.DIALOGUE && (ttsVoices == null || ttsVoices.size < 2)) {
+            return "Dialogue style requires at least two voice roles in ttsVoices (e.g., host and cohost)"
+        }
+        if (style == PodcastStyle.INTERVIEW && ttsProvider !in dialogueProviders) {
+            return "Interview style requires ElevenLabs or Inworld as TTS provider"
+        }
+        if (style == PodcastStyle.INTERVIEW && (ttsVoices == null || ttsVoices.size < 2)) {
+            return "Interview style requires at least two voice roles in ttsVoices (interviewer and expert)"
+        }
+        if (style == PodcastStyle.INTERVIEW && ttsVoices != null && ttsVoices.keys != setOf("interviewer", "expert")) {
+            return "Interview style requires exactly 'interviewer' and 'expert' voice roles"
+        }
+        return null
+    }
+
     fun create(userId: String, name: String, topic: String, podcast: Podcast? = null): Podcast {
         val newPodcast = Podcast(
             id = UUID.randomUUID().toString(),
@@ -168,7 +169,7 @@ class PodcastService(
 
     fun findByUserId(userId: String): List<Podcast> = podcastRepository.findByUserId(userId)
 
-    fun findById(podcastId: String): Podcast? = podcastRepository.findById(podcastId).orElse(null)
+    fun findById(podcastId: String): Podcast? = podcastRepository.findByIdOrNull(podcastId)
 
     fun update(podcastId: String, updates: Podcast): Podcast? {
         val existing = findById(podcastId) ?: return null
@@ -301,6 +302,7 @@ class PodcastService(
         ).toString()
 
         val articles = articleRepository.findUnprocessedSince(sourceIds, since)
+            .sortedByDescending { it.relevanceScore }
         val unlinkedPosts = postRepository.findUnlinkedSince(sourceIds, since)
 
         val articleIds = articles.map { it.id!! }

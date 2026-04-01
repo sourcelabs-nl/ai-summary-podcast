@@ -8,6 +8,7 @@ import com.aisummarypodcast.store.User
 import com.aisummarypodcast.user.UserService
 import com.ninjasquad.springmockk.MockkBean
 import io.mockk.every
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest
@@ -52,6 +53,11 @@ class PodcastControllerLanguageTest {
     private val userId = "user-1"
     private val user = User(id = userId, name = "Test User")
     private val podcastId = "podcast-1"
+
+    @BeforeEach
+    fun setupValidation() {
+        every { podcastService.validateTtsConfig(any(), any(), any()) } returns null
+    }
 
     @Test
     fun `create podcast with valid language`() {

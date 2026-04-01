@@ -4,10 +4,6 @@ import com.aisummarypodcast.store.ApiKeyCategory
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 
-data class SetProviderConfigRequest(val provider: String, val apiKey: String? = null, val baseUrl: String? = null)
-data class ProviderConfigResponse(val category: String, val provider: String, val baseUrl: String)
-data class ErrorResponse(val error: String)
-
 @RestController
 @RequestMapping("/users/{userId}/api-keys")
 class UserProviderConfigController(

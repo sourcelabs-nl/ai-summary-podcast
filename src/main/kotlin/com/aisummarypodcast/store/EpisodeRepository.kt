@@ -7,11 +7,11 @@ interface EpisodeRepository : CrudRepository<Episode, Long> {
 
     fun findByPodcastIdOrderByGeneratedAtDescIdDesc(podcastId: String): List<Episode>
 
-    fun findByPodcastIdAndStatusOrderByGeneratedAtDescIdDesc(podcastId: String, status: String): List<Episode>
+    fun findByPodcastIdAndStatusOrderByGeneratedAtDescIdDesc(podcastId: String, status: EpisodeStatus): List<Episode>
 
     fun findByPodcastId(podcastId: String): List<Episode>
 
-    fun findByPodcastIdAndStatus(podcastId: String, status: String): List<Episode>
+    fun findByPodcastIdAndStatus(podcastId: String, status: EpisodeStatus): List<Episode>
 
     @Query("SELECT * FROM episodes WHERE podcast_id = :podcastId AND status IN (:statuses)")
     fun findByPodcastIdAndStatusIn(podcastId: String, statuses: List<String>): List<Episode>
@@ -32,5 +32,5 @@ interface EpisodeRepository : CrudRepository<Episode, Long> {
     @Query("SELECT * FROM episodes WHERE podcast_id = :podcastId AND status = 'GENERATED' ORDER BY generated_at DESC LIMIT :limit")
     fun findRecentGeneratedByPodcastId(podcastId: String, limit: Int): List<Episode>
 
-    fun findByStatus(status: String): List<Episode>
+    fun findByStatus(status: EpisodeStatus): List<Episode>
 }

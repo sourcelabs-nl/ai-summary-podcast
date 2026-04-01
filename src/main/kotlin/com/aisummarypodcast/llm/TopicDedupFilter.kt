@@ -2,8 +2,6 @@ package com.aisummarypodcast.llm
 
 import com.aisummarypodcast.store.Article
 import org.slf4j.LoggerFactory
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.runBlocking
 import org.springframework.ai.openai.OpenAiChatOptions
 import org.springframework.stereotype.Component
 import kotlin.time.measureTimedValue
@@ -79,7 +77,7 @@ class TopicDedupFilter(
                     if (attempt < maxRetries) {
                         val backoffMs = 1000L * (1 shl (attempt - 1))
                         log.warn("[Dedup] Retry {}/{} for topic dedup filter: {}", attempt, maxRetries, e.message)
-                        runBlocking { delay(backoffMs) }
+                        Thread.sleep(backoffMs)
                     }
                 }
             }

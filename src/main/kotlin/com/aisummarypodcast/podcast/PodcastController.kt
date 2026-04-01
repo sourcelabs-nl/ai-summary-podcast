@@ -1,12 +1,10 @@
 package com.aisummarypodcast.podcast
 
 import com.aisummarypodcast.config.LlmModelOverrides
-import com.aisummarypodcast.config.ModelReference
 import com.aisummarypodcast.store.Podcast
 import com.aisummarypodcast.store.PodcastStyle
 import com.aisummarypodcast.store.TtsProviderType
 import com.aisummarypodcast.user.UserService
-import com.fasterxml.jackson.annotation.JsonProperty
 import tools.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
 import org.springframework.http.MediaType
@@ -21,104 +19,6 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import java.net.URI
 import java.time.ZoneId
-
-data class CreatePodcastRequest(
-    val name: String,
-    val topic: String,
-    val language: String? = null,
-    val llmModels: Map<String, ModelReference>? = null,
-    val ttsProvider: String? = null,
-    val ttsVoices: Map<String, String>? = null,
-    val ttsSettings: Map<String, String>? = null,
-    val style: String? = null,
-    @JsonProperty("targetWords") val targetWords: Int? = null,
-    val cron: String? = null,
-    val timezone: String? = null,
-    val customInstructions: String? = null,
-    @JsonProperty("relevanceThreshold") val relevanceThreshold: Int? = null,
-    @JsonProperty("requireReview") val requireReview: Boolean? = null,
-    @JsonProperty("maxLlmCostCents") val maxLlmCostCents: Int? = null,
-    @JsonProperty("maxArticleAgeDays") val maxArticleAgeDays: Int? = null,
-    val speakerNames: Map<String, String>? = null,
-    @JsonProperty("fullBodyThreshold") val fullBodyThreshold: Int? = null,
-    val sponsor: Map<String, String>? = null,
-    val pronunciations: Map<String, String>? = null,
-    @JsonProperty("recapLookbackEpisodes") val recapLookbackEpisodes: Int? = null
-)
-
-data class UpdatePodcastRequest(
-    val name: String,
-    val topic: String,
-    val language: String? = null,
-    val llmModels: Map<String, ModelReference>? = null,
-    val ttsProvider: String? = null,
-    val ttsVoices: Map<String, String>? = null,
-    val ttsSettings: Map<String, String>? = null,
-    val style: String? = null,
-    @JsonProperty("targetWords") val targetWords: Int? = null,
-    val cron: String? = null,
-    val timezone: String? = null,
-    val customInstructions: String? = null,
-    @JsonProperty("relevanceThreshold") val relevanceThreshold: Int? = null,
-    @JsonProperty("requireReview") val requireReview: Boolean? = null,
-    @JsonProperty("maxLlmCostCents") val maxLlmCostCents: Int? = null,
-    @JsonProperty("maxArticleAgeDays") val maxArticleAgeDays: Int? = null,
-    val speakerNames: Map<String, String>? = null,
-    @JsonProperty("fullBodyThreshold") val fullBodyThreshold: Int? = null,
-    val sponsor: Map<String, String>? = null,
-    val pronunciations: Map<String, String>? = null,
-    @JsonProperty("recapLookbackEpisodes") val recapLookbackEpisodes: Int? = null
-)
-
-data class PodcastResponse(
-    val id: String,
-    val userId: String,
-    val name: String,
-    val topic: String,
-    val language: String,
-    val llmModels: Map<String, ModelReference>?,
-    val ttsProvider: String,
-
-    val ttsVoices: Map<String, String>?,
-    val ttsSettings: Map<String, String>?,
-    val style: String,
-    val targetWords: Int?,
-    val cron: String,
-    val timezone: String,
-    val customInstructions: String?,
-    val relevanceThreshold: Int,
-    val requireReview: Boolean,
-    val maxLlmCostCents: Int?,
-    val maxArticleAgeDays: Int?,
-    val speakerNames: Map<String, String>?,
-    val fullBodyThreshold: Int?,
-    val sponsor: Map<String, String>?,
-    val pronunciations: Map<String, String>?,
-    val recapLookbackEpisodes: Int?,
-    val lastGeneratedAt: String?
-)
-
-/**
- * Nullable update helper: absent (null) keeps existing value, empty clears to null, non-empty updates.
- * Allows clearing nullable fields via the API by sending "" or {}.
- */
-private fun String?.orKeep(existing: String?): String? = when {
-    this == null -> existing
-    this.isEmpty() -> null
-    else -> this
-}
-
-private fun Map<String, String>?.orKeep(existing: Map<String, String>?): Map<String, String>? = when {
-    this == null -> existing
-    this.isEmpty() -> null
-    else -> this
-}
-
-private fun Map<String, ModelReference>?.toLlmModelOverrides(existing: LlmModelOverrides?): LlmModelOverrides? = when {
-    this == null -> existing
-    this.isEmpty() -> null
-    else -> LlmModelOverrides(this)
-}
 
 @RestController
 @RequestMapping("/users/{userId}/podcasts")
@@ -139,29 +39,6 @@ class PodcastController(
         previewScope.cancel()
     }
 
-    companion object {
-        private val dialogueProviders = setOf(TtsProviderType.ELEVENLABS, TtsProviderType.INWORLD)
-
-        fun validateTtsConfig(ttsProvider: TtsProviderType, style: PodcastStyle, ttsVoices: Map<String, String>?): String? {
-            if (style == PodcastStyle.DIALOGUE && ttsProvider !in dialogueProviders) {
-                return "Dialogue style requires ElevenLabs or Inworld as TTS provider"
-            }
-            if (style == PodcastStyle.DIALOGUE && (ttsVoices == null || ttsVoices.size < 2)) {
-                return "Dialogue style requires at least two voice roles in ttsVoices (e.g., host and cohost)"
-            }
-            if (style == PodcastStyle.INTERVIEW && ttsProvider !in dialogueProviders) {
-                return "Interview style requires ElevenLabs or Inworld as TTS provider"
-            }
-            if (style == PodcastStyle.INTERVIEW && (ttsVoices == null || ttsVoices.size < 2)) {
-                return "Interview style requires at least two voice roles in ttsVoices (interviewer and expert)"
-            }
-            if (style == PodcastStyle.INTERVIEW && ttsVoices != null && ttsVoices.keys != setOf("interviewer", "expert")) {
-                return "Interview style requires exactly 'interviewer' and 'expert' voice roles"
-            }
-            return null
-        }
-    }
-
     @PostMapping
     fun create(@PathVariable userId: String, @RequestBody request: CreatePodcastRequest): ResponseEntity<Any> {
         userService.findById(userId) ?: return ResponseEntity.notFound().build()
@@ -177,7 +54,7 @@ class PodcastController(
             PodcastStyle.fromValue(it)
                 ?: return ResponseEntity.badRequest().body(mapOf("error" to "Unsupported style: $it. Supported: ${PodcastStyle.entries.joinToString { e -> e.value }}"))
         } ?: PodcastStyle.NEWS_BRIEFING
-        validateTtsConfig(ttsProvider, style, request.ttsVoices)?.let {
+        podcastService.validateTtsConfig(ttsProvider, style, request.ttsVoices)?.let {
             return ResponseEntity.badRequest().body(mapOf("error" to it))
         }
         if (request.timezone != null) {
@@ -257,7 +134,7 @@ class PodcastController(
                 ?: return ResponseEntity.badRequest().body(mapOf("error" to "Unsupported style: $it. Supported: ${PodcastStyle.entries.joinToString { e -> e.value }}"))
         } ?: existing.style
         val effectiveVoices = request.ttsVoices.orKeep(existing.ttsVoices)
-        validateTtsConfig(effectiveTtsProvider, effectiveStyle, effectiveVoices)?.let {
+        podcastService.validateTtsConfig(effectiveTtsProvider, effectiveStyle, effectiveVoices)?.let {
             return ResponseEntity.badRequest().body(mapOf("error" to it))
         }
         if (request.timezone != null) {
@@ -433,66 +310,4 @@ class PodcastController(
         return emitter
     }
 
-    private fun UpcomingContent.toResponse(): Map<String, Any> {
-        val sourceMap = sources.associateBy { it.id }
-
-        fun mapArticle(article: com.aisummarypodcast.store.Article) = EpisodeArticleResponse(
-            id = article.id!!,
-            title = article.title,
-            url = article.url,
-            author = article.author,
-            publishedAt = article.publishedAt,
-            relevanceScore = article.relevanceScore,
-            summary = article.summary,
-            body = article.body,
-            source = sourceMap[article.sourceId].let { source ->
-                ArticleSourceResponse(
-                    id = source?.id ?: article.sourceId,
-                    type = source?.type?.name ?: "UNKNOWN",
-                    url = source?.url ?: "",
-                    label = source?.label
-                )
-            }
-        )
-
-        fun mapPost(post: com.aisummarypodcast.store.Post) = EpisodeArticleResponse(
-            id = post.id!!,
-            title = post.title,
-            url = post.url,
-            author = post.author,
-            publishedAt = post.publishedAt,
-            relevanceScore = null,
-            summary = null,
-            body = post.body,
-            source = sourceMap[post.sourceId].let { source ->
-                ArticleSourceResponse(
-                    id = source?.id ?: post.sourceId,
-                    type = source?.type?.name ?: "UNKNOWN",
-                    url = source?.url ?: "",
-                    label = source?.label
-                )
-            }
-        )
-
-        val allArticles = (articles.map(::mapArticle) + unlinkedPosts.map(::mapPost))
-            .sortedByDescending { it.relevanceScore }
-
-        return mapOf(
-            "articles" to allArticles,
-            "articleCount" to effectiveArticleCount,
-            "postCount" to totalPostCount
-        )
-    }
-
-    private fun Podcast.toResponse() = PodcastResponse(
-        id = id, userId = userId, name = name, topic = topic,
-        language = language, llmModels = llmModels?.stages, ttsProvider = ttsProvider.value, ttsVoices = ttsVoices,
-        ttsSettings = ttsSettings,
-        style = style.value, targetWords = targetWords, cron = cron, timezone = timezone,
-        customInstructions = customInstructions, relevanceThreshold = relevanceThreshold,
-        requireReview = requireReview, maxLlmCostCents = maxLlmCostCents,
-        maxArticleAgeDays = maxArticleAgeDays, speakerNames = speakerNames,
-        fullBodyThreshold = fullBodyThreshold, sponsor = sponsor, pronunciations = pronunciations,
-        recapLookbackEpisodes = recapLookbackEpisodes, lastGeneratedAt = lastGeneratedAt
-    )
 }

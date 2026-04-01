@@ -6,51 +6,6 @@ import com.aisummarypodcast.user.UserService
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 
-data class EpisodeResponse(
-    val id: Long,
-    val podcastId: String,
-    val generatedAt: String,
-    val scriptText: String,
-    val status: String,
-    val audioFilePath: String?,
-    val durationSeconds: Int?,
-    val filterModel: String?,
-    val composeModel: String?,
-    val llmInputTokens: Int?,
-    val llmOutputTokens: Int?,
-    val llmCostCents: Int?,
-    val ttsCharacters: Int?,
-    val ttsCostCents: Int?,
-    val ttsModel: String?,
-    val recap: String?,
-    val showNotes: String?,
-    val errorMessage: String?,
-    val pipelineStage: String?
-)
-
-data class UpdateScriptRequest(
-    val scriptText: String
-)
-
-data class ArticleSourceResponse(
-    val id: String,
-    val type: String,
-    val url: String,
-    val label: String?
-)
-
-data class EpisodeArticleResponse(
-    val id: Long,
-    val title: String,
-    val url: String,
-    val author: String?,
-    val publishedAt: String?,
-    val relevanceScore: Int?,
-    val summary: String?,
-    val body: String?,
-    val source: ArticleSourceResponse
-)
-
 @RestController
 @RequestMapping("/users/{userId}/podcasts/{podcastId}/episodes")
 class EpisodeController(
@@ -64,12 +19,18 @@ class EpisodeController(
         @PathVariable userId: String,
         @PathVariable podcastId: String,
         @RequestParam(required = false) status: String?
-    ): ResponseEntity<List<EpisodeResponse>> {
+    ): ResponseEntity<Any> {
         userService.findById(userId) ?: return ResponseEntity.notFound().build()
         val podcast = podcastService.findById(podcastId) ?: return ResponseEntity.notFound().build()
         if (podcast.userId != userId) return ResponseEntity.notFound().build()
 
-        val episodes = episodeService.findByPodcastId(podcastId, status)
+        val episodeStatus = status?.let {
+            try { EpisodeStatus.valueOf(it) } catch (_: IllegalArgumentException) {
+                return ResponseEntity.badRequest().body(mapOf("error" to "Invalid status: $it. Valid values: ${EpisodeStatus.entries.joinToString()}"))
+            }
+        }
+
+        val episodes = episodeService.findByPodcastId(podcastId, episodeStatus)
 
         return ResponseEntity.ok(episodes.map { it.toResponse() })
     }
@@ -228,25 +189,4 @@ class EpisodeController(
         return ResponseEntity.ok(episodeService.findArticlesForEpisode(episodeId))
     }
 
-    private fun Episode.toResponse() = EpisodeResponse(
-        id = id!!,
-        podcastId = podcastId,
-        generatedAt = generatedAt,
-        scriptText = scriptText,
-        status = status.name,
-        audioFilePath = audioFilePath,
-        durationSeconds = durationSeconds,
-        filterModel = filterModel,
-        composeModel = composeModel,
-        llmInputTokens = llmInputTokens,
-        llmOutputTokens = llmOutputTokens,
-        llmCostCents = llmCostCents,
-        ttsCharacters = ttsCharacters,
-        ttsCostCents = ttsCostCents,
-        ttsModel = ttsModel,
-        recap = recap,
-        showNotes = showNotes,
-        errorMessage = errorMessage,
-        pipelineStage = pipelineStage
-    )
 }

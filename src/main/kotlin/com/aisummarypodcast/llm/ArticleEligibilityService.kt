@@ -7,6 +7,7 @@ import com.aisummarypodcast.store.EpisodeArticleRepository
 import com.aisummarypodcast.store.EpisodeRepository
 import com.aisummarypodcast.store.Podcast
 import org.slf4j.LoggerFactory
+import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Service
 
 @Service
@@ -55,7 +56,7 @@ class ArticleEligibilityService(
         for (episode in recentEpisodes) {
             val links = episodeArticleRepository.findByEpisodeId(episode.id!!)
             for (link in links) {
-                articleRepository.findById(link.articleId).ifPresent { allArticles.add(it) }
+                articleRepository.findByIdOrNull(link.articleId)?.let { allArticles.add(it) }
             }
         }
 

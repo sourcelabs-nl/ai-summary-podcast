@@ -5,20 +5,6 @@ import org.apache.commons.net.ftp.FTPSClient
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 
-data class TestConnectionResult(
-    val success: Boolean,
-    val message: String,
-    val quota: Map<String, Any>? = null
-)
-
-data class FtpTestCredentials(
-    val host: String,
-    val port: Int = 21,
-    val username: String,
-    val password: String? = null,
-    val useTls: Boolean = true
-)
-
 @Service
 class PublishingTestService(
     private val soundCloudTokenManager: SoundCloudTokenManager,

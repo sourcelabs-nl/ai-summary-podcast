@@ -8,12 +8,15 @@ import com.aisummarypodcast.store.EpisodeRepository
 import com.aisummarypodcast.store.EpisodeStatus
 import com.aisummarypodcast.store.Podcast
 import org.slf4j.LoggerFactory
+import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Component
 import java.nio.file.Files
 import java.nio.file.Path
 import java.time.Instant
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
+
+data class AudioOutput(val path: Path, val durationSeconds: Int)
 
 @Component
 class TtsPipeline(
@@ -33,22 +36,22 @@ class TtsPipeline(
         val ttsResult = callProvider(script, podcast)
         val ttsCostCents = CostEstimator.estimateTtsCostCents(ttsResult.totalCharacters, appProperties.models, podcast.ttsProvider.value, ttsResult.model)
 
-        val (outputPath, duration) = generateAudioFile(ttsResult, podcast)
+        val audioOutput = generateAudioFile(ttsResult, podcast)
 
         val episode = episodeRepository.save(
             Episode(
                 podcastId = podcast.id,
                 generatedAt = Instant.now().toString(),
                 scriptText = script,
-                audioFilePath = outputPath.toString(),
-                durationSeconds = duration,
+                audioFilePath = audioOutput.path.toString(),
+                durationSeconds = audioOutput.durationSeconds,
                 ttsCharacters = ttsResult.totalCharacters,
                 ttsCostCents = ttsCostCents,
                 ttsModel = ttsResult.model
             )
         )
 
-        log.info("[TTS] Episode generated for podcast '{}' ({}): {} ({} seconds)", podcast.name, podcast.id, outputPath.fileName, duration)
+        log.info("[TTS] Episode generated for podcast '{}' ({}): {} ({} seconds)", podcast.name, podcast.id, audioOutput.path.fileName, audioOutput.durationSeconds)
         staticFeedExporter.export(podcast)
         return episode
     }
@@ -59,20 +62,21 @@ class TtsPipeline(
         val ttsResult = callProvider(episode.scriptText, podcast)
         val ttsCostCents = CostEstimator.estimateTtsCostCents(ttsResult.totalCharacters, appProperties.models, podcast.ttsProvider.value, ttsResult.model)
 
-        val (outputPath, duration) = generateAudioFile(ttsResult, podcast)
+        val audioOutput = generateAudioFile(ttsResult, podcast)
 
+        val fresh = episodeRepository.findByIdOrNull(episode.id!!) ?: episode
         val updated = episodeRepository.save(
-            episode.copy(
+            fresh.copy(
                 status = EpisodeStatus.GENERATED,
-                audioFilePath = outputPath.toString(),
-                durationSeconds = duration,
+                audioFilePath = audioOutput.path.toString(),
+                durationSeconds = audioOutput.durationSeconds,
                 ttsCharacters = ttsResult.totalCharacters,
                 ttsCostCents = ttsCostCents,
                 ttsModel = ttsResult.model
             )
         )
 
-        log.info("[TTS] Episode {} audio generated for podcast '{}' ({}): {} ({} seconds)", episode.id, podcast.name, podcast.id, outputPath.fileName, duration)
+        log.info("[TTS] Episode {} audio generated for podcast '{}' ({}): {} ({} seconds)", episode.id, podcast.name, podcast.id, audioOutput.path.fileName, audioOutput.durationSeconds)
         staticFeedExporter.export(podcast)
         return updated
     }
@@ -89,7 +93,7 @@ class TtsPipeline(
         return provider.generate(request)
     }
 
-    private fun generateAudioFile(ttsResult: TtsResult, podcast: Podcast): Pair<Path, Int> {
+    private fun generateAudioFile(ttsResult: TtsResult, podcast: Podcast): AudioOutput {
         val timestamp = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")
             .withZone(ZoneOffset.UTC)
             .format(Instant.now())
@@ -105,6 +109,6 @@ class TtsPipeline(
         }
 
         val duration = audioDuration.calculate(outputPath)
-        return Pair(outputPath, duration)
+        return AudioOutput(outputPath, duration)
     }
 }

@@ -11,6 +11,7 @@ import com.aisummarypodcast.store.PublicationStatus
 import com.aisummarypodcast.podcast.PodcastEvent
 import org.slf4j.LoggerFactory
 import org.springframework.context.ApplicationEventPublisher
+import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Service
 import java.time.Instant
 
@@ -55,7 +56,7 @@ class PublishingService(
         val previousPublications = publicationRepository.findPublishedByPodcastIdAndTarget(podcast.id, target)
         for (prev in previousPublications) {
             if (prev.episodeId == episode.id) continue
-            val prevEpisode = episodeRepository.findById(prev.episodeId).orElse(null) ?: continue
+            val prevEpisode = episodeRepository.findByIdOrNull(prev.episodeId) ?: continue
             val prevDate = prevEpisode.generatedAt.substring(0, 10)
             if (prevDate != episodeDate) continue
             try {
@@ -223,7 +224,7 @@ class PublishingService(
         require(publications.isNotEmpty()) { "No published SoundCloud tracks found for this podcast" }
 
         val episodeIds = publications.map { it.episodeId }.distinct()
-        val episodes = episodeIds.mapNotNull { episodeRepository.findById(it).orElse(null) }
+        val episodes = episodeIds.mapNotNull { episodeRepository.findByIdOrNull(it) }
         val episodeById = episodes.associateBy { it.id }
 
         // Newest first — standard podcast playlist order

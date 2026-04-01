@@ -4,6 +4,7 @@ import com.aisummarypodcast.config.AppProperties
 import com.aisummarypodcast.config.OAuthPkceHelper
 import com.aisummarypodcast.publishing.AuthorizeResponse
 import com.aisummarypodcast.publishing.OAuthConnectionService
+import com.aisummarypodcast.publishing.PendingOAuth
 import com.aisummarypodcast.user.UserService
 import org.slf4j.LoggerFactory
 import org.springframework.http.MediaType
@@ -24,11 +25,6 @@ class XOAuthController(
 
     private val log = LoggerFactory.getLogger(javaClass)
     private val pendingVerifiers = ConcurrentHashMap<String, PendingOAuth>()
-
-    private data class PendingOAuth(
-        val codeVerifier: String,
-        val createdAt: Instant = Instant.now()
-    )
 
     private fun isConfigured(): Boolean =
         !appProperties.x.clientId.isNullOrBlank() &&

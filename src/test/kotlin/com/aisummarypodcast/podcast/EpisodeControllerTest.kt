@@ -68,7 +68,7 @@ class EpisodeControllerTest {
     fun `list episodes with status filter`() {
         every { userService.findById(userId) } returns user
         every { podcastService.findById(podcastId) } returns podcast
-        every { episodeService.findByPodcastId(podcastId, "PENDING_REVIEW") } returns listOf(pendingEpisode)
+        every { episodeService.findByPodcastId(podcastId, EpisodeStatus.PENDING_REVIEW) } returns listOf(pendingEpisode)
 
         mockMvc.perform(get("/users/$userId/podcasts/$podcastId/episodes?status=PENDING_REVIEW"))
             .andExpect(status().isOk)

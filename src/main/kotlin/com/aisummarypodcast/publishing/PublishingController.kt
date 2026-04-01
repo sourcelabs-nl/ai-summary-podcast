@@ -8,18 +8,6 @@ import org.springframework.http.ResponseEntity
 import org.springframework.web.client.HttpClientErrorException
 import org.springframework.web.bind.annotation.*
 
-data class PublicationResponse(
-    val id: Long,
-    val episodeId: Long,
-    val target: String,
-    val status: String,
-    val externalId: String?,
-    val externalUrl: String?,
-    val errorMessage: String?,
-    val publishedAt: String?,
-    val createdAt: String
-)
-
 @RestController
 @RequestMapping("/users/{userId}/podcasts/{podcastId}/episodes/{episodeId}")
 class PublishingController(
@@ -140,15 +128,4 @@ class PublishingController(
         return ResponseEntity.ok(publications.map { it.toResponse() })
     }
 
-    private fun com.aisummarypodcast.store.EpisodePublication.toResponse() = PublicationResponse(
-        id = id!!,
-        episodeId = episodeId,
-        target = target,
-        status = status.name,
-        externalId = externalId,
-        externalUrl = externalUrl,
-        errorMessage = errorMessage,
-        publishedAt = publishedAt,
-        createdAt = createdAt
-    )
 }

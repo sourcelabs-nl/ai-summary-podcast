@@ -4,10 +4,6 @@ import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 import java.net.URI
 
-data class CreateUserRequest(val name: String)
-data class UpdateUserRequest(val name: String)
-data class UserResponse(val id: String, val name: String)
-
 @RestController
 @RequestMapping("/users")
 class UserController(private val userService: UserService) {

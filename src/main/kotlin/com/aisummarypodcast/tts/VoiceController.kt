@@ -6,8 +6,6 @@ import org.slf4j.LoggerFactory
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 
-data class VoiceResponse(val voiceId: String, val name: String, val category: String, val previewUrl: String?)
-
 @RestController
 @RequestMapping("/users/{userId}/voices")
 class VoiceController(

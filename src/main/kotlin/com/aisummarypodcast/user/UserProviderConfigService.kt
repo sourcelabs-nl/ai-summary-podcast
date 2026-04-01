@@ -6,8 +6,6 @@ import com.aisummarypodcast.store.UserProviderConfig
 import com.aisummarypodcast.store.UserProviderConfigRepository
 import org.springframework.stereotype.Service
 
-data class ProviderConfig(val baseUrl: String, val apiKey: String?)
-
 @Service
 class UserProviderConfigService(
     private val repository: UserProviderConfigRepository,
