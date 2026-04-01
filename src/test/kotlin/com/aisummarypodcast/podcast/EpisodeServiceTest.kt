@@ -228,6 +228,7 @@ class EpisodeServiceTest {
             EpisodeArticle(id = 2L, episodeId = 1L, articleId = 20L)
         )
 
+        every { episodeRepository.findById(1L) } returns Optional.of(episode)
         every { episodeRepository.save(any()) } answers { firstArg() }
         every { episodeArticleRepository.findByEpisodeId(1L) } returns links
         every { articleRepository.findById(10L) } returns Optional.of(article1)
@@ -254,6 +255,7 @@ class EpisodeServiceTest {
         val aggregatedArticle = Article(id = 30L, sourceId = "src-1", title = "Posts from @user", body = "body", url = "https://nitter.net/user", contentHash = "h3", isProcessed = true)
         val links = listOf(EpisodeArticle(id = 1L, episodeId = 1L, articleId = 30L))
 
+        every { episodeRepository.findById(1L) } returns Optional.of(episode)
         every { episodeRepository.save(any()) } answers { firstArg() }
         every { episodeArticleRepository.findByEpisodeId(1L) } returns links
         every { articleRepository.findById(30L) } returns Optional.of(aggregatedArticle)
@@ -279,6 +281,7 @@ class EpisodeServiceTest {
             EpisodeArticle(id = 2L, episodeId = 1L, articleId = 30L)
         )
 
+        every { episodeRepository.findById(1L) } returns Optional.of(episode)
         every { episodeRepository.save(any()) } answers { firstArg() }
         every { episodeArticleRepository.findByEpisodeId(1L) } returns links
         every { articleRepository.findById(10L) } returns Optional.of(regularArticle)
@@ -304,6 +307,7 @@ class EpisodeServiceTest {
     fun `discardAndResetArticles handles no linked articles`() {
         val episode = Episode(id = 1L, podcastId = "p1", generatedAt = "now", scriptText = "Script", status = EpisodeStatus.PENDING_REVIEW)
 
+        every { episodeRepository.findById(1L) } returns Optional.of(episode)
         every { episodeRepository.save(any()) } answers { firstArg() }
         every { episodeArticleRepository.findByEpisodeId(1L) } returns emptyList()
 
@@ -323,6 +327,7 @@ class EpisodeServiceTest {
             EpisodeArticle(id = 2L, episodeId = 1L, articleId = 20L)
         )
 
+        every { episodeRepository.findById(1L) } returns Optional.of(episode)
         every { episodeRepository.save(any()) } answers { firstArg() }
         every { episodeArticleRepository.findByEpisodeId(1L) } returns links
         every { articleRepository.findById(10L) } returns Optional.of(publishedArticle)
@@ -349,6 +354,7 @@ class EpisodeServiceTest {
         val aggregatedArticle = Article(id = 30L, sourceId = "src-1", title = "Posts from @user", body = "body", url = "https://nitter.net/user", contentHash = "h3", isProcessed = true)
         val links = listOf(EpisodeArticle(id = 1L, episodeId = 1L, articleId = 30L))
 
+        every { episodeRepository.findById(1L) } returns Optional.of(episode)
         every { episodeRepository.save(any()) } answers { firstArg() }
         every { episodeArticleRepository.findByEpisodeId(1L) } returns links
         every { articleRepository.findById(30L) } returns Optional.of(aggregatedArticle)
@@ -369,6 +375,7 @@ class EpisodeServiceTest {
         val links = listOf(EpisodeArticle(id = 1L, episodeId = 3L, articleId = 10L))
         val publishedEpisode = Episode(id = 2L, podcastId = "p1", generatedAt = "2026-03-17T15:00:00Z", scriptText = "Old", status = EpisodeStatus.GENERATED)
 
+        every { episodeRepository.findById(3L) } returns Optional.of(episode)
         every { episodeRepository.save(any()) } answers { firstArg() }
         every { episodeArticleRepository.findByEpisodeId(3L) } returns links
         every { articleRepository.findById(10L) } returns Optional.of(article)
@@ -389,6 +396,7 @@ class EpisodeServiceTest {
         val article = Article(id = 10L, sourceId = "src-1", title = "A1", body = "body", url = "https://example.com/1", contentHash = "h1", isProcessed = true)
         val links = listOf(EpisodeArticle(id = 1L, episodeId = 1L, articleId = 10L))
 
+        every { episodeRepository.findById(1L) } returns Optional.of(episode)
         every { episodeRepository.save(any()) } answers { firstArg() }
         every { episodeArticleRepository.findByEpisodeId(1L) } returns links
         every { articleRepository.findById(10L) } returns Optional.of(article)

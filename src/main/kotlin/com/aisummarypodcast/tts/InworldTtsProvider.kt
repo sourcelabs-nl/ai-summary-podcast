@@ -6,6 +6,8 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import java.util.Base64
@@ -24,6 +26,7 @@ class InworldTtsProvider(
         const val DEFAULT_MODEL = "inworld-tts-1.5-max"
         private const val DEFAULT_TEMPERATURE = 0.8
         private const val MAX_RETRY_ATTEMPTS = 3
+        private const val MAX_CONCURRENCY = 5
         private val RETRY_DELAYS_MS = longArrayOf(1000, 2000, 4000)
 
         private val CORE_GUIDELINES = $$"""
@@ -87,13 +90,16 @@ class InworldTtsProvider(
         log.info("Generating Inworld TTS audio for {} chunks in parallel (voice: {}, model: {}, speed: {}, temperature: {})", chunks.size, voiceId, modelId, speed, temperature)
 
         val totalCharacters = AtomicInteger(0)
+        val semaphore = Semaphore(MAX_CONCURRENCY)
         val audioChunks = runBlocking(Dispatchers.IO) {
             chunks.mapIndexed { index, chunk ->
                 async {
-                    log.info("Generating Inworld TTS chunk {}/{} ({} chars)", index + 1, chunks.size, chunk.length)
-                    val response = synthesizeWithRetry(request.userId, voiceId, chunk, modelId, speed, temperature)
-                    totalCharacters.addAndGet(response.processedCharactersCount)
-                    Base64.getDecoder().decode(response.audioContent)
+                    semaphore.withPermit {
+                        log.info("Generating Inworld TTS chunk {}/{} ({} chars)", index + 1, chunks.size, chunk.length)
+                        val response = synthesizeWithRetry(request.userId, voiceId, chunk, modelId, speed, temperature)
+                        totalCharacters.addAndGet(response.processedCharactersCount)
+                        Base64.getDecoder().decode(response.audioContent)
+                    }
                 }
             }.awaitAll()
         }
@@ -129,13 +135,16 @@ class InworldTtsProvider(
         log.info("Generating Inworld dialogue: {} total chunks in parallel, model: {}", allChunks.size, modelId)
 
         val totalCharacters = AtomicInteger(0)
+        val semaphore = Semaphore(MAX_CONCURRENCY)
         val audioChunks = runBlocking(Dispatchers.IO) {
             allChunks.mapIndexed { index, work ->
                 async {
-                    log.info("Generating Inworld dialogue chunk {}/{} ({} chars)", index + 1, allChunks.size, work.text.length)
-                    val response = synthesizeWithRetry(request.userId, work.voiceId, work.text, modelId, speed, temperature)
-                    totalCharacters.addAndGet(response.processedCharactersCount)
-                    Base64.getDecoder().decode(response.audioContent)
+                    semaphore.withPermit {
+                        log.info("Generating Inworld dialogue chunk {}/{} ({} chars)", index + 1, allChunks.size, work.text.length)
+                        val response = synthesizeWithRetry(request.userId, work.voiceId, work.text, modelId, speed, temperature)
+                        totalCharacters.addAndGet(response.processedCharactersCount)
+                        Base64.getDecoder().decode(response.audioContent)
+                    }
                 }
             }.awaitAll()
         }

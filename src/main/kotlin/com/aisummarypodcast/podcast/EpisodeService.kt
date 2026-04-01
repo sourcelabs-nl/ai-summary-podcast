@@ -197,7 +197,8 @@ class EpisodeService(
 
     @Transactional
     fun discardOnly(episode: Episode, podcastId: String) {
-        episodeRepository.save(episode.copy(status = EpisodeStatus.DISCARDED))
+        val fresh = episodeRepository.findById(episode.id!!).orElse(episode)
+        episodeRepository.save(fresh.copy(status = EpisodeStatus.DISCARDED))
         eventPublisher.publishEvent(
             PodcastEvent(this, podcastId, "episode", episode.id!!, "episode.discarded",
                 mapOf("episodeNumber" to episode.id))
@@ -207,7 +208,8 @@ class EpisodeService(
 
     @Transactional
     fun discardAndResetArticles(episode: Episode, podcastId: String) {
-        episodeRepository.save(episode.copy(status = EpisodeStatus.DISCARDED))
+        val fresh = episodeRepository.findById(episode.id!!).orElse(episode)
+        episodeRepository.save(fresh.copy(status = EpisodeStatus.DISCARDED))
         eventPublisher.publishEvent(
             PodcastEvent(this, podcastId, "episode", episode.id!!, "episode.discarded",
                 mapOf("episodeNumber" to episode.id))
@@ -255,12 +257,14 @@ class EpisodeService(
     }
 
     fun updateScript(episode: Episode, scriptText: String): Episode {
-        return episodeRepository.save(episode.copy(scriptText = scriptText))
+        val fresh = episodeRepository.findById(episode.id!!).orElse(episode)
+        return episodeRepository.save(fresh.copy(scriptText = scriptText))
     }
 
     @Transactional
     fun approveAndGenerateAudio(episode: Episode, podcast: Podcast) {
-        episodeRepository.save(episode.copy(status = EpisodeStatus.APPROVED, errorMessage = null))
+        val fresh = episodeRepository.findById(episode.id!!).orElse(episode)
+        episodeRepository.save(fresh.copy(status = EpisodeStatus.APPROVED, errorMessage = null))
         log.info("Episode {} approved, triggering async TTS generation", episode.id)
         eventPublisher.publishEvent(
             PodcastEvent(this, podcast.id, "episode", episode.id!!, "episode.approved",

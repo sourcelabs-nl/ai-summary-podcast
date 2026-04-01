@@ -252,6 +252,11 @@ export default function EpisodeDetailPage() {
             )}
             </>
           )}
+          {episode.status === "FAILED" && (
+            <Button size="icon-lg" title="Retry audio generation" onClick={() => handleAction("approve")}>
+              <Check className="size-4" />
+            </Button>
+          )}
           {(episode.status === "DISCARDED" || episode.status === "FAILED") && !sameDayPublished && (
             <Button
               size="icon-lg"

@@ -76,7 +76,6 @@ export default function EpisodesPage() {
   const [upcomingCount, setUpcomingCount] = useState<number>(0);
   const [upcomingPostCount, setUpcomingPostCount] = useState<number>(0);
   const [countdown, setCountdown] = useState<string | null>(null);
-  const [regeneratingId, setRegeneratingId] = useState<number | null>(null);
   const [confirmRegenerateId, setConfirmRegenerateId] = useState<number | null>(null);
   const [currentTab, setTab] = useTabParam("episodes", TABS);
 
@@ -181,19 +180,12 @@ export default function EpisodesPage() {
     if (!selectedUser || confirmRegenerateId === null) return;
     const episodeId = confirmRegenerateId;
     setConfirmRegenerateId(null);
-    setRegeneratingId(episodeId);
-    try {
-      const res = await fetch(
-        `/api/users/${selectedUser.id}/podcasts/${params.podcastId}/episodes/${episodeId}/regenerate`,
-        { method: "POST" }
-      );
-      if (res.ok) {
-        const data = await res.json();
-        router.push(`/podcasts/${params.podcastId}/episodes/${data.episodeId}`);
-      }
-    } finally {
-      setRegeneratingId(null);
-    }
+    fetch(
+      `/api/users/${selectedUser.id}/podcasts/${params.podcastId}/episodes/${episodeId}/regenerate`,
+      { method: "POST" }
+    );
+    await new Promise((r) => setTimeout(r, 500));
+    fetchEpisodes();
   }
 
   async function handleAction(episodeId: number, action: "approve" | "discard") {
@@ -202,6 +194,8 @@ export default function EpisodesPage() {
       `/api/users/${selectedUser.id}/podcasts/${params.podcastId}/episodes/${episodeId}/${action}`,
       { method: "POST" }
     );
+    // Brief delay to allow the transaction to commit before refetching
+    await new Promise((r) => setTimeout(r, 500));
     fetchEpisodes();
   }
 
@@ -348,16 +342,16 @@ export default function EpisodesPage() {
                   </TableHead>
                   <TableHead className="w-0">Script Model</TableHead>
                   <TableHead className="w-0">TTS Model</TableHead>
-                  <TableHead className="w-20 text-right">Cost</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead>Cost</TableHead>
+                  <TableHead className="text-right w-0 whitespace-nowrap">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {episodes.map((episode) => (
                   <TableRow
                     key={episode.id}
-                    className={episode.status === "GENERATING" || episode.status === "GENERATING_AUDIO" ? "bg-primary/5" : "cursor-pointer"}
-                    onClick={episode.status !== "GENERATING" && episode.status !== "GENERATING_AUDIO" ? () => router.push(`/podcasts/${params.podcastId}/episodes/${episode.id}`) : undefined}
+                    className={`cursor-pointer ${episode.status === "GENERATING" || episode.status === "GENERATING_AUDIO" ? "bg-primary/5" : ""}`}
+                    onClick={() => router.push(`/podcasts/${params.podcastId}/episodes/${episode.id}`)}
                   >
                     <TableCell className="text-sm font-medium">{episode.status === "GENERATING" ? "—" : episode.id}</TableCell>
                     <TableCell className="text-sm">
@@ -400,7 +394,7 @@ export default function EpisodesPage() {
                     <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
                       {episode.status === "GENERATING" || episode.status === "GENERATING_AUDIO" ? "—" : (episode.ttsModel ?? "—")}
                     </TableCell>
-                    <TableCell className="text-sm text-right text-muted-foreground">
+                    <TableCell className="text-sm text-muted-foreground">
                       {episode.status === "GENERATING" || episode.status === "GENERATING_AUDIO" ? "—" : (
                         ((episode.llmCostCents ?? 0) + (episode.ttsCostCents ?? 0)) > 0
                           ? `$${(((episode.llmCostCents ?? 0) + (episode.ttsCostCents ?? 0)) / 100).toFixed(2)}`
@@ -423,10 +417,9 @@ export default function EpisodesPage() {
                             <Button
                               size="icon-lg"
                               title="Regenerate episode"
-                              disabled={regeneratingId === episode.id}
                               onClick={() => setConfirmRegenerateId(episode.id)}
                             >
-                              <RefreshCw className={`size-4 ${regeneratingId === episode.id ? "animate-spin" : ""}`} />
+                              <RefreshCw className="size-4" />
                             </Button>
                             )}
                             <Button
@@ -462,14 +455,22 @@ export default function EpisodesPage() {
                           )}
                           </>
                         )}
+                        {episode.status === "FAILED" && (
+                          <Button
+                            size="icon-lg"
+                            title="Retry audio generation"
+                            onClick={() => handleAction(episode.id, "approve")}
+                          >
+                            <Check className="size-4" />
+                          </Button>
+                        )}
                         {(episode.status === "DISCARDED" || episode.status === "FAILED") && !publishedDates.has(new Date(episode.generatedAt).toLocaleDateString()) && (
                           <Button
                             size="icon-lg"
                             title="Regenerate episode"
-                            disabled={regeneratingId === episode.id}
                             onClick={() => setConfirmRegenerateId(episode.id)}
                           >
-                            <RefreshCw className={`size-4 ${regeneratingId === episode.id ? "animate-spin" : ""}`} />
+                            <RefreshCw className="size-4" />
                           </Button>
                         )}
                         {episode.status === "FAILED" && (
