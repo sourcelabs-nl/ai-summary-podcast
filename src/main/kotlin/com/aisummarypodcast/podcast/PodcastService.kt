@@ -1,10 +1,17 @@
 package com.aisummarypodcast.podcast
 
 import com.aisummarypodcast.config.AppProperties
+import com.aisummarypodcast.llm.FilteredArticle
 import com.aisummarypodcast.llm.LlmPipeline
 import com.aisummarypodcast.llm.PreviewResult
 import com.aisummarypodcast.source.SourceAggregator
 import com.aisummarypodcast.store.*
+import jakarta.annotation.PreDestroy
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import org.slf4j.LoggerFactory
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Service
@@ -14,6 +21,12 @@ import java.nio.file.Path
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.UUID
+
+enum class ResumePoint {
+    FULL_PIPELINE,
+    COMPOSE,
+    POST_COMPOSE
+}
 
 data class GenerateBriefingResult(
     val episode: Episode?,
@@ -46,6 +59,83 @@ class PodcastService(
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
+    private val retryScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+
+    @PreDestroy
+    fun stopRetryScope() {
+        retryScope.cancel()
+    }
+
+    fun detectResumePoint(episode: Episode): ResumePoint {
+        if (episode.scriptText.isNotBlank()) return ResumePoint.POST_COMPOSE
+        val links = episodeArticleRepository.findByEpisodeId(episode.id!!)
+        if (links.isNotEmpty()) return ResumePoint.COMPOSE
+        return ResumePoint.FULL_PIPELINE
+    }
+
+    fun retryEpisode(episode: Episode, podcast: Podcast): ResumePoint {
+        val resumePoint = detectResumePoint(episode)
+        episodeService.resetForRetry(episode)
+
+        eventPublisher.publishEvent(
+            PodcastEvent(this, podcast.id, "episode", episode.id!!, "episode.retrying",
+                mapOf("resumePoint" to resumePoint.name, "episodeNumber" to episode.id))
+        )
+
+        retryScope.launch {
+            try {
+                doRetry(episode, podcast, resumePoint)
+            } catch (e: Exception) {
+                log.error("[Pipeline] Retry failed for episode {} (podcast '{}' ({})): {}", episode.id, podcast.name, podcast.id, e.message, e)
+                episodeService.failEpisode(podcast, e.message ?: "Unknown error", episode)
+            }
+        }
+
+        return resumePoint
+    }
+
+    private fun doRetry(episode: Episode, podcast: Podcast, resumePoint: ResumePoint) {
+        val onProgress = { stage: String, detail: Map<String, Any> ->
+            episodeService.updatePipelineStage(episode.id!!, stage)
+            eventPublisher.publishEvent(
+                PodcastEvent(this, podcast.id, "episode", episode.id, "episode.stage",
+                    detail + ("stage" to stage))
+            )
+        }
+
+        when (resumePoint) {
+            ResumePoint.FULL_PIPELINE -> {
+                val eligible = llmPipeline.aggregateScoreAndFilter(podcast, onProgress)
+                    ?: throw IllegalStateException("No eligible articles for retry")
+
+                val dedupResult = llmPipeline.dedup(eligible, podcast, onProgress)
+                    ?: throw IllegalStateException("All articles filtered as duplicates during retry")
+
+                episodeService.saveDedupResults(episode, dedupResult)
+
+                val composeResult = llmPipeline.compose(
+                    dedupResult.filteredArticles, podcast,
+                    dedupResult.followUpAnnotations, dedupResult.topicLabels, onProgress
+                )
+                episodeService.saveComposeResult(episode, composeResult)
+                episodeService.finalizeEpisode(episode, podcast, composeResult.topicOrder)
+            }
+            ResumePoint.COMPOSE -> {
+                val (articles, topicLabels, articleTopics) = episodeService.findLinkedArticlesAndTopics(episode.id!!)
+                val filteredArticles = articles.map { article ->
+                    FilteredArticle(article, topic = articleTopics[article.id])
+                }
+
+                val composeResult = llmPipeline.compose(filteredArticles, podcast, topicLabels = topicLabels, onProgress = onProgress)
+                episodeService.saveComposeResult(episode, composeResult)
+                episodeService.finalizeEpisode(episode, podcast, composeResult.topicOrder)
+            }
+            ResumePoint.POST_COMPOSE -> {
+                val (_, topicLabels, _) = episodeService.findLinkedArticlesAndTopics(episode.id!!)
+                episodeService.finalizeEpisode(episode, podcast, topicLabels)
+            }
+        }
+    }
 
     fun create(userId: String, name: String, topic: String, podcast: Podcast? = null): Podcast {
         val newPodcast = Podcast(
@@ -121,18 +211,57 @@ class PodcastService(
         val generatingEpisode = episodeService.createGeneratingEpisode(podcast)
 
         return try {
-            val result = llmPipeline.run(podcast) { stage, detail ->
+            val onProgress = { stage: String, detail: Map<String, Any> ->
                 episodeService.updatePipelineStage(generatingEpisode.id!!, stage)
                 eventPublisher.publishEvent(
-                    PodcastEvent(this, podcast.id, "episode", generatingEpisode.id, "episode.stage",
+                    PodcastEvent(this, podcast.id, "episode", generatingEpisode.id!!, "episode.stage",
                         detail + ("stage" to stage))
                 )
-            } ?: run {
+            }
+
+            // Stage 1-2: Aggregate, score, find eligible articles
+            val eligible = llmPipeline.aggregateScoreAndFilter(podcast, onProgress) ?: run {
                 episodeRepository.delete(generatingEpisode)
                 return GenerateBriefingResult(episode = null)
             }
 
-            val episode = episodeService.createEpisodeFromPipelineResult(podcast, result, generatingEpisode)
+            // Stage 3: Dedup filter
+            val dedupResult = llmPipeline.dedup(eligible, podcast, onProgress) ?: run {
+                episodeRepository.delete(generatingEpisode)
+                return GenerateBriefingResult(episode = null)
+            }
+
+            // Persist dedup results (article links + topics)
+            episodeService.saveDedupResults(generatingEpisode, dedupResult)
+            eventPublisher.publishEvent(
+                PodcastEvent(this, podcast.id, "episode", generatingEpisode.id!!, "episode.stage",
+                    mapOf("stage" to "dedup_saved", "articleCount" to dedupResult.filteredArticles.size))
+            )
+
+            // Stage 4: Compose script
+            val composeResult = llmPipeline.compose(
+                dedupResult.filteredArticles, podcast,
+                dedupResult.followUpAnnotations, dedupResult.topicLabels, onProgress
+            )
+
+            // Persist script
+            episodeService.saveComposeResult(generatingEpisode, composeResult)
+            eventPublisher.publishEvent(
+                PodcastEvent(this, podcast.id, "episode", generatingEpisode.id!!, "episode.stage",
+                    mapOf("stage" to "script_saved"))
+            )
+
+            // Finalize: set status, mark processed, recap, sources
+            val articleCount = dedupResult.filteredArticles.size
+            eventPublisher.publishEvent(
+                PodcastEvent(this, podcast.id, "episode", generatingEpisode.id!!, "episode.stage",
+                    mapOf("stage" to "marking_processed", "articleCount" to articleCount))
+            )
+            eventPublisher.publishEvent(
+                PodcastEvent(this, podcast.id, "episode", generatingEpisode.id!!, "episode.stage",
+                    mapOf("stage" to "generating_recap"))
+            )
+            val episode = episodeService.finalizeEpisode(generatingEpisode, podcast, composeResult.topicOrder)
             GenerateBriefingResult(episode = episode)
         } catch (e: Exception) {
             log.error("[Pipeline] Briefing generation failed for podcast '{}' ({}): {}", podcast.name, podcast.id, e.message, e)
@@ -142,23 +271,21 @@ class PodcastService(
     }
 
     fun regenerateEpisode(sourceEpisode: Episode, podcast: Podcast): Episode {
-        val linkedArticles = episodeArticleRepository.findByEpisodeId(sourceEpisode.id!!)
-        val articles = linkedArticles.mapNotNull { link ->
-            articleRepository.findById(link.articleId).orElse(null)
-        }
+        val (articles, topicLabels, articleTopics) = episodeService.findLinkedArticlesAndTopics(sourceEpisode.id!!)
         if (articles.isEmpty()) {
             throw IllegalStateException("No articles found for episode ${sourceEpisode.id}")
         }
 
-        val result = llmPipeline.recompose(articles, podcast) { stage, detail ->
+        val result = llmPipeline.recompose(articles, podcast, topicLabels) { stage, detail ->
             eventPublisher.publishEvent(
                 PodcastEvent(this, podcast.id, "pipeline", 0, "pipeline.progress",
                     detail + ("stage" to stage))
             )
         }
+        val resultWithTopics = result.copy(articleTopics = articleTopics)
         return episodeService.createEpisodeFromPipelineResult(
             podcast,
-            result,
+            resultWithTopics,
             overrideGeneratedAt = sourceEpisode.generatedAt,
             updateLastGenerated = false
         )

@@ -52,7 +52,8 @@ class AudioGenerationService(
 
         try {
             log.info("Starting async TTS generation for episode {} (podcast '{}' ({}))", episodeId, podcast.name, podcastId)
-            val generatingEpisode = episodeRepository.save(episode.copy(status = EpisodeStatus.GENERATING_AUDIO))
+            val fresh = episodeRepository.findById(episodeId).orElse(episode)
+            val generatingEpisode = episodeRepository.save(fresh.copy(status = EpisodeStatus.GENERATING_AUDIO))
             eventPublisher.publishEvent(
                 PodcastEvent(this, podcastId, "episode", episodeId, "episode.audio.started",
                     mapOf("episodeNumber" to episodeId))
@@ -66,7 +67,7 @@ class AudioGenerationService(
         } catch (e: Exception) {
             log.error("Async TTS generation failed for episode {} (podcast '{}' ({})): {}", episodeId, podcast.name, podcastId, e.message, e)
             val freshEpisode = episodeRepository.findById(episodeId).orElse(episode)
-            episodeRepository.save(freshEpisode.copy(status = EpisodeStatus.FAILED, errorMessage = e.message))
+            episodeRepository.save(freshEpisode.copy(status = EpisodeStatus.FAILED, errorMessage = e.message, pipelineStage = "tts"))
             eventPublisher.publishEvent(
                 PodcastEvent(this, podcastId, "episode", episodeId, "episode.failed",
                     mapOf("episodeNumber" to episodeId, "error" to (e.message ?: "Unknown error")))

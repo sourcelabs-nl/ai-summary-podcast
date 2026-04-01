@@ -32,6 +32,23 @@ data class PreviewResult(
     val articleIds: List<Long>
 )
 
+data class DedupStageResult(
+    val filteredArticles: List<FilteredArticle>,
+    val filterModel: String,
+    val usage: TokenUsage,
+    val followUpAnnotations: Map<Long, String>,
+    val topicLabels: List<String>,
+    val dedupCostCents: Int?
+)
+
+data class ComposeStageResult(
+    val script: String,
+    val composeModel: String,
+    val usage: TokenUsage,
+    val topicOrder: List<String>,
+    val composeCostCents: Int?
+)
+
 @Component
 class LlmPipeline(
     private val articleScoreSummarizer: ArticleScoreSummarizer,
@@ -51,7 +68,10 @@ class LlmPipeline(
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    fun run(podcast: Podcast, onProgress: (stage: String, detail: Map<String, Any>) -> Unit = { _, _ -> }): PipelineResult? {
+    fun aggregateScoreAndFilter(
+        podcast: Podcast,
+        onProgress: (stage: String, detail: Map<String, Any>) -> Unit = { _, _ -> }
+    ): List<Article>? {
         val sources = sourceRepository.findByPodcastId(podcast.id)
         val sourceIds = sources.map { it.id }
         if (sourceIds.isEmpty()) {
@@ -109,12 +129,22 @@ class LlmPipeline(
             log.info("[LLM] Score+summarize complete — {} articles in {} ({} relevant)", unscored.size, scoringDuration, relevantCount)
         }
 
-        // Step 3: Find eligible articles and run dedup filter
+        // Step 3: Find eligible articles
         val eligible = articleEligibilityService.findEligibleArticles(sourceIds, podcast)
         if (eligible.isEmpty()) {
             log.info("[LLM] No eligible articles for podcast '{}' ({}) — skipping briefing generation", podcast.name, podcast.id)
             return null
         }
+
+        return eligible
+    }
+
+    fun dedup(
+        eligible: List<Article>,
+        podcast: Podcast,
+        onProgress: (stage: String, detail: Map<String, Any>) -> Unit = { _, _ -> }
+    ): DedupStageResult? {
+        val filterModelDef = modelResolver.resolve(podcast, PipelineStage.FILTER)
 
         onProgress("deduplicating", mapOf("articleCount" to eligible.size))
 
@@ -126,15 +156,35 @@ class LlmPipeline(
             return null
         }
 
-        // Step 4: Compose briefing from filtered articles
-        val toCompose = dedupResult.filteredArticles.map { it.article }
+        val followUpAnnotations = buildFollowUpAnnotations(dedupResult.filteredArticles)
+        val topicLabels = dedupResult.filteredArticles.mapNotNull { it.topic }.distinct()
+        val dedupCostCents = CostEstimator.estimateLlmCostCents(
+            dedupResult.usage.inputTokens, dedupResult.usage.outputTokens, filterModelDef.cost
+        )
+
+        return DedupStageResult(
+            filteredArticles = dedupResult.filteredArticles,
+            filterModel = filterModelDef.model,
+            usage = dedupResult.usage,
+            followUpAnnotations = followUpAnnotations,
+            topicLabels = topicLabels,
+            dedupCostCents = dedupCostCents
+        )
+    }
+
+    fun compose(
+        filteredArticles: List<FilteredArticle>,
+        podcast: Podcast,
+        followUpAnnotations: Map<Long, String> = emptyMap(),
+        topicLabels: List<String> = emptyList(),
+        onProgress: (stage: String, detail: Map<String, Any>) -> Unit = { _, _ -> }
+    ): ComposeStageResult {
+        val composeModelDef = modelResolver.resolve(podcast, PipelineStage.COMPOSE)
+        val toCompose = filteredArticles.map { it.article }
         onProgress("composing", mapOf("articleCount" to toCompose.size))
 
         val ttsProvider = ttsProviderFactory.resolve(podcast)
         val ttsScriptGuidelines = ttsProvider.scriptGuidelines(podcast.style, podcast.pronunciations ?: emptyMap())
-
-        val followUpAnnotations = buildFollowUpAnnotations(dedupResult.filteredArticles)
-        val topicLabels = dedupResult.filteredArticles.mapNotNull { it.topic }.distinct()
 
         val compositionResult = when (podcast.style) {
             PodcastStyle.DIALOGUE -> dialogueComposer.compose(toCompose, podcast, composeModelDef, ttsScriptGuidelines, followUpAnnotations, topicLabels)
@@ -142,34 +192,49 @@ class LlmPipeline(
             else -> briefingComposer.compose(toCompose, podcast, composeModelDef, ttsScriptGuidelines, followUpAnnotations, topicLabels)
         }
 
-        val processedArticleIds = toCompose.map { it.id!! }
-        val articleTopics = dedupResult.filteredArticles
-            .filter { it.article.id != null && it.topic != null }
-            .associate { it.article.id!! to it.topic!! }
-
-        val dedupCostCents = CostEstimator.estimateLlmCostCents(
-            dedupResult.usage.inputTokens, dedupResult.usage.outputTokens, filterModelDef.cost
-        )
         val composeCostCents = CostEstimator.estimateLlmCostCents(
             compositionResult.usage.inputTokens, compositionResult.usage.outputTokens, composeModelDef.cost
         )
-        val totalCostCents = CostEstimator.addNullableCosts(dedupCostCents, composeCostCents)
 
-        log.info("[LLM] Pipeline complete for podcast '{}' ({}): {} articles processed into briefing", podcast.name, podcast.id, toCompose.size)
-        return PipelineResult(
+        return ComposeStageResult(
             script = compositionResult.script,
-            filterModel = filterModelDef.model,
             composeModel = composeModelDef.model,
-            llmInputTokens = dedupResult.usage.inputTokens + compositionResult.usage.inputTokens,
-            llmOutputTokens = dedupResult.usage.outputTokens + compositionResult.usage.outputTokens,
-            llmCostCents = totalCostCents,
-            processedArticleIds = processedArticleIds,
-            articleTopics = articleTopics,
-            topicOrder = compositionResult.topicOrder
+            usage = compositionResult.usage,
+            topicOrder = compositionResult.topicOrder,
+            composeCostCents = composeCostCents
         )
     }
 
-    fun recompose(articles: List<Article>, podcast: Podcast, onProgress: (stage: String, detail: Map<String, Any>) -> Unit = { _, _ -> }): PipelineResult {
+    fun run(podcast: Podcast, onProgress: (stage: String, detail: Map<String, Any>) -> Unit = { _, _ -> }): PipelineResult? {
+        val eligible = aggregateScoreAndFilter(podcast, onProgress) ?: return null
+        val dedupStageResult = dedup(eligible, podcast, onProgress) ?: return null
+        val composeStageResult = compose(
+            dedupStageResult.filteredArticles, podcast,
+            dedupStageResult.followUpAnnotations, dedupStageResult.topicLabels, onProgress
+        )
+
+        val processedArticleIds = dedupStageResult.filteredArticles.map { it.article.id!! }
+        val articleTopics = dedupStageResult.filteredArticles
+            .filter { it.topic != null }
+            .associate { it.article.id!! to it.topic!! }
+
+        val totalCostCents = CostEstimator.addNullableCosts(dedupStageResult.dedupCostCents, composeStageResult.composeCostCents)
+
+        log.info("[LLM] Pipeline complete for podcast '{}' ({}): {} articles processed into briefing", podcast.name, podcast.id, processedArticleIds.size)
+        return PipelineResult(
+            script = composeStageResult.script,
+            filterModel = dedupStageResult.filterModel,
+            composeModel = composeStageResult.composeModel,
+            llmInputTokens = dedupStageResult.usage.inputTokens + composeStageResult.usage.inputTokens,
+            llmOutputTokens = dedupStageResult.usage.outputTokens + composeStageResult.usage.outputTokens,
+            llmCostCents = totalCostCents,
+            processedArticleIds = processedArticleIds,
+            articleTopics = articleTopics,
+            topicOrder = composeStageResult.topicOrder
+        )
+    }
+
+    fun recompose(articles: List<Article>, podcast: Podcast, topicLabels: List<String> = emptyList(), onProgress: (stage: String, detail: Map<String, Any>) -> Unit = { _, _ -> }): PipelineResult {
         val composeModelDef = modelResolver.resolve(podcast, PipelineStage.COMPOSE)
         val ttsProvider = ttsProviderFactory.resolve(podcast)
         val ttsScriptGuidelines = ttsProvider.scriptGuidelines(podcast.style, podcast.pronunciations ?: emptyMap())
@@ -177,9 +242,9 @@ class LlmPipeline(
         onProgress("composing", mapOf("articleCount" to articles.size))
 
         val compositionResult = when (podcast.style) {
-            PodcastStyle.DIALOGUE -> dialogueComposer.compose(articles, podcast, composeModelDef, ttsScriptGuidelines)
-            PodcastStyle.INTERVIEW -> interviewComposer.compose(articles, podcast, composeModelDef, ttsScriptGuidelines)
-            else -> briefingComposer.compose(articles, podcast, composeModelDef, ttsScriptGuidelines)
+            PodcastStyle.DIALOGUE -> dialogueComposer.compose(articles, podcast, composeModelDef, ttsScriptGuidelines, topicLabels = topicLabels)
+            PodcastStyle.INTERVIEW -> interviewComposer.compose(articles, podcast, composeModelDef, ttsScriptGuidelines, topicLabels = topicLabels)
+            else -> briefingComposer.compose(articles, podcast, composeModelDef, ttsScriptGuidelines, topicLabels = topicLabels)
         }
 
         val filterModelDef = modelResolver.resolve(podcast, PipelineStage.FILTER)
@@ -195,7 +260,8 @@ class LlmPipeline(
             llmInputTokens = compositionResult.usage.inputTokens,
             llmOutputTokens = compositionResult.usage.outputTokens,
             llmCostCents = costCents,
-            processedArticleIds = articles.map { it.id!! }
+            processedArticleIds = articles.map { it.id!! },
+            topicOrder = compositionResult.topicOrder
         )
     }
 

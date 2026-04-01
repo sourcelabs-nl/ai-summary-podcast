@@ -10,8 +10,11 @@ import com.aisummarypodcast.config.SourceProperties
 import com.aisummarypodcast.llm.LlmPipeline
 import com.aisummarypodcast.store.Article
 import com.aisummarypodcast.store.ArticleRepository
+import com.aisummarypodcast.store.Episode
+import com.aisummarypodcast.store.EpisodeArticle
 import com.aisummarypodcast.store.EpisodeArticleRepository
 import com.aisummarypodcast.store.EpisodeRepository
+import com.aisummarypodcast.store.EpisodeStatus
 import com.aisummarypodcast.store.Podcast
 import com.aisummarypodcast.store.PodcastRepository
 import com.aisummarypodcast.store.Post
@@ -23,6 +26,7 @@ import com.aisummarypodcast.store.SourceType
 import com.aisummarypodcast.source.SourceAggregator
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import org.springframework.context.ApplicationEventPublisher
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -117,5 +121,49 @@ class PodcastServiceTest {
         assertTrue(result.articles.isEmpty())
         assertTrue(result.unlinkedPosts.isEmpty())
         assertTrue(result.sources.isEmpty())
+    }
+
+    // --- Resume point detection tests ---
+
+    @Test
+    fun `detectResumePoint returns POST_COMPOSE when script exists`() {
+        val episode = Episode(id = 5L, podcastId = "p1", generatedAt = "now", scriptText = "Script text", status = EpisodeStatus.FAILED)
+
+        val result = podcastService.detectResumePoint(episode)
+
+        assertEquals(ResumePoint.POST_COMPOSE, result)
+    }
+
+    @Test
+    fun `detectResumePoint returns COMPOSE when episode_articles exist but no script`() {
+        val episode = Episode(id = 5L, podcastId = "p1", generatedAt = "now", scriptText = "", status = EpisodeStatus.FAILED)
+        every { episodeArticleRepository.findByEpisodeId(5L) } returns listOf(
+            EpisodeArticle(id = 1L, episodeId = 5L, articleId = 10L, topic = "AI Safety", topicOrder = 0)
+        )
+
+        val result = podcastService.detectResumePoint(episode)
+
+        assertEquals(ResumePoint.COMPOSE, result)
+    }
+
+    @Test
+    fun `detectResumePoint returns FULL_PIPELINE when no intermediate state`() {
+        val episode = Episode(id = 5L, podcastId = "p1", generatedAt = "now", scriptText = "", status = EpisodeStatus.FAILED)
+        every { episodeArticleRepository.findByEpisodeId(5L) } returns emptyList()
+
+        val result = podcastService.detectResumePoint(episode)
+
+        assertEquals(ResumePoint.FULL_PIPELINE, result)
+    }
+
+    @Test
+    fun `retryEpisode publishes episode retrying SSE event`() {
+        val episode = Episode(id = 5L, podcastId = "p1", generatedAt = "now", scriptText = "Script", status = EpisodeStatus.FAILED)
+        every { episodeService.resetForRetry(episode) } returns episode.copy(status = EpisodeStatus.GENERATING, errorMessage = null)
+
+        val resumePoint = podcastService.retryEpisode(episode, podcast)
+
+        assertEquals(ResumePoint.POST_COMPOSE, resumePoint)
+        verify { eventPublisher.publishEvent(match<PodcastEvent> { it.event == "episode.retrying" && it.data["resumePoint"] == "POST_COMPOSE" }) }
     }
 }

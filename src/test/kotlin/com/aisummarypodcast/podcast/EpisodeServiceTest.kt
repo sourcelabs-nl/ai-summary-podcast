@@ -1,7 +1,10 @@
 package com.aisummarypodcast.podcast
 
 import com.aisummarypodcast.llm.ArticleEligibilityService
+import com.aisummarypodcast.llm.ComposeStageResult
+import com.aisummarypodcast.llm.DedupStageResult
 import com.aisummarypodcast.llm.EpisodeRecapGenerator
+import com.aisummarypodcast.llm.FilteredArticle
 import com.aisummarypodcast.llm.ModelResolver
 import com.aisummarypodcast.llm.PipelineResult
 import com.aisummarypodcast.llm.PipelineStage
@@ -26,6 +29,7 @@ import io.mockk.verify
 import org.springframework.context.ApplicationEventPublisher
 
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
 import java.util.*
 
@@ -409,6 +413,98 @@ class EpisodeServiceTest {
         episodeService.discardAndResetArticles(episode, "p1")
 
         verify { podcastRepository.save(match { it.lastGeneratedAt == null }) }
+    }
+
+    // --- saveDedupResults tests ---
+
+    @Test
+    fun `saveDedupResults saves episode-article links with topics`() {
+        val episode = Episode(id = 5L, podcastId = "p1", generatedAt = "now", scriptText = "", status = EpisodeStatus.GENERATING)
+        val article1 = Article(id = 10L, sourceId = "s1", title = "A1", body = "body", url = "https://example.com/1", contentHash = "h1", relevanceScore = 8)
+        val article2 = Article(id = 20L, sourceId = "s1", title = "A2", body = "body", url = "https://example.com/2", contentHash = "h2", relevanceScore = 7)
+        val dedupResult = DedupStageResult(
+            filteredArticles = listOf(
+                FilteredArticle(article1, topic = "AI Safety"),
+                FilteredArticle(article2, topic = "New Releases")
+            ),
+            filterModel = "anthropic/claude-haiku-4.5",
+            usage = TokenUsage(200, 100),
+            followUpAnnotations = emptyMap(),
+            topicLabels = listOf("AI Safety", "New Releases"),
+            dedupCostCents = 5
+        )
+        every { episodeRepository.findById(5L) } returns Optional.of(episode)
+        every { episodeRepository.save(any()) } answers { firstArg() }
+
+        episodeService.saveDedupResults(episode, dedupResult)
+
+        verify { episodeArticleRepository.insertIgnore(5L, 10L, "AI Safety", 0) }
+        verify { episodeArticleRepository.insertIgnore(5L, 20L, "New Releases", 1) }
+        verify { episodeRepository.save(match { it.filterModel == "anthropic/claude-haiku-4.5" && it.llmInputTokens == 200 && it.llmOutputTokens == 100 }) }
+    }
+
+    // --- saveComposeResult tests ---
+
+    @Test
+    fun `saveComposeResult saves script and accumulates tokens`() {
+        val episode = Episode(
+            id = 5L, podcastId = "p1", generatedAt = "now", scriptText = "",
+            status = EpisodeStatus.GENERATING, llmInputTokens = 200, llmOutputTokens = 100
+        )
+        val composeResult = ComposeStageResult(
+            script = "Today in tech...",
+            composeModel = "anthropic/claude-sonnet-4",
+            usage = TokenUsage(500, 300),
+            topicOrder = listOf("AI Safety"),
+            composeCostCents = 10
+        )
+        every { episodeRepository.findById(5L) } returns Optional.of(episode)
+        every { episodeRepository.save(any()) } answers { firstArg() }
+
+        episodeService.saveComposeResult(episode, composeResult)
+
+        verify { episodeRepository.save(match {
+            it.scriptText == "Today in tech..." &&
+            it.composeModel == "anthropic/claude-sonnet-4" &&
+            it.llmInputTokens == 700 &&
+            it.llmOutputTokens == 400
+        }) }
+    }
+
+    // --- resetForRetry tests ---
+
+    @Test
+    fun `resetForRetry sets GENERATING status and clears errorMessage`() {
+        val failedEpisode = Episode(
+            id = 5L, podcastId = "p1", generatedAt = "now", scriptText = "Script",
+            status = EpisodeStatus.FAILED, errorMessage = "LLM error", pipelineStage = "composing"
+        )
+        every { episodeRepository.findById(5L) } returns Optional.of(failedEpisode)
+        every { episodeRepository.save(any()) } answers { firstArg() }
+
+        val reset = episodeService.resetForRetry(failedEpisode)
+
+        assertEquals(EpisodeStatus.GENERATING, reset.status)
+        assertNull(reset.errorMessage)
+        assertEquals("Script", reset.scriptText)
+        assertEquals("composing", reset.pipelineStage)
+    }
+
+    // --- failEpisode tests ---
+
+    @Test
+    fun `failEpisode preserves pipelineStage`() {
+        val generatingEpisode = Episode(
+            id = 5L, podcastId = "p1", generatedAt = "now", scriptText = "",
+            status = EpisodeStatus.GENERATING, pipelineStage = "composing"
+        )
+        every { episodeRepository.findById(5L) } returns Optional.of(generatingEpisode)
+        every { episodeRepository.save(any()) } answers { firstArg() }
+        every { podcastRepository.save(any()) } answers { firstArg() }
+
+        episodeService.failEpisode(podcast, "LLM error", generatingEpisode)
+
+        verify { episodeRepository.save(match { it.status == EpisodeStatus.FAILED && it.pipelineStage == "composing" && it.errorMessage == "LLM error" }) }
     }
 
     // --- hasActiveEpisode tests ---

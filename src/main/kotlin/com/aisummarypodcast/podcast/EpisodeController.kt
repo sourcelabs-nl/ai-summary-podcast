@@ -186,6 +186,31 @@ class EpisodeController(
         }
     }
 
+    @PostMapping("/{episodeId}/retry")
+    fun retry(
+        @PathVariable userId: String,
+        @PathVariable podcastId: String,
+        @PathVariable episodeId: Long
+    ): ResponseEntity<Any> {
+        userService.findById(userId) ?: return ResponseEntity.notFound().build()
+        val podcast = podcastService.findById(podcastId) ?: return ResponseEntity.notFound().build()
+        if (podcast.userId != userId) return ResponseEntity.notFound().build()
+
+        val episode = episodeService.findById(episodeId)
+            ?: return ResponseEntity.notFound().build()
+        if (episode.podcastId != podcastId) return ResponseEntity.notFound().build()
+
+        if (episode.status != EpisodeStatus.FAILED) {
+            return ResponseEntity.status(409).body(mapOf("error" to "Episode is not in FAILED status"))
+        }
+
+        val resumePoint = podcastService.retryEpisode(episode, podcast)
+        return ResponseEntity.accepted().body(mapOf(
+            "message" to "Retrying episode from ${resumePoint.name.lowercase().replace('_', ' ')}",
+            "resumePoint" to resumePoint.name
+        ))
+    }
+
     @GetMapping("/{episodeId}/articles")
     fun articles(
         @PathVariable userId: String,

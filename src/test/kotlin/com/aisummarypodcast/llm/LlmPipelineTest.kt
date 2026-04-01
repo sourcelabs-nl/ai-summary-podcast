@@ -306,6 +306,77 @@ class LlmPipelineTest {
         verify(exactly = 0) { articleScoreSummarizer.scoreSummarize(any(), any(), any(), any()) }
     }
 
+    // --- Stage method tests ---
+
+    @Test
+    fun `aggregateScoreAndFilter returns eligible articles`() {
+        setupBasicPipeline()
+        every { briefingComposer.compose(any(), any(), any(), any(), any<Map<Long, String>>()) } returns CompositionResult("Script", TokenUsage(500, 200))
+
+        val eligible = pipeline.aggregateScoreAndFilter(podcast)
+
+        assertNotNull(eligible)
+        assertEquals(1, eligible!!.size)
+        assertEquals(scoredArticle, eligible[0])
+    }
+
+    @Test
+    fun `aggregateScoreAndFilter returns null when no eligible articles`() {
+        every { sourceRepository.findByPodcastId("p1") } returns listOf(source)
+        every { modelResolver.resolve(podcast, PipelineStage.FILTER) } returns filterModelDef
+        every { modelResolver.resolve(podcast, PipelineStage.COMPOSE) } returns composeModelDef
+        every { postRepository.findUnlinkedBySourceIds(listOf("s1"), any()) } returns emptyList()
+        every { articleRepository.findUnscoredBySourceIds(listOf("s1")) } returns emptyList()
+        every { articleEligibilityService.findEligibleArticles(listOf("s1"), podcast) } returns emptyList()
+
+        val eligible = pipeline.aggregateScoreAndFilter(podcast)
+
+        assertNull(eligible)
+    }
+
+    @Test
+    fun `dedup returns filtered articles with topics`() {
+        val filteredArticle = FilteredArticle(scoredArticle, topic = "AI Safety")
+        every { modelResolver.resolve(podcast, PipelineStage.FILTER) } returns filterModelDef
+        every { articleEligibilityService.findHistoricalArticles(podcast) } returns emptyList()
+        every { topicDedupFilter.filter(listOf(scoredArticle), emptyList(), "u1", filterModelDef) } returns
+            DedupFilterResult(listOf(filteredArticle), TokenUsage(100, 50))
+
+        val result = pipeline.dedup(listOf(scoredArticle), podcast)
+
+        assertNotNull(result)
+        assertEquals(1, result!!.filteredArticles.size)
+        assertEquals("AI Safety", result.filteredArticles[0].topic)
+        assertEquals(listOf("AI Safety"), result.topicLabels)
+        assertEquals(filterModelDef.model, result.filterModel)
+    }
+
+    @Test
+    fun `dedup returns null when all articles filtered`() {
+        every { modelResolver.resolve(podcast, PipelineStage.FILTER) } returns filterModelDef
+        every { articleEligibilityService.findHistoricalArticles(podcast) } returns emptyList()
+        every { topicDedupFilter.filter(any(), any(), any(), any()) } returns
+            DedupFilterResult(emptyList(), TokenUsage(100, 50))
+
+        val result = pipeline.dedup(listOf(scoredArticle), podcast)
+
+        assertNull(result)
+    }
+
+    @Test
+    fun `compose returns script with topic order`() {
+        val filteredArticle = FilteredArticle(scoredArticle, topic = "AI Safety")
+        every { modelResolver.resolve(podcast, PipelineStage.COMPOSE) } returns composeModelDef
+        every { briefingComposer.compose(listOf(scoredArticle), podcast, composeModelDef, "", emptyMap(), listOf("AI Safety")) } returns
+            CompositionResult("Today in tech...", TokenUsage(500, 200), listOf("AI Safety"))
+
+        val result = pipeline.compose(listOf(filteredArticle), podcast, topicLabels = listOf("AI Safety"))
+
+        assertEquals("Today in tech...", result.script)
+        assertEquals(composeModelDef.model, result.composeModel)
+        assertEquals(listOf("AI Safety"), result.topicOrder)
+    }
+
     @Test
     fun `recompose does not pass recaps to composer`() {
         val article = scoredArticle

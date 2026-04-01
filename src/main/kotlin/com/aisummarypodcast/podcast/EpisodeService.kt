@@ -1,6 +1,8 @@
 package com.aisummarypodcast.podcast
 
 import com.aisummarypodcast.llm.ArticleEligibilityService
+import com.aisummarypodcast.llm.ComposeStageResult
+import com.aisummarypodcast.llm.DedupStageResult
 import com.aisummarypodcast.llm.EpisodeRecapGenerator
 import com.aisummarypodcast.llm.ModelResolver
 import com.aisummarypodcast.llm.PipelineResult
@@ -23,6 +25,12 @@ import org.springframework.context.event.EventListener
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
+
+data class LinkedArticlesResult(
+    val articles: List<Article>,
+    val topicLabels: List<String>,
+    val articleTopics: Map<Long, String>
+)
 
 @Service
 class EpisodeService(
@@ -53,8 +61,7 @@ class EpisodeService(
                 episodeRepository.save(
                     episode.copy(
                         status = EpisodeStatus.FAILED,
-                        errorMessage = "Generation interrupted by application restart",
-                        pipelineStage = null
+                        errorMessage = "Generation interrupted by application restart"
                     )
                 )
             }
@@ -196,6 +203,113 @@ class EpisodeService(
     }
 
     @Transactional
+    fun saveDedupResults(episode: Episode, dedupResult: DedupStageResult) {
+        val topicOrderMap = dedupResult.topicLabels.withIndex().associate { (index, label) -> label to index }
+        for (fa in dedupResult.filteredArticles) {
+            val topic = fa.topic
+            val topicOrder = topic?.let { topicOrderMap[it] }
+            episodeArticleRepository.insertIgnore(
+                episodeId = episode.id!!,
+                articleId = fa.article.id!!,
+                topic = topic,
+                topicOrder = topicOrder
+            )
+        }
+        val fresh = episodeRepository.findById(episode.id!!).orElse(episode)
+        episodeRepository.save(
+            fresh.copy(
+                filterModel = dedupResult.filterModel,
+                llmInputTokens = dedupResult.usage.inputTokens,
+                llmOutputTokens = dedupResult.usage.outputTokens,
+                llmCostCents = dedupResult.dedupCostCents
+            )
+        )
+        log.info("[Pipeline] Saved dedup results for episode {} ({} articles)", episode.id, dedupResult.filteredArticles.size)
+    }
+
+    @Transactional
+    fun saveComposeResult(episode: Episode, composeResult: ComposeStageResult) {
+        val fresh = episodeRepository.findById(episode.id!!).orElse(episode)
+        episodeRepository.save(
+            fresh.copy(
+                scriptText = composeResult.script,
+                composeModel = composeResult.composeModel,
+                llmInputTokens = (fresh.llmInputTokens ?: 0) + composeResult.usage.inputTokens,
+                llmOutputTokens = (fresh.llmOutputTokens ?: 0) + composeResult.usage.outputTokens,
+                llmCostCents = com.aisummarypodcast.llm.CostEstimator.addNullableCosts(fresh.llmCostCents, composeResult.composeCostCents)
+            )
+        )
+        log.info("[Pipeline] Saved compose result for episode {}", episode.id)
+    }
+
+    @Transactional
+    fun finalizeEpisode(
+        episode: Episode,
+        podcast: Podcast,
+        topicOrder: List<String> = emptyList(),
+        updateLastGenerated: Boolean = true
+    ): Episode {
+        val fresh = episodeRepository.findById(episode.id!!).orElse(episode)
+
+        // Set status: PENDING_REVIEW or trigger TTS
+        val withStatus = if (podcast.requireReview) {
+            episodeRepository.save(fresh.copy(status = EpisodeStatus.PENDING_REVIEW, pipelineStage = null))
+        } else {
+            val generating = episodeRepository.save(fresh.copy(status = EpisodeStatus.GENERATING, pipelineStage = "tts"))
+            ttsPipeline.generateForExistingEpisode(generating, podcast).let {
+                episodeRepository.save(it.copy(pipelineStage = null))
+            }
+        }
+
+        // Mark articles as processed (idempotent: skip already-processed)
+        val linkedArticles = episodeArticleRepository.findByEpisodeId(episode.id)
+        val articleIds = linkedArticles.map { it.articleId }
+        for (articleId in articleIds) {
+            articleRepository.findById(articleId).ifPresent { article ->
+                if (!article.isProcessed) {
+                    articleRepository.save(article.copy(isProcessed = true))
+                }
+            }
+        }
+
+        // Generate recap (idempotent: skip if already exists)
+        val recapEpisode = if (withStatus.recap != null) {
+            withStatus
+        } else {
+            generateAndStoreRecap(withStatus, podcast, topicOrder)
+        }
+
+        val finalEpisode = generateAndStoreShowNotes(recapEpisode)
+        generateSourcesFile(finalEpisode, podcast)
+
+        if (updateLastGenerated) {
+            val freshPodcast = podcastRepository.findById(podcast.id).orElseThrow()
+            podcastRepository.save(freshPodcast.copy(lastGeneratedAt = Instant.now().toString()))
+        }
+
+        val eventName = if (podcast.requireReview) "episode.created" else "episode.generated"
+        eventPublisher.publishEvent(
+            PodcastEvent(this, podcast.id, "episode", finalEpisode.id!!, eventName,
+                mapOf("episodeNumber" to finalEpisode.id))
+        )
+
+        return finalEpisode
+    }
+
+    @Transactional
+    fun resetForRetry(episode: Episode): Episode {
+        val fresh = episodeRepository.findById(episode.id!!).orElse(episode)
+        val reset = episodeRepository.save(
+            fresh.copy(
+                status = EpisodeStatus.GENERATING,
+                errorMessage = null
+            )
+        )
+        log.info("[Pipeline] Reset episode {} for retry", episode.id)
+        return reset
+    }
+
+    @Transactional
     fun discardOnly(episode: Episode, podcastId: String) {
         val fresh = episodeRepository.findById(episode.id!!).orElse(episode)
         episodeRepository.save(fresh.copy(status = EpisodeStatus.DISCARDED))
@@ -280,8 +394,7 @@ class EpisodeService(
             episodeRepository.save(
                 fresh.copy(
                     status = EpisodeStatus.FAILED,
-                    errorMessage = errorMessage,
-                    pipelineStage = null
+                    errorMessage = errorMessage
                 )
             )
         } else {
@@ -313,6 +426,22 @@ class EpisodeService(
         return finalEpisode
     }
 
+    fun findLinkedArticlesAndTopics(episodeId: Long): LinkedArticlesResult {
+        val linkedArticles = episodeArticleRepository.findByEpisodeId(episodeId)
+        val articles = linkedArticles.mapNotNull { link ->
+            articleRepository.findById(link.articleId).orElse(null)
+        }
+        val topicLabels = linkedArticles
+            .filter { it.topic != null && it.topicOrder != null }
+            .sortedBy { it.topicOrder }
+            .mapNotNull { it.topic }
+            .distinct()
+        val articleTopics = linkedArticles
+            .filter { it.topic != null }
+            .associate { it.articleId to it.topic!! }
+        return LinkedArticlesResult(articles, topicLabels, articleTopics)
+    }
+
     fun findArticlesForEpisode(episodeId: Long): List<EpisodeArticleResponse> {
         return episodeArticleRepository.findArticlesWithSourcesByEpisodeId(episodeId)
     }
@@ -326,6 +455,14 @@ class EpisodeService(
     }
 
     @Transactional
+    fun regenerateSourcesHtml(episodeId: Long): String? {
+        val episode = episodeRepository.findById(episodeId).orElse(null) ?: return null
+        val podcast = podcastRepository.findById(episode.podcastId).orElse(null) ?: return null
+        val articles = episodeArticleRepository.findArticlesWithTopicsByEpisodeId(episodeId)
+        val path = episodeSourcesGenerator.generate(episode, podcast, articles)
+        return path?.toString()
+    }
+
     fun regenerateAllShowNotes(): Map<String, Int> {
         val episodes = episodeRepository.findAll()
         var updatedShowNotes = 0

@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { Check, RefreshCw, Upload, X } from "lucide-react";
+import { Check, RefreshCw, RotateCcw, Upload, X } from "lucide-react";
 import { useUser } from "@/lib/user-context";
 import { useEventStream } from "@/lib/event-context";
 import type { Podcast, Episode, EpisodePublication } from "@/lib/types";
@@ -133,6 +133,15 @@ export default function EpisodeDetailPage() {
     }
   }
 
+  async function handleRetry() {
+    if (!selectedUser || !episode) return;
+    await fetch(
+      `/api/users/${selectedUser.id}/podcasts/${params.podcastId}/episodes/${episode.id}/retry`,
+      { method: "POST" }
+    );
+    fetchEpisode();
+  }
+
   async function handleAction(action: "approve" | "discard") {
     if (!selectedUser || !episode) return;
     await fetch(
@@ -205,8 +214,15 @@ export default function EpisodeDetailPage() {
               <> &middot; {episode.recap}</>
             )}
           </p>
-          {episode.status === "FAILED" && episode.errorMessage && (
-            <p className="text-sm text-destructive mt-1">{episode.errorMessage}</p>
+          {episode.status === "FAILED" && (
+            <div className="mt-1">
+              {episode.pipelineStage && (
+                <p className="text-sm text-muted-foreground">Failed at: {episode.pipelineStage}</p>
+              )}
+              {episode.errorMessage && (
+                <p className="text-sm text-destructive">{episode.errorMessage}</p>
+              )}
+            </div>
           )}
         </div>
         <div className="flex items-center gap-2">
@@ -251,6 +267,11 @@ export default function EpisodeDetailPage() {
             </Button>
             )}
             </>
+          )}
+          {episode.status === "FAILED" && (
+            <Button size="icon-lg" title="Retry from failed stage" onClick={handleRetry}>
+              <RotateCcw className="size-4" />
+            </Button>
           )}
           {episode.status === "FAILED" && (
             <Button size="icon-lg" title="Retry audio generation" onClick={() => handleAction("approve")}>

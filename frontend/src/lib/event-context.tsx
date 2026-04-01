@@ -58,11 +58,27 @@ const TOAST_EVENTS: Record<string, { message: (data: PodcastEventData) => string
     message: (d) => `Episode #${d.data.episodeNumber ?? d.entityId} unpublished from ${d.data.target ?? "target"}`,
     type: "info",
   },
+  "episode.retrying": {
+    message: (d) => `Retrying episode #${d.data.episodeNumber ?? d.entityId} from ${(d.data.resumePoint as string ?? "pipeline").toLowerCase().replace("_", " ")}...`,
+    type: "info",
+  },
+  "episode.stage": {
+    message: (d) => {
+      const stage = d.data.stage as string;
+      if (stage === "dedup_saved") return `Saved ${d.data.articleCount ?? ""} article topics`;
+      if (stage === "script_saved") return "Script saved";
+      if (stage === "marking_processed") return "Marking articles as processed...";
+      if (stage === "generating_recap") return "Generating recap...";
+      return null as unknown as string;
+    },
+    type: "info",
+  },
   "pipeline.progress": {
     message: (d) => {
       const stage = d.data.stage as string;
       if (stage === "aggregating") return `Aggregating ${d.data.postCount ?? ""} posts...`;
       if (stage === "scoring") return `Scoring ${d.data.articleCount ?? ""} articles...`;
+      if (stage === "deduplicating") return `Deduplicating ${d.data.articleCount ?? ""} articles...`;
       if (stage === "composing") return `Composing episode script...`;
       return "Generating episode...";
     },
@@ -95,12 +111,14 @@ export function EventProvider({ children }: { children: ReactNode }) {
         const toastConfig = TOAST_EVENTS[eventName];
         if (toastConfig) {
           const message = toastConfig.message(parsed);
-          if (toastConfig.type === "error") {
-            toast.error(message);
-          } else if (toastConfig.type === "success") {
-            toast.success(message);
-          } else {
-            toast.info(message);
+          if (message) {
+            if (toastConfig.type === "error") {
+              toast.error(message);
+            } else if (toastConfig.type === "success") {
+              toast.success(message);
+            } else {
+              toast.info(message);
+            }
           }
         }
 
