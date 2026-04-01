@@ -8,5 +8,6 @@ data class EpisodeArticle(
     @Id val id: Long? = null,
     val episodeId: Long,
     val articleId: Long,
-    val topic: String? = null
+    val topic: String? = null,
+    val topicOrder: Int? = null
 )

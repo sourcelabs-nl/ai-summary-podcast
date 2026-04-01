@@ -127,8 +127,8 @@ class FtpPublisher(
             val remoteEpisodesPath = "${podcastPath}episodes/"
             ensureDirectoryExists(ftpClient, remoteEpisodesPath)
 
-            // Upload sources.md to episodes/
-            val articles = episodeService.findRawArticlesForEpisode(episode.id!!)
+            // Upload sources.html to episodes/
+            val articles = episodeService.findArticlesWithTopicsForEpisode(episode.id!!)
             val sourcesPath = episodeSourcesGenerator.generate(episode, podcast, articles)
             if (sourcesPath != null) {
                 uploadFile(ftpClient, remoteEpisodesPath, sourcesPath)

@@ -1,9 +1,9 @@
 package com.aisummarypodcast.podcast
 
 import com.aisummarypodcast.config.AppProperties
-import com.aisummarypodcast.store.Article
 import com.aisummarypodcast.store.Episode
 import com.aisummarypodcast.store.Podcast
+import com.aisummarypodcast.store.TopicGroupedArticle
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.*
@@ -41,22 +41,56 @@ class EpisodeSourcesGeneratorTest {
     }
 
     @Test
-    fun `generates sources html with recap and articles`() {
+    fun `generates sources html with topic-grouped articles`() {
         val articles = listOf(
-            article(1, "Spring Boot 4 Released", "https://spring.io/blog/spring-boot-4"),
-            article(2, "Kotlin 2.2 Features", "https://blog.jetbrains.com/kotlin-2.2")
+            TopicGroupedArticle("AI Safety Paper", "https://arxiv.org/ai-safety", "AI Safety", 0),
+            TopicGroupedArticle("Safety Framework", "https://example.com/framework", "AI Safety", 0),
+            TopicGroupedArticle("New Model Release", "https://example.com/model", "New Releases", 1)
         )
 
         val path = generator.generate(episode, podcast, articles)
 
         assertNotNull(path)
         val content = Files.readString(path!!)
-        assertTrue(content.contains("<meta charset=\"UTF-8\">"))
-        assertTrue(content.contains("<h1>Tech Daily</h1>"))
-        assertTrue(content.contains("2026-03-12"))
-        assertTrue(content.contains("Today we covered breaking news in tech."))
-        assertTrue(content.contains("<a href=\"https://spring.io/blog/spring-boot-4\">Spring Boot 4 Released</a>"))
-        assertTrue(content.contains("<a href=\"https://blog.jetbrains.com/kotlin-2.2\">Kotlin 2.2 Features</a>"))
+        assertTrue(content.contains("<h2>Topics Covered</h2>"))
+        assertTrue(content.contains("<h3>AI Safety</h3>"))
+        assertTrue(content.contains("<h3>New Releases</h3>"))
+        assertTrue(content.contains("<a href=\"https://arxiv.org/ai-safety\">AI Safety Paper</a>"))
+        assertTrue(content.contains("<a href=\"https://example.com/model\">New Model Release</a>"))
+        assertFalse(content.contains("<h2>Sources</h2>"))
+    }
+
+    @Test
+    fun `generates flat list when no topic data`() {
+        val articles = listOf(
+            TopicGroupedArticle("Article One", "https://example.com/1", null, null),
+            TopicGroupedArticle("Article Two", "https://example.com/2", null, null)
+        )
+
+        val path = generator.generate(episode, podcast, articles)
+
+        assertNotNull(path)
+        val content = Files.readString(path!!)
+        assertTrue(content.contains("<h2>Sources</h2>"))
+        assertFalse(content.contains("<h2>Topics Covered</h2>"))
+        assertFalse(content.contains("<h3>"))
+        assertTrue(content.contains("<a href=\"https://example.com/1\">Article One</a>"))
+    }
+
+    @Test
+    fun `generates mixed topics with ungrouped articles in Other section`() {
+        val articles = listOf(
+            TopicGroupedArticle("Grouped Article", "https://example.com/grouped", "AI Safety", 0),
+            TopicGroupedArticle("Ungrouped Article", "https://example.com/ungrouped", null, null)
+        )
+
+        val path = generator.generate(episode, podcast, articles)
+
+        assertNotNull(path)
+        val content = Files.readString(path!!)
+        assertTrue(content.contains("<h2>Topics Covered</h2>"))
+        assertTrue(content.contains("<h3>AI Safety</h3>"))
+        assertTrue(content.contains("<h3>Other</h3>"))
     }
 
     @Test
@@ -68,6 +102,7 @@ class EpisodeSourcesGeneratorTest {
         assertTrue(content.contains("<h1>Tech Daily</h1>"))
         assertTrue(content.contains("Today we covered"))
         assertFalse(content.contains("<h2>Sources</h2>"))
+        assertFalse(content.contains("<h2>Topics Covered</h2>"))
     }
 
     @Test
@@ -96,8 +131,19 @@ class EpisodeSourcesGeneratorTest {
         assertTrue(path.toString().contains("pod-1"))
     }
 
-    private fun article(id: Long, title: String, url: String) = Article(
-        id = id, sourceId = "src-1", title = title, body = "body", url = url,
-        contentHash = "hash-$id", relevanceScore = 8
-    )
+    @Test
+    fun `topics are ordered by topic_order`() {
+        // Articles are pre-ordered by topic_order ASC from the database query
+        val articles = listOf(
+            TopicGroupedArticle("First Topic Article", "https://example.com/1", "Topic A", 0),
+            TopicGroupedArticle("Second Topic Article", "https://example.com/2", "Topic B", 1)
+        )
+
+        val path = generator.generate(episode, podcast, articles)
+
+        val content = Files.readString(path!!)
+        val topicAIndex = content.indexOf("<h3>Topic A</h3>")
+        val topicBIndex = content.indexOf("<h3>Topic B</h3>")
+        assertTrue(topicAIndex < topicBIndex, "Topic A (order 0) should appear before Topic B (order 1)")
+    }
 }

@@ -17,15 +17,15 @@ class DialogueComposer(
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    fun compose(articles: List<Article>, podcast: Podcast, ttsScriptGuidelines: String = "", followUpAnnotations: Map<Long, String> = emptyMap()): CompositionResult {
+    fun compose(articles: List<Article>, podcast: Podcast, ttsScriptGuidelines: String = "", followUpAnnotations: Map<Long, String> = emptyMap(), topicLabels: List<String> = emptyList()): CompositionResult {
         val composeModelDef = modelResolver.resolve(podcast, PipelineStage.COMPOSE)
-        return compose(articles, podcast, composeModelDef, ttsScriptGuidelines, followUpAnnotations)
+        return compose(articles, podcast, composeModelDef, ttsScriptGuidelines, followUpAnnotations, topicLabels)
     }
 
-    fun compose(articles: List<Article>, podcast: Podcast, composeModelDef: ResolvedModel, ttsScriptGuidelines: String = "", followUpAnnotations: Map<Long, String> = emptyMap()): CompositionResult {
+    fun compose(articles: List<Article>, podcast: Podcast, composeModelDef: ResolvedModel, ttsScriptGuidelines: String = "", followUpAnnotations: Map<Long, String> = emptyMap(), topicLabels: List<String> = emptyList()): CompositionResult {
         log.info("[LLM] Composing dialogue from {} articles for podcast '{}' ({})", articles.size, podcast.name, podcast.id)
         val chatClient = chatClientFactory.createForModel(podcast.userId, composeModelDef)
-        val prompt = buildPrompt(articles, podcast, ttsScriptGuidelines, followUpAnnotations)
+        val prompt = buildPrompt(articles, podcast, ttsScriptGuidelines, followUpAnnotations, topicLabels)
 
         val (result, elapsed) = measureTimedValue {
             val chatResponse = chatClient.prompt()
@@ -34,18 +34,19 @@ class DialogueComposer(
                 .call()
                 .chatResponse()
 
-            val script = chatResponse?.result?.output?.text
+            val rawScript = chatResponse?.result?.output?.text
                 ?: throw IllegalStateException("Empty response from LLM for dialogue composition")
 
+            val extraction = TopicOrderExtractor.extract(rawScript)
             val usage = TokenUsage.fromChatResponse(chatResponse)
-            CompositionResult(script, usage)
+            CompositionResult(extraction.script, usage, extraction.topicOrder)
         }
 
         log.info("[LLM] Dialogue composed for podcast '{}' ({}) — {} words in {}", podcast.name, podcast.id, result.script.split("\\s+".toRegex()).size, elapsed)
         return result
     }
 
-    internal fun buildPrompt(articles: List<Article>, podcast: Podcast, ttsScriptGuidelines: String = "", followUpAnnotations: Map<Long, String> = emptyMap()): String {
+    internal fun buildPrompt(articles: List<Article>, podcast: Podcast, ttsScriptGuidelines: String = "", followUpAnnotations: Map<Long, String> = emptyMap(), topicLabels: List<String> = emptyList()): String {
         val targetWords = podcast.targetWords ?: appProperties.briefing.targetWords
         val speakerRoles = podcast.ttsVoices?.keys?.toList() ?: listOf("host", "cohost")
         val tagExamples = speakerRoles.joinToString("\n            ") { role -> "<$role>Example text</$role>" }
@@ -67,6 +68,7 @@ class DialogueComposer(
         val languageInstruction = buildLanguageInstruction(podcast.language, "dialogue")
         val sponsorBlock = buildSponsorBlock(podcast.sponsor)
         val ttsGuidelinesBlock = buildTtsGuidelinesBlock(ttsScriptGuidelines)
+        val topicOrderBlock = buildTopicOrderBlock(topicLabels)
 
         return """
             You are writing a dialogue script for a podcast with multiple speakers. Create a natural, engaging conversation between the speakers about the topics below.
@@ -104,7 +106,7 @@ class DialogueComposer(
             - NEVER place two consecutive tags of the same speaker (e.g., <${speakerRoles.first()}>...</${speakerRoles.first()}><${speakerRoles.first()}>...</${speakerRoles.first()}> is FORBIDDEN). Every speaker turn MUST be followed by the OTHER speaker before the same speaker can speak again$nameInstruction$languageInstruction$customInstructionsBlock
 
             Article summaries:
-            $summaryBlock$ttsGuidelinesBlock
+            $summaryBlock$ttsGuidelinesBlock$topicOrderBlock
         """.trimIndent()
     }
 

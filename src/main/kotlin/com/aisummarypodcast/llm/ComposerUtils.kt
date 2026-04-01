@@ -74,6 +74,23 @@ fun buildTtsGuidelinesBlock(ttsScriptGuidelines: String): String =
         "\n\n            TTS script formatting:\n            $ttsScriptGuidelines"
     } else ""
 
+fun buildTopicOrderBlock(topicLabels: List<String>): String {
+    if (topicLabels.isEmpty()) return ""
+    val labelList = topicLabels.joinToString("\n") { "- $it" }
+    return """
+
+            Topic ordering metadata:
+            After writing the complete script, append the following metadata block on a new line. List the topic labels below in the order they are discussed in the script. Use the EXACT labels provided, do not rename or rephrase them.
+
+            Topics:
+            $labelList
+
+            Format:
+            |||TOPIC_ORDER|||
+            ["first topic discussed", "second topic discussed", ...]
+            |||END_TOPIC_ORDER|||"""
+}
+
 fun extractDomainAndPath(url: String): String =
     try {
         val uri = URI(url)

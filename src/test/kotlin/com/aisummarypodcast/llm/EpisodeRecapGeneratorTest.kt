@@ -5,6 +5,7 @@ import com.aisummarypodcast.store.Podcast
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.springframework.ai.chat.client.ChatClient
@@ -79,5 +80,25 @@ class EpisodeRecapGeneratorTest {
 
         assertTrue(prompt.contains(scriptText))
         assertTrue(prompt.contains("2-3 sentences"))
+    }
+
+    @Test
+    fun `buildPrompt includes topic labels when provided`() {
+        val scriptText = "Welcome to Tech Daily."
+        val topicLabels = listOf("AI Safety", "New Releases", "Code Quality")
+
+        val prompt = generator.buildPrompt(scriptText, topicLabels)
+
+        assertTrue(prompt.contains("AI Safety, New Releases, Code Quality"))
+        assertTrue(prompt.contains("Naturally reference these topics"))
+    }
+
+    @Test
+    fun `buildPrompt omits topic context when labels are empty`() {
+        val scriptText = "Welcome to Tech Daily."
+
+        val prompt = generator.buildPrompt(scriptText, emptyList())
+
+        assertFalse(prompt.contains("Topics discussed"))
     }
 }

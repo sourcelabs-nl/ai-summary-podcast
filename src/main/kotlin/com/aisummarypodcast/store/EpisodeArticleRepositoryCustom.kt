@@ -7,10 +7,13 @@ import org.springframework.stereotype.Repository
 
 data class FeedArticle(val title: String, val url: String, val topic: String? = null)
 
+data class TopicGroupedArticle(val title: String, val url: String, val topic: String?, val topicOrder: Int?)
+
 interface EpisodeArticleRepositoryCustom {
     fun findArticlesWithSourcesByEpisodeId(episodeId: Long): List<EpisodeArticleResponse>
     fun findArticlesByEpisodeIds(episodeIds: List<Long>): Map<Long, List<FeedArticle>>
     fun findRawArticlesByEpisodeId(episodeId: Long): List<Article>
+    fun findArticlesWithTopicsByEpisodeId(episodeId: Long): List<TopicGroupedArticle>
 }
 
 @Repository
@@ -79,6 +82,28 @@ class EpisodeArticleRepositoryCustomImpl(
                     llmInputTokens = rs.getObject("llm_input_tokens") as? Int,
                     llmOutputTokens = rs.getObject("llm_output_tokens") as? Int,
                     llmCostCents = rs.getObject("llm_cost_cents") as? Int
+                )
+            }
+            .list()
+    }
+
+    override fun findArticlesWithTopicsByEpisodeId(episodeId: Long): List<TopicGroupedArticle> {
+        return jdbcClient.sql(
+            """
+            SELECT a.title, a.url, ea.topic, ea.topic_order
+            FROM episode_articles ea
+            JOIN articles a ON ea.article_id = a.id
+            WHERE ea.episode_id = :episodeId
+            ORDER BY ea.topic_order ASC NULLS LAST, a.relevance_score DESC NULLS LAST
+            """.trimIndent()
+        )
+            .param("episodeId", episodeId)
+            .query { rs, _ ->
+                TopicGroupedArticle(
+                    title = rs.getString("title"),
+                    url = rs.getString("url"),
+                    topic = rs.getString("topic"),
+                    topicOrder = rs.getObject("topic_order") as? Int
                 )
             }
             .list()

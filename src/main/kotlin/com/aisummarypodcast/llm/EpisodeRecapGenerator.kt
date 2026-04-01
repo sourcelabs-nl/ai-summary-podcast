@@ -18,10 +18,10 @@ class EpisodeRecapGenerator(
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    fun generate(scriptText: String, podcast: Podcast, filterModelDef: ResolvedModel): RecapResult {
+    fun generate(scriptText: String, podcast: Podcast, filterModelDef: ResolvedModel, topicLabels: List<String> = emptyList()): RecapResult {
         log.info("[LLM] Generating recap of previous episode for podcast '{}' ({})", podcast.name, podcast.id)
         val chatClient = chatClientFactory.createForModel(podcast.userId, filterModelDef)
-        val prompt = buildPrompt(scriptText)
+        val prompt = buildPrompt(scriptText, topicLabels)
 
         val (result, elapsed) = measureTimedValue {
             val chatResponse = chatClient.prompt()
@@ -41,9 +41,14 @@ class EpisodeRecapGenerator(
         return result
     }
 
-    internal fun buildPrompt(scriptText: String): String {
+    internal fun buildPrompt(scriptText: String, topicLabels: List<String> = emptyList()): String {
+        val topicContext = if (topicLabels.isNotEmpty()) {
+            val labels = topicLabels.joinToString(", ")
+            "\n\nTopics discussed in this episode: $labels\nNaturally reference these topics in your summary where relevant."
+        } else ""
+
         return """
-            Summarize the following podcast episode script in 2-3 sentences. Focus on the main topics and key points discussed. Write direct, concise statements without any preamble, meta-commentary, or introductory phrases like "In this episode" or "The podcast covered".
+            Summarize the following podcast episode script in 2-3 sentences. Focus on the main topics and key points discussed. Write direct, concise statements without any preamble, meta-commentary, or introductory phrases like "In this episode" or "The podcast covered".$topicContext
 
             Episode script:
             $scriptText

@@ -23,7 +23,8 @@ data class PipelineResult(
     val llmOutputTokens: Int = 0,
     val llmCostCents: Int? = null,
     val processedArticleIds: List<Long> = emptyList(),
-    val articleTopics: Map<Long, String> = emptyMap()
+    val articleTopics: Map<Long, String> = emptyMap(),
+    val topicOrder: List<String> = emptyList()
 )
 
 data class PreviewResult(
@@ -133,11 +134,12 @@ class LlmPipeline(
         val ttsScriptGuidelines = ttsProvider.scriptGuidelines(podcast.style, podcast.pronunciations ?: emptyMap())
 
         val followUpAnnotations = buildFollowUpAnnotations(dedupResult.filteredArticles)
+        val topicLabels = dedupResult.filteredArticles.mapNotNull { it.topic }.distinct()
 
         val compositionResult = when (podcast.style) {
-            PodcastStyle.DIALOGUE -> dialogueComposer.compose(toCompose, podcast, composeModelDef, ttsScriptGuidelines, followUpAnnotations)
-            PodcastStyle.INTERVIEW -> interviewComposer.compose(toCompose, podcast, composeModelDef, ttsScriptGuidelines, followUpAnnotations)
-            else -> briefingComposer.compose(toCompose, podcast, composeModelDef, ttsScriptGuidelines, followUpAnnotations)
+            PodcastStyle.DIALOGUE -> dialogueComposer.compose(toCompose, podcast, composeModelDef, ttsScriptGuidelines, followUpAnnotations, topicLabels)
+            PodcastStyle.INTERVIEW -> interviewComposer.compose(toCompose, podcast, composeModelDef, ttsScriptGuidelines, followUpAnnotations, topicLabels)
+            else -> briefingComposer.compose(toCompose, podcast, composeModelDef, ttsScriptGuidelines, followUpAnnotations, topicLabels)
         }
 
         val processedArticleIds = toCompose.map { it.id!! }
@@ -162,7 +164,8 @@ class LlmPipeline(
             llmOutputTokens = dedupResult.usage.outputTokens + compositionResult.usage.outputTokens,
             llmCostCents = totalCostCents,
             processedArticleIds = processedArticleIds,
-            articleTopics = articleTopics
+            articleTopics = articleTopics,
+            topicOrder = compositionResult.topicOrder
         )
     }
 
@@ -253,11 +256,12 @@ class LlmPipeline(
         val ttsScriptGuidelines = ttsProvider.scriptGuidelines(podcast.style, podcast.pronunciations ?: emptyMap())
 
         val followUpAnnotations = buildFollowUpAnnotations(dedupResult.filteredArticles)
+        val topicLabels = dedupResult.filteredArticles.mapNotNull { it.topic }.distinct()
 
         val compositionResult = when (podcast.style) {
-            PodcastStyle.DIALOGUE -> dialogueComposer.compose(toCompose, podcast, composeModelDef, ttsScriptGuidelines, followUpAnnotations)
-            PodcastStyle.INTERVIEW -> interviewComposer.compose(toCompose, podcast, composeModelDef, ttsScriptGuidelines, followUpAnnotations)
-            else -> briefingComposer.compose(toCompose, podcast, composeModelDef, ttsScriptGuidelines, followUpAnnotations)
+            PodcastStyle.DIALOGUE -> dialogueComposer.compose(toCompose, podcast, composeModelDef, ttsScriptGuidelines, followUpAnnotations, topicLabels)
+            PodcastStyle.INTERVIEW -> interviewComposer.compose(toCompose, podcast, composeModelDef, ttsScriptGuidelines, followUpAnnotations, topicLabels)
+            else -> briefingComposer.compose(toCompose, podcast, composeModelDef, ttsScriptGuidelines, followUpAnnotations, topicLabels)
         }
 
         log.info("[LLM Preview] Preview complete for podcast '{}' ({}): {} articles composed", podcast.name, podcast.id, toCompose.size)

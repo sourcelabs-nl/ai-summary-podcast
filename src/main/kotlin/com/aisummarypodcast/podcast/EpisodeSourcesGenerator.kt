@@ -1,9 +1,9 @@
 package com.aisummarypodcast.podcast
 
 import com.aisummarypodcast.config.AppProperties
-import com.aisummarypodcast.store.Article
 import com.aisummarypodcast.store.Episode
 import com.aisummarypodcast.store.Podcast
+import com.aisummarypodcast.store.TopicGroupedArticle
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import java.nio.file.Files
@@ -17,7 +17,7 @@ class EpisodeSourcesGenerator(private val appProperties: AppProperties) {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    fun generate(episode: Episode, podcast: Podcast, articles: List<Article>): Path? {
+    fun generate(episode: Episode, podcast: Podcast, articles: List<TopicGroupedArticle>): Path? {
         if (articles.isEmpty() && episode.recap == null) return null
 
         val date = DateTimeFormatter.ofPattern("yyyy-MM-dd")
@@ -37,6 +37,7 @@ class EpisodeSourcesGenerator(private val appProperties: AppProperties) {
             appendLine(".date { color: #666; font-style: italic; margin-bottom: 1.5rem; }")
             appendLine(".summary { margin-bottom: 1.5rem; }")
             appendLine("h2 { font-size: 1.1rem; border-bottom: 1px solid #ddd; padding-bottom: 0.3rem; }")
+            appendLine("h3 { font-size: 1rem; margin-top: 1.25rem; margin-bottom: 0.5rem; color: #333; }")
             appendLine("ul { padding-left: 1.25rem; }")
             appendLine("li { margin-bottom: 0.5rem; }")
             appendLine("a { color: #c2410c; }")
@@ -52,12 +53,43 @@ class EpisodeSourcesGenerator(private val appProperties: AppProperties) {
                 appendLine("</div>")
             }
             if (articles.isNotEmpty()) {
-                appendLine("<h2>Sources</h2>")
-                appendLine("<ul>")
-                for (article in articles) {
-                    appendLine("<li><a href=\"${escapeHtml(article.url)}\">${escapeHtml(article.title)}</a></li>")
+                val hasTopics = articles.any { it.topicOrder != null }
+                if (hasTopics) {
+                    appendLine("<h2>Topics Covered</h2>")
+                    // Articles are already ordered by topic_order ASC NULLS LAST from the query
+                    var currentTopic: String? = null
+                    var inUngrouped = false
+                    for (article in articles) {
+                        val topicLabel = if (article.topicOrder != null) article.topic ?: "Other" else "Other"
+                        val isUngrouped = article.topicOrder == null
+                        if (isUngrouped && !inUngrouped) {
+                            if (currentTopic != null) appendLine("</ul>")
+                            appendLine("<h3>Other</h3>")
+                            appendLine("<ul>")
+                            inUngrouped = true
+                            currentTopic = "Other"
+                        } else if (!isUngrouped && topicLabel != currentTopic) {
+                            if (currentTopic != null) appendLine("</ul>")
+                            appendLine("<h3>${escapeHtml(topicLabel)}</h3>")
+                            appendLine("<ul>")
+                            currentTopic = topicLabel
+                        }
+                        if (currentTopic == null) {
+                            appendLine("<h3>${escapeHtml(topicLabel)}</h3>")
+                            appendLine("<ul>")
+                            currentTopic = topicLabel
+                        }
+                        appendLine("<li><a href=\"${escapeHtml(article.url)}\">${escapeHtml(article.title)}</a></li>")
+                    }
+                    if (currentTopic != null) appendLine("</ul>")
+                } else {
+                    appendLine("<h2>Sources</h2>")
+                    appendLine("<ul>")
+                    for (article in articles) {
+                        appendLine("<li><a href=\"${escapeHtml(article.url)}\">${escapeHtml(article.title)}</a></li>")
+                    }
+                    appendLine("</ul>")
                 }
-                appendLine("</ul>")
             }
             appendLine("</body>")
             appendLine("</html>")

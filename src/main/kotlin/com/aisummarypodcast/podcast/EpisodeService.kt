@@ -126,7 +126,7 @@ class EpisodeService(
 
         saveEpisodeArticleLinks(episode, result)
         markArticlesAsProcessed(result.processedArticleIds)
-        val recapEpisode = generateAndStoreRecap(episode, podcast)
+        val recapEpisode = generateAndStoreRecap(episode, podcast, result.topicOrder)
         val finalEpisode = generateAndStoreShowNotes(recapEpisode)
         generateSourcesFile(finalEpisode, podcast)
         if (updateLastGenerated) {
@@ -144,9 +144,11 @@ class EpisodeService(
     }
 
     private fun saveEpisodeArticleLinks(episode: Episode, result: PipelineResult) {
+        val topicOrderMap = result.topicOrder.withIndex().associate { (index, label) -> label to index }
         for (articleId in result.processedArticleIds) {
             val topic = result.articleTopics[articleId]
-            episodeArticleRepository.insertIgnore(episodeId = episode.id!!, articleId = articleId, topic = topic)
+            val topicOrder = topic?.let { topicOrderMap[it] }
+            episodeArticleRepository.insertIgnore(episodeId = episode.id!!, articleId = articleId, topic = topic, topicOrder = topicOrder)
         }
     }
 
@@ -167,17 +169,17 @@ class EpisodeService(
 
     private fun generateSourcesFile(episode: Episode, podcast: Podcast) {
         try {
-            val articles = episodeArticleRepository.findRawArticlesByEpisodeId(episode.id!!)
+            val articles = episodeArticleRepository.findArticlesWithTopicsByEpisodeId(episode.id!!)
             episodeSourcesGenerator.generate(episode, podcast, articles)
         } catch (e: Exception) {
-            log.warn("Failed to generate sources.md for episode {}: {}", episode.id, e.message)
+            log.warn("Failed to generate sources.html for episode {}: {}", episode.id, e.message)
         }
     }
 
-    private fun generateAndStoreRecap(episode: Episode, podcast: Podcast): Episode {
+    private fun generateAndStoreRecap(episode: Episode, podcast: Podcast, topicLabels: List<String> = emptyList()): Episode {
         return try {
             val filterModelDef = modelResolver.resolve(podcast, PipelineStage.FILTER)
-            val recapResult = episodeRecapGenerator.generate(episode.scriptText, podcast, filterModelDef)
+            val recapResult = episodeRecapGenerator.generate(episode.scriptText, podcast, filterModelDef, topicLabels)
             val updated = episodeRepository.save(
                 episode.copy(
                     recap = recapResult.recap,
@@ -313,6 +315,10 @@ class EpisodeService(
 
     fun findRawArticlesForEpisode(episodeId: Long): List<Article> {
         return episodeArticleRepository.findRawArticlesByEpisodeId(episodeId)
+    }
+
+    fun findArticlesWithTopicsForEpisode(episodeId: Long): List<com.aisummarypodcast.store.TopicGroupedArticle> {
+        return episodeArticleRepository.findArticlesWithTopicsByEpisodeId(episodeId)
     }
 
     @Transactional

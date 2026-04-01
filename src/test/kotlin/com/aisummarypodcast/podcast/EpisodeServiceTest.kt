@@ -38,7 +38,7 @@ class EpisodeServiceTest {
     private val ttsPipeline = mockk<TtsPipeline>()
     private val episodeArticleRepository = mockk<EpisodeArticleRepository> {
         every { save(any()) } answers { firstArg() }
-        every { insertIgnore(any(), any(), any()) } returns Unit
+        every { insertIgnore(any(), any(), any(), any()) } returns Unit
     }
     private val articleRepository = mockk<ArticleRepository> {
         every { findById(any<Long>()) } returns Optional.empty()
@@ -68,7 +68,7 @@ class EpisodeServiceTest {
 
     private fun setupRecapMocks(podcast: Podcast) {
         every { modelResolver.resolve(podcast, PipelineStage.FILTER) } returns filterModelDef
-        every { episodeRecapGenerator.generate(any(), podcast, filterModelDef) } returns RecapResult(
+        every { episodeRecapGenerator.generate(any(), podcast, filterModelDef, any()) } returns RecapResult(
             recap = "Recap text.", usage = TokenUsage(800, 60)
         )
     }
@@ -89,8 +89,8 @@ class EpisodeServiceTest {
         val episode = episodeService.createEpisodeFromPipelineResult(reviewPodcast, result)
 
         assertEquals(EpisodeStatus.PENDING_REVIEW, episode.status)
-        verify { episodeArticleRepository.insertIgnore(5L, 10L, null) }
-        verify { episodeArticleRepository.insertIgnore(5L, 20L, null) }
+        verify { episodeArticleRepository.insertIgnore(5L, 10L, null, null) }
+        verify { episodeArticleRepository.insertIgnore(5L, 20L, null, null) }
     }
 
     @Test
@@ -109,7 +109,7 @@ class EpisodeServiceTest {
         val episode = episodeService.createEpisodeFromPipelineResult(podcast, result)
 
         verify { ttsPipeline.generateForExistingEpisode(any(), podcast) }
-        verify { episodeArticleRepository.insertIgnore(5L, 10L, null) }
+        verify { episodeArticleRepository.insertIgnore(5L, 10L, null, null) }
     }
 
     @Test
@@ -125,10 +125,10 @@ class EpisodeServiceTest {
 
         episodeService.createEpisodeFromPipelineResult(reviewPodcast, result)
 
-        verify(exactly = 3) { episodeArticleRepository.insertIgnore(any(), any(), any()) }
-        verify { episodeArticleRepository.insertIgnore(7L, 10L, null) }
-        verify { episodeArticleRepository.insertIgnore(7L, 20L, null) }
-        verify { episodeArticleRepository.insertIgnore(7L, 30L, null) }
+        verify(exactly = 3) { episodeArticleRepository.insertIgnore(any(), any(), any(), any()) }
+        verify { episodeArticleRepository.insertIgnore(7L, 10L, null, null) }
+        verify { episodeArticleRepository.insertIgnore(7L, 20L, null, null) }
+        verify { episodeArticleRepository.insertIgnore(7L, 30L, null, null) }
     }
 
     @Test
@@ -194,6 +194,26 @@ class EpisodeServiceTest {
 
         verify { articleRepository.save(match { it.id == 10L && it.isProcessed }) }
         verify { articleRepository.save(match { it.id == 20L && it.isProcessed }) }
+    }
+
+    @Test
+    fun `saves topic order when topicOrder is present in pipeline result`() {
+        val reviewPodcast = podcast.copy(requireReview = true)
+        val result = PipelineResult(
+            script = "Script", filterModel = "filter", composeModel = "compose",
+            processedArticleIds = listOf(10L, 20L, 30L),
+            articleTopics = mapOf(10L to "AI Safety", 20L to "New Releases", 30L to "AI Safety"),
+            topicOrder = listOf("New Releases", "AI Safety")
+        )
+        every { episodeRepository.save(any()) } answers { firstArg<Episode>().copy(id = 5) }
+        every { podcastRepository.save(any()) } answers { firstArg() }
+        setupRecapMocks(reviewPodcast)
+
+        episodeService.createEpisodeFromPipelineResult(reviewPodcast, result)
+
+        verify { episodeArticleRepository.insertIgnore(5L, 10L, "AI Safety", 1) }
+        verify { episodeArticleRepository.insertIgnore(5L, 20L, "New Releases", 0) }
+        verify { episodeArticleRepository.insertIgnore(5L, 30L, "AI Safety", 1) }
     }
 
     // --- discardAndResetArticles tests ---

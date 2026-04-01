@@ -11,7 +11,8 @@ import kotlin.time.measureTimedValue
 
 data class CompositionResult(
     val script: String,
-    val usage: TokenUsage
+    val usage: TokenUsage,
+    val topicOrder: List<String> = emptyList()
 )
 
 @Component
@@ -30,15 +31,15 @@ class BriefingComposer(
         PodcastStyle.EXECUTIVE_SUMMARY to "You are creating a concise executive summary. Be fact-focused with minimal commentary. Get straight to the point."
     )
 
-    fun compose(articles: List<Article>, podcast: Podcast, ttsScriptGuidelines: String = "", followUpAnnotations: Map<Long, String> = emptyMap()): CompositionResult {
+    fun compose(articles: List<Article>, podcast: Podcast, ttsScriptGuidelines: String = "", followUpAnnotations: Map<Long, String> = emptyMap(), topicLabels: List<String> = emptyList()): CompositionResult {
         val composeModelDef = modelResolver.resolve(podcast, PipelineStage.COMPOSE)
-        return compose(articles, podcast, composeModelDef, ttsScriptGuidelines, followUpAnnotations)
+        return compose(articles, podcast, composeModelDef, ttsScriptGuidelines, followUpAnnotations, topicLabels)
     }
 
-    fun compose(articles: List<Article>, podcast: Podcast, composeModelDef: ResolvedModel, ttsScriptGuidelines: String = "", followUpAnnotations: Map<Long, String> = emptyMap()): CompositionResult {
+    fun compose(articles: List<Article>, podcast: Podcast, composeModelDef: ResolvedModel, ttsScriptGuidelines: String = "", followUpAnnotations: Map<Long, String> = emptyMap(), topicLabels: List<String> = emptyList()): CompositionResult {
         log.info("[LLM] Composing briefing from {} articles for podcast '{}' ({}) (style: {})", articles.size, podcast.name, podcast.id, podcast.style)
         val chatClient = chatClientFactory.createForModel(podcast.userId, composeModelDef)
-        val prompt = buildPrompt(articles, podcast, ttsScriptGuidelines, followUpAnnotations)
+        val prompt = buildPrompt(articles, podcast, ttsScriptGuidelines, followUpAnnotations, topicLabels)
 
         val (result, elapsed) = measureTimedValue {
             val chatResponse = chatClient.prompt()
@@ -50,16 +51,17 @@ class BriefingComposer(
             val rawScript = chatResponse?.result?.output?.text
                 ?: throw IllegalStateException("Empty response from LLM for briefing composition")
 
-            val script = stripSectionHeaders(rawScript)
+            val cleaned = stripSectionHeaders(rawScript)
+            val extraction = TopicOrderExtractor.extract(cleaned)
             val usage = TokenUsage.fromChatResponse(chatResponse)
-            CompositionResult(script, usage)
+            CompositionResult(extraction.script, usage, extraction.topicOrder)
         }
 
         log.info("[LLM] Briefing composed for podcast '{}' ({}) — {} words in {}", podcast.name, podcast.id, result.script.split("\\s+".toRegex()).size, elapsed)
         return result
     }
 
-    internal fun buildPrompt(articles: List<Article>, podcast: Podcast, ttsScriptGuidelines: String = "", followUpAnnotations: Map<Long, String> = emptyMap()): String {
+    internal fun buildPrompt(articles: List<Article>, podcast: Podcast, ttsScriptGuidelines: String = "", followUpAnnotations: Map<Long, String> = emptyMap(), topicLabels: List<String> = emptyList()): String {
         val targetWords = podcast.targetWords ?: appProperties.briefing.targetWords
         val stylePrompt = stylePrompts[podcast.style] ?: stylePrompts[PodcastStyle.NEWS_BRIEFING]!!
 
@@ -73,7 +75,7 @@ class BriefingComposer(
         val languageInstruction = buildLanguageInstruction(podcast.language, "script")
         val sponsorBlock = buildSponsorBlock(podcast.sponsor)
         val ttsGuidelinesBlock = buildTtsGuidelinesBlock(ttsScriptGuidelines)
-
+        val topicOrderBlock = buildTopicOrderBlock(topicLabels)
 
         return """
             $stylePrompt
@@ -101,7 +103,7 @@ class BriefingComposer(
             - EMPHASIS ON IMPORTANT NEWS: When covering major announcements or surprising developments, convey their significance — use emphatic language, exclamation marks, and brief pauses to let important news land. Not everything is exciting; save the energy for what truly stands out$toneBlock$languageInstruction$customInstructionsBlock
 
             Article summaries:
-            $summaryBlock$ttsGuidelinesBlock
+            $summaryBlock$ttsGuidelinesBlock$topicOrderBlock
         """.trimIndent()
     }
 

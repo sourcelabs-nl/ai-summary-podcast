@@ -17,15 +17,15 @@ class InterviewComposer(
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    fun compose(articles: List<Article>, podcast: Podcast, ttsScriptGuidelines: String = "", followUpAnnotations: Map<Long, String> = emptyMap()): CompositionResult {
+    fun compose(articles: List<Article>, podcast: Podcast, ttsScriptGuidelines: String = "", followUpAnnotations: Map<Long, String> = emptyMap(), topicLabels: List<String> = emptyList()): CompositionResult {
         val composeModelDef = modelResolver.resolve(podcast, PipelineStage.COMPOSE)
-        return compose(articles, podcast, composeModelDef, ttsScriptGuidelines, followUpAnnotations)
+        return compose(articles, podcast, composeModelDef, ttsScriptGuidelines, followUpAnnotations, topicLabels)
     }
 
-    fun compose(articles: List<Article>, podcast: Podcast, composeModelDef: ResolvedModel, ttsScriptGuidelines: String = "", followUpAnnotations: Map<Long, String> = emptyMap()): CompositionResult {
+    fun compose(articles: List<Article>, podcast: Podcast, composeModelDef: ResolvedModel, ttsScriptGuidelines: String = "", followUpAnnotations: Map<Long, String> = emptyMap(), topicLabels: List<String> = emptyList()): CompositionResult {
         log.info("[LLM] Composing interview from {} articles for podcast '{}' ({})", articles.size, podcast.name, podcast.id)
         val chatClient = chatClientFactory.createForModel(podcast.userId, composeModelDef)
-        val prompt = buildPrompt(articles, podcast, ttsScriptGuidelines, followUpAnnotations)
+        val prompt = buildPrompt(articles, podcast, ttsScriptGuidelines, followUpAnnotations, topicLabels)
 
         val (result, elapsed) = measureTimedValue {
             val chatResponse = chatClient.prompt()
@@ -34,18 +34,19 @@ class InterviewComposer(
                 .call()
                 .chatResponse()
 
-            val script = chatResponse?.result?.output?.text
+            val rawScript = chatResponse?.result?.output?.text
                 ?: throw IllegalStateException("Empty response from LLM for interview composition")
 
+            val extraction = TopicOrderExtractor.extract(rawScript)
             val usage = TokenUsage.fromChatResponse(chatResponse)
-            CompositionResult(script, usage)
+            CompositionResult(extraction.script, usage, extraction.topicOrder)
         }
 
         log.info("[LLM] Interview composed for podcast '{}' ({}) — {} words in {}", podcast.name, podcast.id, result.script.split("\\s+".toRegex()).size, elapsed)
         return result
     }
 
-    internal fun buildPrompt(articles: List<Article>, podcast: Podcast, ttsScriptGuidelines: String = "", followUpAnnotations: Map<Long, String> = emptyMap()): String {
+    internal fun buildPrompt(articles: List<Article>, podcast: Podcast, ttsScriptGuidelines: String = "", followUpAnnotations: Map<Long, String> = emptyMap(), topicLabels: List<String> = emptyList()): String {
         val targetWords = podcast.targetWords ?: appProperties.briefing.targetWords
 
         val interviewerName = podcast.speakerNames?.get("interviewer")
@@ -74,6 +75,7 @@ class InterviewComposer(
         } else ""
 
         val ttsGuidelinesBlock = buildTtsGuidelinesBlock(ttsScriptGuidelines)
+        val topicOrderBlock = buildTopicOrderBlock(topicLabels)
 
         return """
             You are writing an interview-style podcast script between an interviewer and an expert. The interviewer acts as an audience surrogate — asking questions, bridging topics, and providing brief reactions. The expert delivers the news content, context, and analysis.
@@ -121,7 +123,7 @@ class InterviewComposer(
             - STRICT STRUCTURAL RULE — NEVER place two consecutive tags of the same speaker. The pattern <expert>...</expert><expert>...</expert> or <interviewer>...</interviewer><interviewer>...</interviewer> is ABSOLUTELY FORBIDDEN and will break the TTS pipeline. Tags MUST strictly alternate: <interviewer>...</interviewer><expert>...</expert><interviewer>...</interviewer><expert>...</expert>. This rule overrides any other instruction including custom instructions below$nameInstruction$languageInstruction$customInstructionsBlock
 
             Article summaries:
-            $summaryBlock$ttsGuidelinesBlock
+            $summaryBlock$ttsGuidelinesBlock$topicOrderBlock
         """.trimIndent()
     }
 
