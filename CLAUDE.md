@@ -43,7 +43,8 @@ Controllers validate input, delegate to services, and map responses — no busin
 
 Prefer LSP over Grep/Glob for semantic navigation on `.kt` and `.ts`/`.tsx` files:
 
-- **Use LSP for:** finding definitions (`goToDefinition`), references (`findReferences`), implementations (`goToImplementation`), call hierarchies (`incomingCalls`/`outgoingCalls`), type info (`hover`), and file structure (`documentSymbol`).
+- **Use LSP for:** finding definitions (`goToDefinition`), references (`findReferences`), type info (`hover`), and file structure (`documentSymbol`).
+- **Kotlin LSP limitations:** `goToImplementation`, `incomingCalls`, and `outgoingCalls` are not supported. Use `findReferences` as a fallback for these.
 - **Use Grep/Glob for:** text-based searches (log messages, config keys, string literals), cross-codebase pattern matching, and finding files by name or path.
 
 LSP gives precise, semantic results that understand types, inheritance, and scope. Grep matches text, which can produce false positives from comments, strings, or similarly-named symbols. When you need to understand how code connects, use LSP. When you need to find where a string appears, use Grep.
