@@ -39,6 +39,17 @@ Controllers validate input, delegate to services, and map responses — no busin
 
 **Post-implementation check:** After every code change, validate that the architecture guidelines are respected — especially controller hygiene (no business logic, no direct repository access) and proper service layer delegation. Fix violations before considering the change complete.
 
+## Code Navigation (LSP)
+
+Prefer LSP over Grep/Glob for semantic navigation on `.kt` and `.ts`/`.tsx` files:
+
+- **Use LSP for:** finding definitions (`goToDefinition`), references (`findReferences`), implementations (`goToImplementation`), call hierarchies (`incomingCalls`/`outgoingCalls`), type info (`hover`), and file structure (`documentSymbol`).
+- **Use Grep/Glob for:** text-based searches (log messages, config keys, string literals), cross-codebase pattern matching, and finding files by name or path.
+
+LSP gives precise, semantic results that understand types, inheritance, and scope. Grep matches text, which can produce false positives from comments, strings, or similarly-named symbols. When you need to understand how code connects, use LSP. When you need to find where a string appears, use Grep.
+
+LSP requires exact file paths and positions. When the file location is unknown, use Glob first to locate the file, then LSP for semantic operations.
+
 ## Application Restart After Changes
 
 Whenever code changes are made to the application, always restart it (`./stop.sh` then `./start.sh`) before testing or using the new feature. Never attempt to exercise a new or modified feature against a running instance that was built from old code.
@@ -68,6 +79,7 @@ The frontend lives in `frontend/` and uses Next.js (App Router), shadcn/ui, and 
 - **Nested tabs:** Do not nest Radix `Tabs` components (shadcn Tabs). Inner tabs conflict with outer tabs context. Use state-based tab switching with styled buttons for sub-tabs inside a card.
 - **API proxy:** `next.config.ts` rewrites `/api/**` to `http://localhost:8085/**`. Update the port if the backend port changes.
 - **Running:** `cd frontend && npm run dev` (use `/Users/soudmaijer/.nvm/versions/node/v22.16.0/bin/npm` to avoid the stale npm v2 at `~/node_modules/.bin/npm`).
+- **Root symlinks:** `node_modules` and `tsconfig.json` in the project root are symlinks to their `frontend/` counterparts. These exist so that IDE language servers (TypeScript, ESLint) can resolve modules and provide diagnostics when files are opened from the project root, rather than only when opened from `frontend/`.
 
 ## OpenSpec Workflow
 
