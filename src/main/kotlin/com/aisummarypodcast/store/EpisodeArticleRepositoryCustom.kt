@@ -5,7 +5,7 @@ import com.aisummarypodcast.podcast.EpisodeArticleResponse
 import org.springframework.jdbc.core.simple.JdbcClient
 import org.springframework.stereotype.Repository
 
-data class FeedArticle(val title: String, val url: String, val topic: String? = null)
+data class FeedArticle(val title: String, val url: String, val topic: String? = null, val topicOrder: Int? = null)
 
 data class TopicGroupedArticle(val title: String, val url: String, val topic: String?, val topicOrder: Int?)
 
@@ -115,11 +115,11 @@ class EpisodeArticleRepositoryCustomImpl(
         val params = mutableMapOf<String, Any>()
         episodeIds.forEachIndexed { i, id -> params["id$i"] = id }
 
-        data class Row(val episodeId: Long, val title: String, val url: String, val topic: String?)
+        data class Row(val episodeId: Long, val title: String, val url: String, val topic: String?, val topicOrder: Int?)
 
         val rows = jdbcClient.sql(
             """
-            SELECT ea.episode_id, a.title, a.url, ea.topic
+            SELECT ea.episode_id, a.title, a.url, ea.topic, ea.topic_order
             FROM episode_articles ea
             JOIN articles a ON ea.article_id = a.id
             WHERE ea.episode_id IN ($placeholders)
@@ -128,10 +128,11 @@ class EpisodeArticleRepositoryCustomImpl(
         )
             .params(params)
             .query { rs, _ ->
-                Row(rs.getLong("episode_id"), rs.getString("title"), rs.getString("url"), rs.getString("topic"))
+                val topicOrder = rs.getInt("topic_order").let { if (rs.wasNull()) null else it }
+                Row(rs.getLong("episode_id"), rs.getString("title"), rs.getString("url"), rs.getString("topic"), topicOrder)
             }
             .list()
 
-        return rows.groupBy({ it.episodeId }, { FeedArticle(it.title, it.url, it.topic) })
+        return rows.groupBy({ it.episodeId }, { FeedArticle(it.title, it.url, it.topic, it.topicOrder) })
     }
 }

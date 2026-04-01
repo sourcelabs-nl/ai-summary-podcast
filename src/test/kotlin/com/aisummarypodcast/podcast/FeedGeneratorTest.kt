@@ -259,11 +259,11 @@ class FeedGeneratorTest {
         every { episodeSourcesGenerator.deriveSlug(episode) } returns "briefing-20250101-000000"
         every { episodeArticleRepository.findArticlesByEpisodeIds(listOf(1L)) } returns mapOf(
             1L to listOf(
-                FeedArticle("GPT-5 launched", "https://example.com/gpt5", topic = "GPT-5 release"),
-                FeedArticle("GPT-5 benchmarks", "https://example.com/gpt5-bench", topic = "GPT-5 release"),
-                FeedArticle("Claude update", "https://example.com/claude", topic = "Anthropic Claude"),
-                FeedArticle("Claude pricing", "https://example.com/claude-price", topic = "Anthropic Claude"),
-                FeedArticle("New MCP tools", "https://example.com/mcp", topic = "MCP ecosystem")
+                FeedArticle("GPT-5 launched", "https://example.com/gpt5", topic = "GPT-5 release", topicOrder = 1),
+                FeedArticle("GPT-5 benchmarks", "https://example.com/gpt5-bench", topic = "GPT-5 release", topicOrder = 1),
+                FeedArticle("Claude update", "https://example.com/claude", topic = "Anthropic Claude", topicOrder = 2),
+                FeedArticle("Claude pricing", "https://example.com/claude-price", topic = "Anthropic Claude", topicOrder = 2),
+                FeedArticle("New MCP tools", "https://example.com/mcp", topic = "MCP ecosystem", topicOrder = 3)
             )
         )
 

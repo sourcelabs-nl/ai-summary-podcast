@@ -212,12 +212,13 @@ class FeedGenerator(
     }
 
     private fun selectRepresentativeArticles(articles: List<FeedArticle>): List<FeedArticle> {
-        val hasTopics = articles.any { it.topic != null }
+        val hasTopics = articles.any { it.topicOrder != null }
         if (!hasTopics) return articles
 
-        // Pick the first article per topic (already ordered by relevance score DESC)
+        // Only include discussed articles (those with a topic_order), one per topic
+        val discussed = articles.filter { it.topicOrder != null }
         val seen = mutableSetOf<String>()
-        return articles.filter { article ->
+        return discussed.filter { article ->
             val topic = article.topic ?: return@filter true
             seen.add(topic)
         }
