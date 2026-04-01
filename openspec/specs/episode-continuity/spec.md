@@ -24,6 +24,8 @@ The system SHALL provide an `EpisodeRecapGenerator` component that accepts an ep
 ### Requirement: Recap stored on episode
 The system SHALL store the generated recap as a nullable `recap` column on the `episodes` table. The recap SHALL be generated in `BriefingGenerationScheduler` after saving a new episode and persisted via an update to the episode. If recap generation fails, the episode SHALL remain valid with a null recap. The recap generation token usage SHALL be added to the episode's `llm_input_tokens` and `llm_output_tokens`.
 
+The `LlmPipeline` SHALL fetch the N most recent episodes (with non-null recaps) for the podcast, where N is determined by the podcast's `recapLookbackEpisodes` field (falling back to the global `app.episode.recap-lookback-episodes` default). The recaps from these episodes SHALL be passed to the composer as a `List<String>` ordered most-recent-first.
+
 #### Scenario: Recap persisted after episode creation
 - **WHEN** a new episode is created and saved
 - **THEN** the `EpisodeRecapGenerator` generates a recap from the episode's script and the episode is updated with the recap text
@@ -33,24 +35,36 @@ The system SHALL store the generated recap as a nullable `recap` column on the `
 - **THEN** the episode remains saved with a null `recap` and the failure is logged
 
 #### Scenario: Old episodes without recap
-- **WHEN** the pipeline reads the most recent episode and it was created before the recap feature
-- **THEN** the episode's `recap` field is null and the composer receives no continuity context
+- **WHEN** the pipeline fetches recent episodes and some were created before the recap feature
+- **THEN** episodes with null `recap` are excluded from the list and the remaining recaps are passed to the composer
+
+#### Scenario: Pipeline fetches configurable number of recaps
+- **WHEN** a podcast has `recapLookbackEpisodes` set to 5
+- **THEN** the pipeline fetches the 5 most recent episodes with non-null recaps for that podcast
+
+#### Scenario: Pipeline uses global default when podcast has no override
+- **WHEN** a podcast has `recapLookbackEpisodes` set to null and the global default is 7
+- **THEN** the pipeline fetches the 7 most recent episodes with non-null recaps
 
 ### Requirement: Continuity context in composition prompts
-When a previous episode recap is available, both `BriefingComposer` and `DialogueComposer` SHALL include it in the composition prompt. The prompt SHALL contain a "Previous episode context" section with the recap text. The prompt SHALL instruct the LLM: when today's topics relate to the previous episode, weave in specific references (e.g., "as we discussed last time...," "following up on what we covered previously..."). When today's topics are unrelated to the previous episode, include a brief one-liner referencing the previous episode in the introduction (e.g., "last episode we covered X and Y, today we're looking at..."). The recap parameter SHALL be optional — when null, the prompt SHALL NOT include any previous episode section or continuity instructions.
+When composing a script, the system SHALL NOT pass episode recaps to the composer. Continuity context SHALL instead be provided by the topic dedup filter's `[FOLLOW-UP: ...]` annotations on CONTINUATION articles. The `previousEpisodeRecaps` parameter SHALL be removed from all three composers (`BriefingComposer`, `DialogueComposer`, `InterviewComposer`). The `recapBlock` section SHALL be removed from all composer prompts.
 
-#### Scenario: Composer receives recap with overlapping topics
-- **WHEN** the previous episode recap mentions "AI regulation in the EU" and today's articles include new EU AI Act developments
-- **THEN** the composed script references the previous episode specifically (e.g., "as we discussed last time, the EU has been working on AI regulation — today there are new developments...")
+The composer SHALL still naturally reference previous coverage when it sees `[FOLLOW-UP: ...]` headers above article groups, using phrasing like "following up on what we covered recently..." or "as we discussed last time..."
 
-#### Scenario: Composer receives recap with unrelated topics
-- **WHEN** the previous episode recap mentions "cryptocurrency market trends" and today's articles are about space exploration
-- **THEN** the composed script includes a brief one-liner in the intro about the previous episode before moving on to today's topics
+Recap generation SHALL continue unchanged -- recaps are still generated and stored on episodes for use in publication descriptions (feed.xml, SoundCloud).
 
-#### Scenario: No previous episode exists
-- **WHEN** the composer is called with a null recap
-- **THEN** the composition prompt does not include any previous episode section and the script has no back-references
+#### Scenario: Composer receives continuation articles with follow-up annotation
+- **WHEN** the dedup filter identifies a CONTINUATION topic about "Gemini 2.5 pricing" (previously covered: release and benchmarks)
+- **THEN** the composer prompt includes a `[FOLLOW-UP: ...]` header above the Gemini articles, and the composed script references the previous coverage naturally
 
-#### Scenario: Continuity in dialogue style
-- **WHEN** the `DialogueComposer` receives a recap
-- **THEN** the speakers naturally reference the previous episode in conversation (e.g., host says "last time we talked about...")
+#### Scenario: Composer receives new articles without annotation
+- **WHEN** the dedup filter identifies a NEW topic about "NVIDIA Blackwell pricing"
+- **THEN** the composer prompt includes the articles without any follow-up header, and the script presents it as fresh news
+
+#### Scenario: No previous episodes -- no annotations
+- **WHEN** the dedup filter has no historical articles (first episode)
+- **THEN** all articles appear as NEW clusters without annotations, and the composer produces a script with no back-references
+
+#### Scenario: Recap still generated for publication
+- **WHEN** an episode is created and its script is generated
+- **THEN** the `EpisodeRecapGenerator` still generates a 2-3 sentence recap stored on the episode for feed.xml and SoundCloud descriptions
