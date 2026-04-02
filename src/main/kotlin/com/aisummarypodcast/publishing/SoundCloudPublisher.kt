@@ -1,5 +1,7 @@
 package com.aisummarypodcast.publishing
 
+import com.aisummarypodcast.config.AppProperties
+import com.aisummarypodcast.podcast.EpisodeSourcesGenerator
 import com.aisummarypodcast.store.Episode
 import com.aisummarypodcast.store.Podcast
 import tools.jackson.databind.ObjectMapper
@@ -16,7 +18,9 @@ class SoundCloudPublisher(
     private val soundCloudClient: SoundCloudClient,
     private val tokenManager: SoundCloudTokenManager,
     private val targetService: PodcastPublicationTargetService,
-    private val objectMapper: ObjectMapper
+    private val objectMapper: ObjectMapper,
+    private val appProperties: AppProperties,
+    private val episodeSourcesGenerator: EpisodeSourcesGenerator
 ) : EpisodePublisher {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -56,7 +60,7 @@ class SoundCloudPublisher(
         )
         val title = "${podcast.name} - $episodeDate"
         val permalink = buildPermalink(podcast.name, episodeDate)
-        val description = episode.showNotes ?: episode.recap ?: episode.scriptText.take(500)
+        val description = buildDescription(episode, podcast)
         val tagList = buildTagList(podcast.topic)
 
         val response = soundCloudClient.uploadTrack(
@@ -86,7 +90,7 @@ class SoundCloudPublisher(
     override fun update(episode: Episode, podcast: Podcast, userId: String, externalId: String): PublishResult {
         val accessToken = tokenManager.getValidAccessToken(userId)
         val trackId = externalId.toLong()
-        val description = episode.showNotes ?: episode.recap ?: episode.scriptText.take(500)
+        val description = buildDescription(episode, podcast)
         val response = soundCloudClient.updateTrack(accessToken, trackId, description = description)
         log.info("Updated SoundCloud track {} description for episode {}", trackId, episode.id)
         return PublishResult(
@@ -122,7 +126,7 @@ class SoundCloudPublisher(
                 DateTimeFormatter.ISO_INSTANT.withZone(ZoneOffset.UTC)
             )
             val permalink = buildPermalink(podcast.name, episodeDate)
-            val description = episode.showNotes ?: episode.recap ?: episode.scriptText.take(500)
+            val description = buildDescription(episode, podcast)
             try {
                 soundCloudClient.updateTrack(accessToken, trackId, permalink = permalink, description = description)
             } catch (e: HttpClientErrorException.NotFound) {
@@ -152,6 +156,18 @@ class SoundCloudPublisher(
             val playlist = soundCloudClient.createPlaylist(accessToken, podcast.name, trackIds)
             savePlaylistId(podcast.id, playlist.id)
             log.info("Created SoundCloud playlist {} with {} tracks for podcast {}", playlist.id, trackIds.size, podcast.id)
+        }
+    }
+
+    private fun buildDescription(episode: Episode, podcast: Podcast): String {
+        val summary = episode.showNotes ?: episode.recap ?: episode.scriptText.take(500)
+        val baseUrl = appProperties.feed.staticBaseUrl ?: appProperties.feed.baseUrl
+        val slug = episodeSourcesGenerator.deriveSlug(episode)
+        val sourcesUrl = "$baseUrl/data/${podcast.id}/episodes/$slug-sources.html"
+        return buildString {
+            append(summary)
+            append("\n\nFor the full list of sources and show notes: $sourcesUrl")
+            appProperties.feed.ownerEmail?.let { append("\n\nTips, comments, or feedback? Mail us at $it") }
         }
     }
 

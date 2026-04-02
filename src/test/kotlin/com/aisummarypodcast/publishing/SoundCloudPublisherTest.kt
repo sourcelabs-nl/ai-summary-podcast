@@ -1,5 +1,12 @@
 package com.aisummarypodcast.publishing
 
+import com.aisummarypodcast.config.AppProperties
+import com.aisummarypodcast.config.BriefingProperties
+import com.aisummarypodcast.config.EncryptionProperties
+import com.aisummarypodcast.config.EpisodesProperties
+import com.aisummarypodcast.config.FeedProperties
+import com.aisummarypodcast.config.LlmProperties
+import com.aisummarypodcast.podcast.EpisodeSourcesGenerator
 import com.aisummarypodcast.store.Episode
 import com.aisummarypodcast.store.EpisodePublication
 import com.aisummarypodcast.store.EpisodeStatus
@@ -12,6 +19,7 @@ import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.springframework.web.client.HttpClientErrorException
@@ -35,7 +43,19 @@ class SoundCloudPublisherTest {
         }
     }
     private val objectMapper = JsonMapper()
-    private val publisher = SoundCloudPublisher(soundCloudClient, tokenManager, targetService, objectMapper)
+    private val appProperties = AppProperties(
+        llm = LlmProperties(),
+        briefing = BriefingProperties(),
+        episodes = EpisodesProperties(),
+        feed = FeedProperties(baseUrl = "http://localhost:8085"),
+        encryption = EncryptionProperties(masterKey = "test")
+    )
+    private val episodeSourcesGenerator = mockk<EpisodeSourcesGenerator> {
+        every { deriveSlug(any()) } returns "test-slug"
+    }
+    private val publisher = SoundCloudPublisher(soundCloudClient, tokenManager, targetService, objectMapper, appProperties, episodeSourcesGenerator)
+
+    private val expectedSourcesUrl = "http://localhost:8085/data/pod1/episodes/test-slug-sources.html"
 
     private val podcast = Podcast(id = "pod1", userId = "user1", name = "Tech News", topic = "AI, machine learning")
     private val episode = Episode(
@@ -69,7 +89,7 @@ class SoundCloudPublisherTest {
         val uploadRequest = requestSlot.captured
         assertEquals("Tech News - 2026-02-13", uploadRequest.title)
         assertEquals("tech-news-2026-02-13", uploadRequest.permalink)
-        assertEquals("This is the episode script about AI and tech news.", uploadRequest.description)
+        assertEquals("This is the episode script about AI and tech news.\n\nFor the full list of sources and show notes: $expectedSourcesUrl", uploadRequest.description)
         assertEquals("AI \"machine learning\"", uploadRequest.tagList)
     }
 
@@ -94,7 +114,8 @@ class SoundCloudPublisherTest {
 
         publisher.publish(longEpisode, podcast, "user1")
 
-        assertEquals(500, requestSlot.captured.description.length)
+        assertTrue(requestSlot.captured.description.startsWith("A".repeat(500)), "Expected script truncated to 500 chars")
+        assertTrue(requestSlot.captured.description.contains(expectedSourcesUrl), "Expected sources URL in description")
     }
 
     @Test
@@ -109,7 +130,7 @@ class SoundCloudPublisherTest {
 
         publisher.publish(episodeWithNotes, podcast, "user1")
 
-        assertEquals("Recap.\n\nSources:\n- Article\n  https://example.com/1", requestSlot.captured.description)
+        assertEquals("Recap.\n\nSources:\n- Article\n  https://example.com/1\n\nFor the full list of sources and show notes: $expectedSourcesUrl", requestSlot.captured.description)
     }
 
     @Test
@@ -122,7 +143,7 @@ class SoundCloudPublisherTest {
 
         publisher.publish(episodeWithRecap, podcast, "user1")
 
-        assertEquals("A short recap", requestSlot.captured.description)
+        assertEquals("A short recap\n\nFor the full list of sources and show notes: $expectedSourcesUrl", requestSlot.captured.description)
     }
 
     @Test
@@ -183,7 +204,7 @@ class SoundCloudPublisherTest {
         val pub2 = EpisodePublication(id = 11, episodeId = 2L, target = "soundcloud", status = PublicationStatus.PUBLISHED, externalId = "200", createdAt = "2026-02-14T10:00:00Z")
 
         every { tokenManager.getValidAccessToken("user1") } returns "access-token"
-        val expectedDescription = episode.scriptText.take(500)
+        val expectedDescription = "${episode.scriptText.take(500)}\n\nFor the full list of sources and show notes: $expectedSourcesUrl"
         every { soundCloudClient.updateTrack("access-token", 100, "tech-news-2026-02-13", expectedDescription) } returns trackResponse
         every { soundCloudClient.updateTrack("access-token", 200, "tech-news-2026-02-14", expectedDescription) } returns trackResponse
 
@@ -199,20 +220,21 @@ class SoundCloudPublisherTest {
             showNotes = "Recap.\n\nSources:\n- Article\n  https://example.com/1"
         )
         every { tokenManager.getValidAccessToken("user1") } returns "access-token"
-        every { soundCloudClient.updateTrack("access-token", 456, description = "Recap.\n\nSources:\n- Article\n  https://example.com/1") } returns trackResponse
+        val expectedDescription = "Recap.\n\nSources:\n- Article\n  https://example.com/1\n\nFor the full list of sources and show notes: $expectedSourcesUrl"
+        every { soundCloudClient.updateTrack("access-token", 456, description = expectedDescription) } returns trackResponse
 
         val result = publisher.update(episodeWithNotes, podcast, "user1", "456")
 
         assertEquals("456", result.externalId)
         assertEquals("https://soundcloud.com/user/tech-news", result.externalUrl)
-        verify { soundCloudClient.updateTrack("access-token", 456, description = "Recap.\n\nSources:\n- Article\n  https://example.com/1") }
+        verify { soundCloudClient.updateTrack("access-token", 456, description = expectedDescription) }
     }
 
     @Test
     fun `update falls back to recap when no show notes`() {
         val episodeWithRecap = episode.copy(recap = "Short recap")
         every { tokenManager.getValidAccessToken("user1") } returns "access-token"
-        every { soundCloudClient.updateTrack("access-token", 456, description = "Short recap") } returns trackResponse
+        every { soundCloudClient.updateTrack("access-token", 456, description = "Short recap\n\nFor the full list of sources and show notes: $expectedSourcesUrl") } returns trackResponse
 
         val result = publisher.update(episodeWithRecap, podcast, "user1", "456")
 
@@ -244,6 +266,22 @@ class SoundCloudPublisherTest {
 
         val result = publisher.publish(episode, podcast, "user1")
         assertEquals("456", result.externalId)
+    }
+
+    @Test
+    fun `description includes owner email when configured`() {
+        val publisherWithEmail = SoundCloudPublisher(
+            soundCloudClient, tokenManager, targetService, objectMapper,
+            appProperties.copy(feed = appProperties.feed.copy(ownerEmail = "host@example.com")),
+            episodeSourcesGenerator
+        )
+        every { tokenManager.getValidAccessToken("user1") } returns "access-token"
+        val requestSlot = slot<TrackUploadRequest>()
+        every { soundCloudClient.uploadTrack("access-token", capture(requestSlot)) } returns trackResponse
+
+        publisherWithEmail.publish(episode, podcast, "user1")
+
+        assertTrue(requestSlot.captured.description.contains("Tips, comments, or feedback? Mail us at host@example.com"))
     }
 
 }
