@@ -50,3 +50,6 @@ build/
 ### Frontend build artifacts ###
 *.tsbuildinfo
 /frontend/npm-debug.log
+.next/
+node_modules
+blogpost-lsp.md
