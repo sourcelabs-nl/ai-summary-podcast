@@ -123,7 +123,7 @@ class EpisodeArticleRepositoryCustomImpl(
             FROM episode_articles ea
             JOIN articles a ON ea.article_id = a.id
             WHERE ea.episode_id IN ($placeholders)
-            ORDER BY a.relevance_score DESC NULLS LAST
+            ORDER BY ea.topic_order ASC NULLS LAST, a.relevance_score DESC NULLS LAST
             """.trimIndent()
         )
             .params(params)

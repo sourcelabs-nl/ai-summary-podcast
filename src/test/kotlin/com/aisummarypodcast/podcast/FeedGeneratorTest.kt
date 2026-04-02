@@ -247,7 +247,7 @@ class FeedGeneratorTest {
     }
 
     @Test
-    fun `content encoded shows one article per topic when topics present`() {
+    fun `content encoded shows all articles per topic grouped by topic heading when topics present`() {
         val episode = Episode(
             id = 1L, podcastId = "p1", generatedAt = "2025-01-01T00:00:00Z",
             scriptText = "Script", status = EpisodeStatus.GENERATED,
@@ -268,15 +268,16 @@ class FeedGeneratorTest {
         )
 
         val xml = feedGenerator.generate(podcast, user)
-        // Should show only 3 topic links (one per topic), not all 5 article titles
-        assertTrue(xml.contains("GPT-5 release"), "Expected GPT-5 topic as link")
-        assertTrue(xml.contains("Anthropic Claude"), "Expected Claude topic as link")
-        assertTrue(xml.contains("MCP ecosystem"), "Expected MCP topic as link")
-        assertFalse(xml.contains("GPT-5 benchmarks"), "Expected second GPT-5 article to be excluded")
-        assertFalse(xml.contains("Claude pricing"), "Expected second Claude article to be excluded")
-        assertTrue(xml.contains("Topics covered:"), "Expected topics header")
-        assertTrue(xml.contains("GPT-5 release"), "Expected topic label as link text")
-        assertFalse(xml.contains("GPT-5 launched"), "Expected article title replaced by topic label")
+        // All article titles should appear, grouped under topic headings
+        assertTrue(xml.contains("GPT-5 release"), "Expected GPT-5 topic heading")
+        assertTrue(xml.contains("Anthropic Claude"), "Expected Claude topic heading")
+        assertTrue(xml.contains("MCP ecosystem"), "Expected MCP topic heading")
+        assertTrue(xml.contains("GPT-5 launched"), "Expected first GPT-5 article title")
+        assertTrue(xml.contains("GPT-5 benchmarks"), "Expected second GPT-5 article title")
+        assertTrue(xml.contains("Claude update"), "Expected first Claude article title")
+        assertTrue(xml.contains("Claude pricing"), "Expected second Claude article title")
+        assertTrue(xml.contains("New MCP tools"), "Expected MCP article title")
+        assertTrue(xml.contains("Topics Covered"), "Expected topics header")
         assertTrue(xml.contains("view all sources and show notes"), "Expected sources link text")
         assertTrue(xml.contains("mailto:test@example.com"), "Expected mailto link in footer")
     }

@@ -177,8 +177,7 @@ class FeedGenerator(
 
     private fun buildHtmlDescription(episode: Episode, articles: List<FeedArticle>, sourcesUrl: String, ownerEmail: String?): String {
         val recap = episode.showNotes ?: episode.recap ?: (episode.scriptText.take(500) + "...")
-        val representativeArticles = selectRepresentativeArticles(articles)
-        val hasTopics = representativeArticles.any { it.topic != null }
+        val hasTopics = articles.any { it.topicOrder != null }
         return buildString {
             // Show notes as paragraphs
             for (paragraph in recap.split("\n\n")) {
@@ -188,17 +187,27 @@ class FeedGenerator(
                 }
             }
             // Source article links
-            if (representativeArticles.isNotEmpty()) {
+            if (articles.isNotEmpty()) {
                 if (hasTopics) {
-                    append("<p><strong>Topics covered:</strong></p><ul>")
-                    for (article in representativeArticles) {
-                        val label = article.topic ?: article.title
-                        append("<li><a href=\"${escapeHtml(article.url)}\">${escapeHtml(label)}</a></li>")
+                    val discussed = articles.filter { it.topicOrder != null }
+                    if (discussed.isNotEmpty()) {
+                        append("<h2>Topics Covered</h2>")
+                        var currentTopic: String? = null
+                        for (article in discussed) {
+                            val topicLabel = article.topic ?: "Other"
+                            if (topicLabel != currentTopic) {
+                                if (currentTopic != null) append("</ul>")
+                                append("<h3>${escapeHtml(topicLabel)}</h3>")
+                                append("<ul>")
+                                currentTopic = topicLabel
+                            }
+                            append("<li><a href=\"${escapeHtml(article.url)}\">${escapeHtml(article.title)}</a></li>")
+                        }
+                        if (currentTopic != null) append("</ul>")
                     }
-                    append("</ul>")
                 } else {
                     append("<p><strong>Sources:</strong></p><ul>")
-                    for (article in representativeArticles) {
+                    for (article in articles) {
                         append("<li><a href=\"${escapeHtml(article.url)}\">${escapeHtml(article.title)}</a></li>")
                     }
                     append("</ul>")
@@ -208,19 +217,6 @@ class FeedGenerator(
             if (ownerEmail != null) {
                 append("<hr/><p><em>Tips, comments, or feedback? Mail us at <a href=\"mailto:${escapeHtml(ownerEmail)}\">${escapeHtml(ownerEmail)}</a></em></p>")
             }
-        }
-    }
-
-    private fun selectRepresentativeArticles(articles: List<FeedArticle>): List<FeedArticle> {
-        val hasTopics = articles.any { it.topicOrder != null }
-        if (!hasTopics) return articles
-
-        // Only include discussed articles (those with a topic_order), one per topic
-        val discussed = articles.filter { it.topicOrder != null }
-        val seen = mutableSetOf<String>()
-        return discussed.filter { article ->
-            val topic = article.topic ?: return@filter true
-            seen.add(topic)
         }
     }
 
