@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import cronstrue from "cronstrue";
 import { CronExpressionParser } from "cron-parser";
-import { Check, ChevronDown, ChevronRight, Clock, Loader2, RefreshCw, Settings, Upload, X } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Clock, Headphones, Loader2, RefreshCw, Settings, Upload, Volume2, X } from "lucide-react";
 import { useUser } from "@/lib/user-context";
 import { useEventStream } from "@/lib/event-context";
 import type { Podcast, Episode, EpisodePublication, EpisodeArticle } from "@/lib/types";
@@ -61,6 +61,14 @@ const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "
   DISCARDED: "secondary",
 };
 
+type PendingAction = {
+  title: string;
+  description: string;
+  actionLabel: string;
+  destructive?: boolean;
+  onConfirm: () => Promise<void>;
+};
+
 export default function EpisodesPage() {
   const params = useParams<{ podcastId: string }>();
   const { selectedUser, loading: userLoading } = useUser();
@@ -76,7 +84,7 @@ export default function EpisodesPage() {
   const [upcomingCount, setUpcomingCount] = useState<number>(0);
   const [upcomingPostCount, setUpcomingPostCount] = useState<number>(0);
   const [countdown, setCountdown] = useState<string | null>(null);
-  const [confirmRegenerateId, setConfirmRegenerateId] = useState<number | null>(null);
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const [currentTab, setTab] = useTabParam("episodes", TABS);
 
   const publishedDates = useMemo(() => {
@@ -176,25 +184,12 @@ export default function EpisodesPage() {
       .finally(() => setLoading(false));
   }, [selectedUser, params.podcastId, statusFilter, fetchPublications]);
 
-  async function handleRegenerateConfirmed() {
-    if (!selectedUser || confirmRegenerateId === null) return;
-    const episodeId = confirmRegenerateId;
-    setConfirmRegenerateId(null);
-    fetch(
-      `/api/users/${selectedUser.id}/podcasts/${params.podcastId}/episodes/${episodeId}/regenerate`,
-      { method: "POST" }
-    );
-    await new Promise((r) => setTimeout(r, 500));
-    fetchEpisodes();
-  }
-
-  async function handleAction(episodeId: number, action: "approve" | "discard") {
+  async function doAction(episodeId: number, action: string) {
     if (!selectedUser) return;
     await fetch(
       `/api/users/${selectedUser.id}/podcasts/${params.podcastId}/episodes/${episodeId}/${action}`,
       { method: "POST" }
     );
-    // Brief delay to allow the transaction to commit before refetching
     await new Promise((r) => setTimeout(r, 500));
     fetchEpisodes();
   }
@@ -409,7 +404,12 @@ export default function EpisodesPage() {
                             <Button
                               size="icon-lg"
                               title="Approve episode"
-                              onClick={() => handleAction(episode.id, "approve")}
+                              onClick={() => setPendingAction({
+                                title: "Approve episode?",
+                                description: "This will approve the script and start audio generation.",
+                                actionLabel: "Approve",
+                                onConfirm: () => doAction(episode.id, "approve"),
+                              })}
                             >
                               <Check className="size-4" />
                             </Button>
@@ -417,7 +417,12 @@ export default function EpisodesPage() {
                             <Button
                               size="icon-lg"
                               title="Regenerate episode"
-                              onClick={() => setConfirmRegenerateId(episode.id)}
+                              onClick={() => setPendingAction({
+                                title: "Regenerate episode?",
+                                description: "This will re-compose the script from the same articles using the current podcast settings. A new episode will be created.",
+                                actionLabel: "Regenerate",
+                                onConfirm: () => doAction(episode.id, "regenerate"),
+                              })}
                             >
                               <RefreshCw className="size-4" />
                             </Button>
@@ -426,7 +431,13 @@ export default function EpisodesPage() {
                               size="icon-lg"
                               variant="destructive"
                               title="Discard episode"
-                              onClick={() => handleAction(episode.id, "discard")}
+                              onClick={() => setPendingAction({
+                                title: "Discard episode?",
+                                description: "The episode will be discarded and articles will be reset for reprocessing.",
+                                actionLabel: "Discard",
+                                destructive: true,
+                                onConfirm: () => doAction(episode.id, "discard"),
+                              })}
                             >
                               <X className="size-4" />
                             </Button>
@@ -434,6 +445,27 @@ export default function EpisodesPage() {
                         )}
                         {episode.status === "GENERATED" && (
                           <>
+                          {episode.audioFilePath && (
+                          <Button
+                            size="icon-lg"
+                            title="Listen to episode"
+                            onClick={() => window.open(`/api/users/${selectedUser.id}/podcasts/${params.podcastId}/episodes/${episode.id}/audio`, "_blank")}
+                          >
+                            <Volume2 className="size-4" />
+                          </Button>
+                          )}
+                          <Button
+                            size="icon-lg"
+                            title="Regenerate audio"
+                            onClick={() => setPendingAction({
+                              title: "Regenerate audio?",
+                              description: "This will re-run TTS on the existing script. The previous audio file will be replaced.",
+                              actionLabel: "Regenerate audio",
+                              onConfirm: () => doAction(episode.id, "regenerate-audio"),
+                            })}
+                          >
+                            <Headphones className="size-4" />
+                          </Button>
                           {!fullyPublishedEpisodeIds.has(episode.id) && (
                           <Button
                             size="icon-lg"
@@ -448,7 +480,13 @@ export default function EpisodesPage() {
                             size="icon-lg"
                             variant="destructive"
                             title="Discard episode"
-                            onClick={() => handleAction(episode.id, "discard")}
+                            onClick={() => setPendingAction({
+                              title: "Discard episode?",
+                              description: "The episode will be discarded.",
+                              actionLabel: "Discard",
+                              destructive: true,
+                              onConfirm: () => doAction(episode.id, "discard"),
+                            })}
                           >
                             <X className="size-4" />
                           </Button>
@@ -459,7 +497,12 @@ export default function EpisodesPage() {
                           <Button
                             size="icon-lg"
                             title="Retry audio generation"
-                            onClick={() => handleAction(episode.id, "approve")}
+                            onClick={() => setPendingAction({
+                              title: "Retry audio generation?",
+                              description: "This will attempt to generate audio for the existing script.",
+                              actionLabel: "Retry",
+                              onConfirm: () => doAction(episode.id, "approve"),
+                            })}
                           >
                             <Check className="size-4" />
                           </Button>
@@ -468,7 +511,12 @@ export default function EpisodesPage() {
                           <Button
                             size="icon-lg"
                             title="Regenerate episode"
-                            onClick={() => setConfirmRegenerateId(episode.id)}
+                            onClick={() => setPendingAction({
+                              title: "Regenerate episode?",
+                              description: "This will re-compose the script from the same articles using the current podcast settings. A new episode will be created.",
+                              actionLabel: "Regenerate",
+                              onConfirm: () => doAction(episode.id, "regenerate"),
+                            })}
                           >
                             <RefreshCw className="size-4" />
                           </Button>
@@ -478,7 +526,13 @@ export default function EpisodesPage() {
                             size="icon-lg"
                             variant="destructive"
                             title="Discard episode"
-                            onClick={() => handleAction(episode.id, "discard")}
+                            onClick={() => setPendingAction({
+                              title: "Discard episode?",
+                              description: "The episode will be discarded.",
+                              actionLabel: "Discard",
+                              destructive: true,
+                              onConfirm: () => doAction(episode.id, "discard"),
+                            })}
                           >
                             <X className="size-4" />
                           </Button>
@@ -533,17 +587,24 @@ export default function EpisodesPage() {
         />
       )}
 
-      <AlertDialog open={confirmRegenerateId !== null} onOpenChange={(open) => { if (!open) setConfirmRegenerateId(null); }}>
+      <AlertDialog open={pendingAction !== null} onOpenChange={(open) => { if (!open) setPendingAction(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Regenerate episode?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will re-compose the script from the same articles using the current podcast settings. A new episode will be created.
-            </AlertDialogDescription>
+            <AlertDialogTitle>{pendingAction?.title}</AlertDialogTitle>
+            <AlertDialogDescription>{pendingAction?.description}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleRegenerateConfirmed}>Regenerate</AlertDialogAction>
+            <AlertDialogAction
+              className={pendingAction?.destructive ? "bg-destructive text-destructive-foreground hover:bg-destructive/90" : ""}
+              onClick={async () => {
+                const action = pendingAction;
+                setPendingAction(null);
+                await action?.onConfirm();
+              }}
+            >
+              {pendingAction?.actionLabel}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

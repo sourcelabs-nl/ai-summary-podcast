@@ -413,6 +413,11 @@ class EpisodeService(
         return episode
     }
 
+    fun regenerateAudio(episode: Episode, podcast: Podcast) {
+        log.info("Episode {} queued for audio regeneration", episode.id)
+        audioGenerationService.regenerateAudioAsync(episode.id!!, podcast.id)
+    }
+
     @Transactional
     fun regenerateRecap(episode: Episode, podcast: Podcast): Episode {
         val recapEpisode = generateAndStoreRecap(episode, podcast)

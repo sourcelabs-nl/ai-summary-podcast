@@ -37,6 +37,12 @@ class AudioGenerationService(
         }
     }
 
+    fun regenerateAudioAsync(episodeId: Long, podcastId: String) {
+        scope.launch {
+            doGenerateAudio(episodeId, podcastId)
+        }
+    }
+
     internal fun doGenerateAudio(episodeId: Long, podcastId: String) {
         val episode = episodeRepository.findByIdOrNull(episodeId)
         if (episode == null) {

@@ -3,8 +3,13 @@ package com.aisummarypodcast.podcast
 import com.aisummarypodcast.store.Episode
 import com.aisummarypodcast.store.EpisodeStatus
 import com.aisummarypodcast.user.UserService
+import org.springframework.core.io.FileSystemResource
+import org.springframework.core.io.Resource
+import org.springframework.http.HttpHeaders
+import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
+import java.io.File
 
 @RestController
 @RequestMapping("/users/{userId}/podcasts/{podcastId}/episodes")
@@ -170,6 +175,53 @@ class EpisodeController(
             "message" to "Retrying episode from ${resumePoint.name.lowercase().replace('_', ' ')}",
             "resumePoint" to resumePoint.name
         ))
+    }
+
+    @PostMapping("/{episodeId}/regenerate-audio")
+    fun regenerateAudio(
+        @PathVariable userId: String,
+        @PathVariable podcastId: String,
+        @PathVariable episodeId: Long
+    ): ResponseEntity<Any> {
+        userService.findById(userId) ?: return ResponseEntity.notFound().build()
+        val podcast = podcastService.findById(podcastId) ?: return ResponseEntity.notFound().build()
+        if (podcast.userId != userId) return ResponseEntity.notFound().build()
+
+        val episode = episodeService.findById(episodeId)
+            ?: return ResponseEntity.notFound().build()
+        if (episode.podcastId != podcastId) return ResponseEntity.notFound().build()
+
+        if (episode.status != EpisodeStatus.GENERATED) {
+            return ResponseEntity.status(409).body(mapOf("error" to "Episode is not in GENERATED status"))
+        }
+
+        episodeService.regenerateAudio(episode, podcast)
+        return ResponseEntity.accepted().body(mapOf("message" to "Audio regeneration started"))
+    }
+
+    @GetMapping("/{episodeId}/audio")
+    fun streamAudio(
+        @PathVariable userId: String,
+        @PathVariable podcastId: String,
+        @PathVariable episodeId: Long
+    ): ResponseEntity<Resource> {
+        userService.findById(userId) ?: return ResponseEntity.notFound().build()
+        val podcast = podcastService.findById(podcastId) ?: return ResponseEntity.notFound().build()
+        if (podcast.userId != userId) return ResponseEntity.notFound().build()
+
+        val episode = episodeService.findById(episodeId)
+            ?: return ResponseEntity.notFound().build()
+        if (episode.podcastId != podcastId) return ResponseEntity.notFound().build()
+
+        val audioPath = episode.audioFilePath ?: return ResponseEntity.notFound().build()
+        val file = File(audioPath)
+        if (!file.exists()) return ResponseEntity.notFound().build()
+
+        return ResponseEntity.ok()
+            .contentType(MediaType.parseMediaType("audio/mpeg"))
+            .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"${file.name}\"")
+            .header(HttpHeaders.ACCEPT_RANGES, "bytes")
+            .body(FileSystemResource(file))
     }
 
     @GetMapping("/{episodeId}/articles")
