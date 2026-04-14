@@ -6,10 +6,11 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import tools.jackson.databind.json.JsonMapper
 
 class TopicDedupFilterTest {
 
-    private val filter = TopicDedupFilter(mockk())
+    private val filter = TopicDedupFilter(mockk(), JsonMapper.builder().build())
 
     private fun article(id: Long, title: String, summary: String = "Summary of $title") = Article(
         id = id,

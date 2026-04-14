@@ -29,6 +29,8 @@ import org.springframework.ai.chat.metadata.ChatResponseMetadata
 import org.springframework.ai.chat.metadata.DefaultUsage
 import org.springframework.ai.chat.model.ChatResponse
 import org.springframework.ai.chat.model.Generation
+import org.springframework.ai.converter.StructuredOutputConverter
+import tools.jackson.databind.json.JsonMapper
 
 class ArticleScoreSummarizerTest {
 
@@ -37,6 +39,7 @@ class ArticleScoreSummarizerTest {
     }
     private val chatClientFactory = mockk<ChatClientFactory>()
     private val chatClient = mockk<ChatClient>()
+    private val jsonMapper: JsonMapper = JsonMapper.builder().build()
 
     private val filterModelDef = ResolvedModel(
         provider = "openrouter", model = "test-model",
@@ -52,7 +55,7 @@ class ArticleScoreSummarizerTest {
             encryption = EncryptionProperties(masterKey = "test-key")
         )
 
-    private val scoreSummarizer = ArticleScoreSummarizer(articleRepository, chatClientFactory, appProperties())
+    private val scoreSummarizer = ArticleScoreSummarizer(articleRepository, chatClientFactory, jsonMapper, appProperties())
 
     private val podcast = Podcast(id = "p1", userId = "u1", name = "Tech Daily", topic = "AI engineering")
 
@@ -64,7 +67,7 @@ class ArticleScoreSummarizerTest {
         val responseEntity = ResponseEntity(chatResponse, result)
 
         val callResponseSpec = mockk<ChatClient.CallResponseSpec>()
-        every { callResponseSpec.responseEntity(ScoreSummarizeResult::class.java) } returns responseEntity
+        every { callResponseSpec.responseEntity(any<StructuredOutputConverter<ScoreSummarizeResult>>()) } returns responseEntity
 
         val chatClientRequestSpec = mockk<ChatClient.ChatClientRequestSpec>()
         every { chatClientRequestSpec.user(any<String>()) } returns chatClientRequestSpec
@@ -282,10 +285,10 @@ class ArticleScoreSummarizerTest {
         val responseEntity = ResponseEntity(chatResponse, successResult)
 
         val successCallSpec = mockk<ChatClient.CallResponseSpec>()
-        every { successCallSpec.responseEntity(ScoreSummarizeResult::class.java) } returns responseEntity
+        every { successCallSpec.responseEntity(any<StructuredOutputConverter<ScoreSummarizeResult>>()) } returns responseEntity
 
         val failCallSpec = mockk<ChatClient.CallResponseSpec>()
-        every { failCallSpec.responseEntity(ScoreSummarizeResult::class.java) } throws RuntimeException("LLM unavailable")
+        every { failCallSpec.responseEntity(any<StructuredOutputConverter<ScoreSummarizeResult>>()) } throws RuntimeException("LLM unavailable")
 
         val callCount = AtomicInteger(0)
         val requestSpec = mockk<ChatClient.ChatClientRequestSpec>()
@@ -342,7 +345,7 @@ class ArticleScoreSummarizerTest {
         val responseEntity = ResponseEntity(chatResponse, successResult)
 
         val callResponseSpec = mockk<ChatClient.CallResponseSpec>()
-        every { callResponseSpec.responseEntity(ScoreSummarizeResult::class.java) } returns responseEntity
+        every { callResponseSpec.responseEntity(any<StructuredOutputConverter<ScoreSummarizeResult>>()) } returns responseEntity
 
         val requestSpec = mockk<ChatClient.ChatClientRequestSpec>()
         every { requestSpec.user(any<String>()) } returns requestSpec
@@ -359,7 +362,7 @@ class ArticleScoreSummarizerTest {
         every { chatClientFactory.createForModel(podcast.userId, filterModelDef) } returns chatClient
 
         val summarizer = ArticleScoreSummarizer(
-            articleRepository, chatClientFactory,
+            articleRepository, chatClientFactory, jsonMapper,
             appProperties(ScoringProperties(concurrency = 2, maxRetries = 1))
         )
         val result = summarizer.scoreSummarize(articles, podcast, filterModelDef)
@@ -383,10 +386,10 @@ class ArticleScoreSummarizerTest {
         val responseEntity = ResponseEntity(chatResponse, successResult)
 
         val successCallSpec = mockk<ChatClient.CallResponseSpec>()
-        every { successCallSpec.responseEntity(ScoreSummarizeResult::class.java) } returns responseEntity
+        every { successCallSpec.responseEntity(any<StructuredOutputConverter<ScoreSummarizeResult>>()) } returns responseEntity
 
         val failCallSpec = mockk<ChatClient.CallResponseSpec>()
-        every { failCallSpec.responseEntity(ScoreSummarizeResult::class.java) } throws RuntimeException("Transient error")
+        every { failCallSpec.responseEntity(any<StructuredOutputConverter<ScoreSummarizeResult>>()) } throws RuntimeException("Transient error")
 
         val callCount = AtomicInteger(0)
         val requestSpec = mockk<ChatClient.ChatClientRequestSpec>()
@@ -400,7 +403,7 @@ class ArticleScoreSummarizerTest {
         every { chatClientFactory.createForModel(podcast.userId, filterModelDef) } returns chatClient
 
         val summarizer = ArticleScoreSummarizer(
-            articleRepository, chatClientFactory,
+            articleRepository, chatClientFactory, jsonMapper,
             appProperties(ScoringProperties(concurrency = 10, maxRetries = 3))
         )
         val result = summarizer.scoreSummarize(listOf(article), podcast, filterModelDef)
@@ -426,7 +429,7 @@ class ArticleScoreSummarizerTest {
         every { chatClientFactory.createForModel(podcast.userId, filterModelDef) } returns chatClient
 
         val summarizer = ArticleScoreSummarizer(
-            articleRepository, chatClientFactory,
+            articleRepository, chatClientFactory, jsonMapper,
             appProperties(ScoringProperties(concurrency = 10, maxRetries = 3))
         )
         val result = summarizer.scoreSummarize(listOf(article), podcast, filterModelDef)

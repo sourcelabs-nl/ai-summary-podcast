@@ -2,8 +2,10 @@ package com.aisummarypodcast.llm
 
 import com.aisummarypodcast.store.Article
 import org.slf4j.LoggerFactory
+import org.springframework.ai.converter.BeanOutputConverter
 import org.springframework.ai.openai.OpenAiChatOptions
 import org.springframework.stereotype.Component
+import tools.jackson.databind.json.JsonMapper
 import kotlin.time.measureTimedValue
 
 data class DedupCandidate(
@@ -16,8 +18,8 @@ data class DedupCluster(
     val topic: String = "",
     val status: String = "NEW",
     val previousContext: String? = null,
-    val candidateArticleIds: List<Int> = emptyList(),
-    val selectedArticleIds: List<Int> = emptyList()
+    val candidateArticleIds: List<Int?> = emptyList(),
+    val selectedArticleIds: List<Int?> = emptyList()
 )
 
 data class DedupResult(
@@ -37,7 +39,8 @@ data class DedupFilterResult(
 
 @Component
 class TopicDedupFilter(
-    private val chatClientFactory: ChatClientFactory
+    private val chatClientFactory: ChatClientFactory,
+    private val jsonMapper: JsonMapper
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -61,11 +64,12 @@ class TopicDedupFilter(
             var lastException: Exception? = null
             for (attempt in 1..maxRetries) {
                 try {
+                    val converter = BeanOutputConverter(DedupResult::class.java, jsonMapper)
                     val chatResponse = chatClient.prompt()
                         .user(prompt)
                         .options(OpenAiChatOptions.builder().model(filterModelDef.model).temperature(0.3).build())
                         .call()
-                        .responseEntity(DedupResult::class.java)
+                        .responseEntity(converter)
 
                     val dedupResult = chatResponse.entity()
                         ?: throw IllegalStateException("Empty response from LLM for topic dedup filter")
@@ -95,7 +99,7 @@ class TopicDedupFilter(
                 cluster.previousContext
             } else null
 
-            for (articleIndex in cluster.selectedArticleIds) {
+            for (articleIndex in cluster.selectedArticleIds.filterNotNull()) {
                 val article = candidateById[articleIndex]
                 if (article != null) {
                     filteredArticles.add(FilteredArticle(article, followUpContext, cluster.topic))

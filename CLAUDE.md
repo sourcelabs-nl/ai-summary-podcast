@@ -37,6 +37,8 @@ Controllers validate input, delegate to services, and map responses — no busin
 
 **Transactions:** Any function that performs multiple writes across tables (or multiple writes that must be atomic) must be annotated with `@Transactional`. Remember that `@Transactional` only works on public methods called through the Spring proxy (not on private methods or internal self-calls).
 
+**Jackson:** Configure Jackson features via Spring Boot properties (`spring.jackson.*` in `application.yaml`), not programmatically. Inject the Spring-managed `JsonMapper` bean when custom mapper configuration is needed (e.g., for `BeanOutputConverter` in Spring AI). See the `spring-boot` skill (Rule SB6) for details.
+
 **Post-implementation check:** After every code change, validate that the architecture guidelines are respected — especially controller hygiene (no business logic, no direct repository access) and proper service layer delegation. Fix violations before considering the change complete.
 
 ## Code Navigation (LSP)

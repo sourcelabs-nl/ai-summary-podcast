@@ -222,13 +222,15 @@ class PodcastService(
 
             // Stage 1-2: Aggregate, score, find eligible articles
             val eligible = llmPipeline.aggregateScoreAndFilter(podcast, onProgress) ?: run {
-                episodeRepository.delete(generatingEpisode)
+                val fresh = episodeRepository.findByIdOrNull(generatingEpisode.id!!)
+                if (fresh != null) episodeRepository.delete(fresh)
                 return GenerateBriefingResult(episode = null)
             }
 
             // Stage 3: Dedup filter
             val dedupResult = llmPipeline.dedup(eligible, podcast, onProgress) ?: run {
-                episodeRepository.delete(generatingEpisode)
+                val fresh = episodeRepository.findByIdOrNull(generatingEpisode.id!!)
+                if (fresh != null) episodeRepository.delete(fresh)
                 return GenerateBriefingResult(episode = null)
             }
 

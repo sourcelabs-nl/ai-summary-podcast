@@ -17,7 +17,7 @@ cd "$SCRIPT_DIR"
 ./mvnw -q package -DskipTests
 
 echo "Starting ai-summary-podcast..."
-java --enable-native-access=ALL-UNNAMED -jar "$JAR_FILE" > app.log 2>&1 &
+java --enable-native-access=ALL-UNNAMED -jar "$JAR_FILE" > /dev/null 2>&1 &
 APP_PID=$!
 echo "$APP_PID" > "$PID_FILE"
 echo "Application started (PID $APP_PID). Logs: app.log"

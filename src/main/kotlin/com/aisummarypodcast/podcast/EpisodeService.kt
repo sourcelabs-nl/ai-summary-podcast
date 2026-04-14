@@ -370,7 +370,6 @@ class EpisodeService(
         return episodeRepository.save(fresh.copy(scriptText = scriptText))
     }
 
-    @Transactional
     fun approveAndGenerateAudio(episode: Episode, podcast: Podcast) {
         val fresh = episodeRepository.findByIdOrNull(episode.id!!) ?: episode
         episodeRepository.save(fresh.copy(status = EpisodeStatus.APPROVED, errorMessage = null))

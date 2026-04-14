@@ -1,6 +1,10 @@
 spring:
   application:
     name: ai-summary-podcast
+  jackson:
+    json:
+      read:
+        allow-backslash-escaping-any-character: true
   lifecycle:
     timeout-per-shutdown-phase: 10s
   autoconfigure:
@@ -86,6 +90,14 @@ app:
   soundcloud:
     client-id: ${APP_SOUNDCLOUD_CLIENT_ID:}
     client-secret: ${APP_SOUNDCLOUD_CLIENT_SECRET:}
+
+logging:
+  file:
+    name: app.log
+  logback:
+    rollingpolicy:
+      file-name-pattern: app.%d{yyyy-MM-dd}.%i.log.gz
+      max-history: 7
 
 server:
   port: 8085

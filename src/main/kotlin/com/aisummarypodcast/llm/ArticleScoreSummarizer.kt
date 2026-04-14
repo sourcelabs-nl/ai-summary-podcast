@@ -14,8 +14,10 @@ import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import org.slf4j.LoggerFactory
+import org.springframework.ai.converter.BeanOutputConverter
 import org.springframework.ai.openai.OpenAiChatOptions
 import org.springframework.stereotype.Component
+import tools.jackson.databind.json.JsonMapper
 
 data class ScoreSummarizeResult(
     val relevanceScore: Int = 0,
@@ -26,6 +28,7 @@ data class ScoreSummarizeResult(
 class ArticleScoreSummarizer(
     private val articleRepository: ArticleRepository,
     private val chatClientFactory: ChatClientFactory,
+    private val jsonMapper: JsonMapper,
     appProperties: AppProperties
 ) {
     private val scoringProperties: ScoringProperties = appProperties.llm.scoring
@@ -56,6 +59,7 @@ class ArticleScoreSummarizer(
                                 var lastException: Exception? = null
                                 for (attempt in 1..maxRetries) {
                                     try {
+                                        val converter = BeanOutputConverter(ScoreSummarizeResult::class.java, jsonMapper)
                                         val responseEntity = chatClient.prompt()
                                             .user(prompt)
                                             .options(
@@ -65,7 +69,7 @@ class ArticleScoreSummarizer(
                                                     .build()
                                             )
                                             .call()
-                                            .responseEntity(ScoreSummarizeResult::class.java)
+                                            .responseEntity(converter)
 
                                         val result = responseEntity.entity()
                                         val usage = TokenUsage.fromChatResponse(responseEntity.response())
