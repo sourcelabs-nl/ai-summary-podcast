@@ -17,7 +17,7 @@ class BriefingGenerationSchedulerTest {
     private val podcastRepository = mockk<PodcastRepository>()
     private val podcastService = mockk<PodcastService>()
 
-    // Fixed clock at 00:05 UTC — 5 minutes after the midnight cron trigger (within staleness window)
+    // Fixed clock at 00:05 UTC — 5 minutes after the midnight cron trigger (same day)
     private val defaultNow = Instant.parse("2026-02-23T00:05:00Z")
     private val defaultClock = Clock.fixed(defaultNow, ZoneOffset.UTC)
 
@@ -86,8 +86,8 @@ class BriefingGenerationSchedulerTest {
     }
 
     @Test
-    fun `trigger within staleness window still fires`() {
-        // Cron: daily at 15:00. Now: 15:10 (10 min past trigger, within 30 min window)
+    fun `same-day trigger fires minutes after scheduled time`() {
+        // Cron: daily at 15:00. Now: 15:10 (10 min past trigger, same day)
         val now = Instant.parse("2026-02-23T15:10:00Z")
         val podcast = Podcast(
             id = "p1", userId = "u1", name = "Test", topic = "tech",
@@ -105,25 +105,27 @@ class BriefingGenerationSchedulerTest {
     }
 
     @Test
-    fun `trigger beyond staleness window is skipped`() {
-        // Cron: daily at 15:00. Now: 18:00 (3 hours past trigger, beyond 30 min window)
+    fun `same-day catch-up fires hours after scheduled time`() {
+        // Cron: daily at 15:00. Now: 18:00 (3 hours past trigger, same day)
         val now = Instant.parse("2026-02-23T18:00:00Z")
         val podcast = Podcast(
             id = "p1", userId = "u1", name = "Test", topic = "tech",
             cron = "0 0 15 * * *",
             lastGeneratedAt = "2026-02-22T15:00:00Z"
         )
+        val episode = Episode(id = 1, podcastId = "p1", generatedAt = now.toString(), scriptText = "Script")
 
         every { podcastRepository.findAll() } returns listOf(podcast)
+        every { podcastService.generateBriefing(podcast) } returns GenerateBriefingResult(episode = episode)
 
         schedulerWithClock(now).checkAndGenerate()
 
-        verify(exactly = 0) { podcastService.generateBriefing(any()) }
+        verify { podcastService.generateBriefing(podcast) }
     }
 
     @Test
-    fun `multiple missed triggers are all skipped`() {
-        // Cron: daily at 15:00. Last generated 3 days ago. Now: 10:00 (all 3 past triggers are stale)
+    fun `previous-day triggers are skipped`() {
+        // Cron: daily at 15:00. Last generated 3 days ago. Now: 10:00 (all 3 past triggers are on previous days)
         val now = Instant.parse("2026-02-23T10:00:00Z")
         val podcast = Podcast(
             id = "p1", userId = "u1", name = "Test", topic = "tech",
@@ -135,14 +137,14 @@ class BriefingGenerationSchedulerTest {
 
         schedulerWithClock(now).checkAndGenerate()
 
-        // All 3 missed triggers (Feb 20, 21, 22) are stale, today's (Feb 23 15:00) is in the future
+        // All 3 missed triggers (Feb 20, 21, 22) are on previous days, today's (Feb 23 15:00) is in the future
         verify(exactly = 0) { podcastService.generateBriefing(any()) }
     }
 
     @Test
     fun `skipped triggers do not call generateBriefing`() {
-        // Cron: daily at 15:00. Now: 18:00 (3 hours past trigger)
-        val now = Instant.parse("2026-02-23T18:00:00Z")
+        // Cron: daily at 15:00. Now: next day at 10:00 (trigger was yesterday)
+        val now = Instant.parse("2026-02-24T10:00:00Z")
         val podcast = Podcast(
             id = "p1", userId = "u1", name = "Test", topic = "tech",
             cron = "0 0 15 * * *",
@@ -153,6 +155,7 @@ class BriefingGenerationSchedulerTest {
 
         schedulerWithClock(now).checkAndGenerate()
 
+        // Feb 23 15:00 trigger is on a previous day (yesterday), today's (Feb 24 15:00) is in the future
         verify(exactly = 0) { podcastService.generateBriefing(any()) }
     }
 
@@ -194,5 +197,46 @@ class BriefingGenerationSchedulerTest {
         schedulerWithClock(now).checkAndGenerate()
 
         verify(exactly = 0) { podcastService.generateBriefing(any()) }
+    }
+
+    @Test
+    fun `same-day catch-up respects timezone boundary`() {
+        // Cron: daily at 23:00. Timezone: Europe/Amsterdam (CET = UTC+1 in winter).
+        // 23:00 CET on Feb 22 = 22:00 UTC on Feb 22. Last generated Feb 21.
+        // Now: 01:30 UTC on Feb 23 = 02:30 CET on Feb 23 (next day in Amsterdam).
+        // The 23:00 CET trigger on Feb 22 is on a previous day in Amsterdam timezone.
+        val now = Instant.parse("2026-02-23T01:30:00Z")
+        val podcast = Podcast(
+            id = "p1", userId = "u1", name = "Test", topic = "tech",
+            cron = "0 0 23 * * *",
+            timezone = "Europe/Amsterdam",
+            lastGeneratedAt = "2026-02-21T22:00:00Z"
+        )
+
+        every { podcastRepository.findAll() } returns listOf(podcast)
+
+        schedulerWithClock(now).checkAndGenerate()
+
+        // Feb 22 23:00 CET is yesterday in Amsterdam, today's 23:00 CET is in the future
+        verify(exactly = 0) { podcastService.generateBriefing(any()) }
+    }
+
+    @Test
+    fun `newly created podcast triggers on first check same day`() {
+        // Cron: daily at 06:00. No lastGeneratedAt. Now: 10:00 (same day, past trigger).
+        val now = Instant.parse("2026-02-23T10:00:00Z")
+        val podcast = Podcast(
+            id = "p1", userId = "u1", name = "Test", topic = "tech",
+            cron = "0 0 6 * * *",
+            lastGeneratedAt = null
+        )
+        val episode = Episode(id = 1, podcastId = "p1", generatedAt = now.toString(), scriptText = "Script")
+
+        every { podcastRepository.findAll() } returns listOf(podcast)
+        every { podcastService.generateBriefing(podcast) } returns GenerateBriefingResult(episode = episode)
+
+        schedulerWithClock(now).checkAndGenerate()
+
+        verify { podcastService.generateBriefing(podcast) }
     }
 }

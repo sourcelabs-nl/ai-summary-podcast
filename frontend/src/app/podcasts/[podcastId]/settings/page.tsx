@@ -470,7 +470,7 @@ export default function PodcastSettingsPage() {
                   className="size-4 rounded border border-input"
                 />
                 <label htmlFor="requireReview" className="text-sm font-medium">
-                  Require review before publishing
+                  Require review before audio generation
                 </label>
               </div>
             </CardContent>

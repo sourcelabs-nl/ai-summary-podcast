@@ -17,8 +17,8 @@ import org.springframework.context.event.EventListener
 import org.springframework.scheduling.support.CronExpression
 import org.springframework.stereotype.Component
 import java.time.Clock
-import java.time.Duration
 import java.time.Instant
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.ZoneOffset
@@ -33,10 +33,6 @@ class BriefingGenerationScheduler(
 
     private val log = LoggerFactory.getLogger(javaClass)
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-
-    companion object {
-        val STALENESS_WINDOW: Duration = Duration.ofMinutes(30)
-    }
 
     @EventListener(ApplicationReadyEvent::class)
     fun start() {
@@ -74,25 +70,18 @@ class BriefingGenerationScheduler(
                     LocalDateTime.ofInstant(Instant.parse(it), zone)
                 }
 
-                // Start from the later of lastGeneratedAt or (now - staleness window)
-                // to avoid iterating through old triggers that can never fire
-                val earliest = now.minus(STALENESS_WINDOW)
-                val startFrom = if (lastGenerated != null && lastGenerated.isAfter(earliest)) {
-                    lastGenerated
-                } else if (lastGenerated != null) {
-                    earliest
-                } else {
-                    val startOfDay = now.toLocalDate().atStartOfDay()
-                    if (startOfDay.isAfter(earliest)) startOfDay else earliest
-                }
+                val today: LocalDate = now.toLocalDate()
+
+                // Start from lastGeneratedAt or start-of-day for new podcasts
+                val startFrom = lastGenerated ?: today.atStartOfDay()
 
                 var nextExecution = cronExpression.next(startFrom)
 
-                // Skip stale triggers that are beyond the staleness window
+                // Skip triggers from previous days
                 while (nextExecution != null && !nextExecution.isAfter(now)
-                    && Duration.between(nextExecution, now) > STALENESS_WINDOW
+                    && nextExecution.toLocalDate().isBefore(today)
                 ) {
-                    log.warn("[Pipeline] Skipping stale trigger at {} for podcast '{}' ({})", nextExecution, podcast.name, podcast.id)
+                    log.warn("[Pipeline] Skipping previous-day trigger at {} for podcast '{}' ({})", nextExecution, podcast.name, podcast.id)
                     nextExecution = cronExpression.next(nextExecution)
                 }
 
