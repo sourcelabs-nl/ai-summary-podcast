@@ -31,7 +31,7 @@ class InworldTtsProviderTest {
             userId = "u1"
         )
         every {
-            apiClient.synthesizeSpeech("u1", "voice-1", "Hello world", "inworld-tts-1.5-max", null, 0.8)
+            apiClient.synthesizeSpeech("u1", "voice-1", "Hello world", "inworld-tts-1.5-max", InworldSynthesisOptions(temperature = 0.8))
         } returns InworldSpeechResponse(sampleAudio, 11)
 
         val result = provider.generate(request)
@@ -52,7 +52,7 @@ class InworldTtsProviderTest {
             userId = "u1"
         )
         every {
-            apiClient.synthesizeSpeech("u1", "voice-1", "Test", "inworld-tts-1.5-mini", null, 0.8)
+            apiClient.synthesizeSpeech("u1", "voice-1", "Test", "inworld-tts-1.5-mini", InworldSynthesisOptions(temperature = 0.8))
         } returns InworldSpeechResponse(sampleAudio, 4)
 
         val result = provider.generate(request)
@@ -82,10 +82,10 @@ class InworldTtsProviderTest {
             userId = "u1"
         )
         every {
-            apiClient.synthesizeSpeech("u1", "voice-1", "Hello there!", "inworld-tts-1.5-max", null, 0.8)
+            apiClient.synthesizeSpeech("u1", "voice-1", "Hello there!", "inworld-tts-1.5-max", InworldSynthesisOptions(temperature = 0.8))
         } returns InworldSpeechResponse(sampleAudio, 12)
         every {
-            apiClient.synthesizeSpeech("u1", "voice-2", "Hey, how are you?", "inworld-tts-1.5-max", null, 0.8)
+            apiClient.synthesizeSpeech("u1", "voice-2", "Hey, how are you?", "inworld-tts-1.5-max", InworldSynthesisOptions(temperature = 0.8))
         } returns InworldSpeechResponse(sampleAudio, 17)
 
         val result = provider.generate(request)
@@ -118,10 +118,10 @@ class InworldTtsProviderTest {
             userId = "u1"
         )
         every {
-            apiClient.synthesizeSpeech("u1", "voice-1", "What happened?", "inworld-tts-1.5-max", null, 0.8)
+            apiClient.synthesizeSpeech("u1", "voice-1", "What happened?", "inworld-tts-1.5-max", InworldSynthesisOptions(temperature = 0.8))
         } returns InworldSpeechResponse(sampleAudio, 14)
         every {
-            apiClient.synthesizeSpeech("u1", "voice-2", "A lot of things.", "inworld-tts-1.5-max", null, 0.8)
+            apiClient.synthesizeSpeech("u1", "voice-2", "A lot of things.", "inworld-tts-1.5-max", InworldSynthesisOptions(temperature = 0.8))
         } returns InworldSpeechResponse(sampleAudio, 16)
 
         val result = provider.generate(request)
@@ -140,7 +140,7 @@ class InworldTtsProviderTest {
             userId = "u1"
         )
         every {
-            apiClient.synthesizeSpeech("u1", "voice-1", "Hello world", "inworld-tts-1.5-max", 1.2, 0.8)
+            apiClient.synthesizeSpeech("u1", "voice-1", "Hello world", "inworld-tts-1.5-max", InworldSynthesisOptions(speed = 1.2, temperature = 0.8))
         } returns InworldSpeechResponse(sampleAudio, 11)
 
         val result = provider.generate(request)
@@ -159,14 +159,14 @@ class InworldTtsProviderTest {
             userId = "u1"
         )
         every {
-            apiClient.synthesizeSpeech("u1", "voice-1", "Hello world", "inworld-tts-1.5-max", null, 0.8)
+            apiClient.synthesizeSpeech("u1", "voice-1", "Hello world", "inworld-tts-1.5-max", InworldSynthesisOptions(temperature = 0.8))
         } returns InworldSpeechResponse(sampleAudio, 11)
 
         val result = provider.generate(request)
 
         assertEquals(1, result.audioChunks.size)
         verify {
-            apiClient.synthesizeSpeech("u1", "voice-1", "Hello world", "inworld-tts-1.5-max", null, 0.8)
+            apiClient.synthesizeSpeech("u1", "voice-1", "Hello world", "inworld-tts-1.5-max", InworldSynthesisOptions(temperature = 0.8))
         }
     }
 
@@ -180,15 +180,54 @@ class InworldTtsProviderTest {
             userId = "u1"
         )
         every {
-            apiClient.synthesizeSpeech("u1", "voice-1", "Hello world", "inworld-tts-1.5-max", null, 1.1)
+            apiClient.synthesizeSpeech("u1", "voice-1", "Hello world", "inworld-tts-1.5-max", InworldSynthesisOptions(temperature = 1.1))
         } returns InworldSpeechResponse(sampleAudio, 11)
 
         val result = provider.generate(request)
 
         assertEquals(1, result.audioChunks.size)
         verify {
-            apiClient.synthesizeSpeech("u1", "voice-1", "Hello world", "inworld-tts-1.5-max", null, 1.1)
+            apiClient.synthesizeSpeech("u1", "voice-1", "Hello world", "inworld-tts-1.5-max", InworldSynthesisOptions(temperature = 1.1))
         }
+    }
+
+    @Test
+    fun `passes deliveryMode and suppresses temperature default when set`() {
+        val request = TtsRequest(
+            script = "Hello world",
+            ttsVoices = mapOf("default" to "voice-1"),
+            ttsSettings = mapOf("model" to "inworld-tts-2", "deliveryMode" to "expressive"),
+            language = "en",
+            userId = "u1"
+        )
+        every {
+            apiClient.synthesizeSpeech("u1", "voice-1", "Hello world", "inworld-tts-2", InworldSynthesisOptions(deliveryMode = "EXPRESSIVE"))
+        } returns InworldSpeechResponse(sampleAudio, 11)
+
+        val result = provider.generate(request)
+
+        assertEquals(1, result.audioChunks.size)
+        verify {
+            apiClient.synthesizeSpeech("u1", "voice-1", "Hello world", "inworld-tts-2", InworldSynthesisOptions(deliveryMode = "EXPRESSIVE"))
+        }
+    }
+
+    @Test
+    fun `blank deliveryMode is treated as unset`() {
+        val request = TtsRequest(
+            script = "Hello world",
+            ttsVoices = mapOf("default" to "voice-1"),
+            ttsSettings = mapOf("deliveryMode" to ""),
+            language = "en",
+            userId = "u1"
+        )
+        every {
+            apiClient.synthesizeSpeech("u1", "voice-1", "Hello world", "inworld-tts-1.5-max", InworldSynthesisOptions(temperature = 0.8))
+        } returns InworldSpeechResponse(sampleAudio, 11)
+
+        val result = provider.generate(request)
+
+        assertEquals(1, result.audioChunks.size)
     }
 
     // --- Parallel generation tests ---
@@ -205,7 +244,7 @@ class InworldTtsProviderTest {
         val audio2 = Base64.getEncoder().encodeToString(byteArrayOf(2))
         val audio3 = Base64.getEncoder().encodeToString(byteArrayOf(3))
 
-        every { apiClient.synthesizeSpeech("u1", "voice-1", any(), "inworld-tts-1.5-max", null, 0.8) } answers {
+        every { apiClient.synthesizeSpeech("u1", "voice-1", any(), "inworld-tts-1.5-max", InworldSynthesisOptions(temperature = 0.8)) } answers {
             val text = arg<String>(2)
             when {
                 text.startsWith("A") -> InworldSpeechResponse(audio1, text.length)
@@ -240,9 +279,9 @@ class InworldTtsProviderTest {
 
         val script = "<host>First turn.</host><cohost>Second turn.</cohost><host>Third turn.</host>"
 
-        every { apiClient.synthesizeSpeech("u1", "voice-1", "First turn.", "inworld-tts-1.5-max", null, 0.8) } returns InworldSpeechResponse(audio1, 11)
-        every { apiClient.synthesizeSpeech("u1", "voice-2", "Second turn.", "inworld-tts-1.5-max", null, 0.8) } returns InworldSpeechResponse(audio2, 12)
-        every { apiClient.synthesizeSpeech("u1", "voice-1", "Third turn.", "inworld-tts-1.5-max", null, 0.8) } returns InworldSpeechResponse(audio3, 11)
+        every { apiClient.synthesizeSpeech("u1", "voice-1", "First turn.", "inworld-tts-1.5-max", InworldSynthesisOptions(temperature = 0.8)) } returns InworldSpeechResponse(audio1, 11)
+        every { apiClient.synthesizeSpeech("u1", "voice-2", "Second turn.", "inworld-tts-1.5-max", InworldSynthesisOptions(temperature = 0.8)) } returns InworldSpeechResponse(audio2, 12)
+        every { apiClient.synthesizeSpeech("u1", "voice-1", "Third turn.", "inworld-tts-1.5-max", InworldSynthesisOptions(temperature = 0.8)) } returns InworldSpeechResponse(audio3, 11)
 
         val request = TtsRequest(
             script = script,
@@ -275,7 +314,7 @@ class InworldTtsProviderTest {
 
         var callCount = 0
         every {
-            apiClient.synthesizeSpeech("u1", "voice-1", "Hello world", "inworld-tts-1.5-max", null, 0.8)
+            apiClient.synthesizeSpeech("u1", "voice-1", "Hello world", "inworld-tts-1.5-max", InworldSynthesisOptions(temperature = 0.8))
         } answers {
             callCount++
             if (callCount == 1) throw InworldRateLimitException("Rate limited")
@@ -300,14 +339,14 @@ class InworldTtsProviderTest {
         )
 
         every {
-            apiClient.synthesizeSpeech("u1", "voice-1", "Hello world", "inworld-tts-1.5-max", null, 0.8)
+            apiClient.synthesizeSpeech("u1", "voice-1", "Hello world", "inworld-tts-1.5-max", InworldSynthesisOptions(temperature = 0.8))
         } throws InworldRateLimitException("Rate limited")
 
         val exception = assertThrows<InworldRateLimitException> { provider.generate(request) }
         assertEquals("Rate limited", exception.message)
 
         verify(exactly = 3) {
-            apiClient.synthesizeSpeech("u1", "voice-1", "Hello world", "inworld-tts-1.5-max", null, 0.8)
+            apiClient.synthesizeSpeech("u1", "voice-1", "Hello world", "inworld-tts-1.5-max", InworldSynthesisOptions(temperature = 0.8))
         }
     }
 
@@ -323,14 +362,14 @@ class InworldTtsProviderTest {
             userId = "u1"
         )
         every {
-            apiClient.synthesizeSpeech("u1", "voice-1", "*Breaking* news! Check this.", "inworld-tts-1.5-max", null, 0.8)
+            apiClient.synthesizeSpeech("u1", "voice-1", "*Breaking* news! Check this.", "inworld-tts-1.5-max", InworldSynthesisOptions(temperature = 0.8))
         } returns InworldSpeechResponse(sampleAudio, 28)
 
         val result = provider.generate(request)
 
         assertEquals(1, result.audioChunks.size)
         verify {
-            apiClient.synthesizeSpeech("u1", "voice-1", "*Breaking* news! Check this.", "inworld-tts-1.5-max", null, 0.8)
+            apiClient.synthesizeSpeech("u1", "voice-1", "*Breaking* news! Check this.", "inworld-tts-1.5-max", InworldSynthesisOptions(temperature = 0.8))
         }
     }
 
@@ -344,18 +383,18 @@ class InworldTtsProviderTest {
             userId = "u1"
         )
         every {
-            apiClient.synthesizeSpeech("u1", "voice-1", "*Welcome* to the show! Hello.", "inworld-tts-1.5-max", null, 0.8)
+            apiClient.synthesizeSpeech("u1", "voice-1", "*Welcome* to the show! Hello.", "inworld-tts-1.5-max", InworldSynthesisOptions(temperature = 0.8))
         } returns InworldSpeechResponse(sampleAudio, 30)
         every {
-            apiClient.synthesizeSpeech("u1", "voice-2", "[sigh] Thanks for having me.", "inworld-tts-1.5-max", null, 0.8)
+            apiClient.synthesizeSpeech("u1", "voice-2", "[sigh] Thanks for having me.", "inworld-tts-1.5-max", InworldSynthesisOptions(temperature = 0.8))
         } returns InworldSpeechResponse(sampleAudio, 28)
 
         val result = provider.generate(request)
 
         assertEquals(2, result.audioChunks.size)
         verify {
-            apiClient.synthesizeSpeech("u1", "voice-1", "*Welcome* to the show! Hello.", "inworld-tts-1.5-max", null, 0.8)
-            apiClient.synthesizeSpeech("u1", "voice-2", "[sigh] Thanks for having me.", "inworld-tts-1.5-max", null, 0.8)
+            apiClient.synthesizeSpeech("u1", "voice-1", "*Welcome* to the show! Hello.", "inworld-tts-1.5-max", InworldSynthesisOptions(temperature = 0.8))
+            apiClient.synthesizeSpeech("u1", "voice-2", "[sigh] Thanks for having me.", "inworld-tts-1.5-max", InworldSynthesisOptions(temperature = 0.8))
         }
     }
 

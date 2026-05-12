@@ -70,24 +70,30 @@ class InworldTtsProvider(
 
     override fun generate(request: TtsRequest): TtsResult {
         val modelId = request.ttsSettings["model"] ?: DEFAULT_MODEL
-        val speed = request.ttsSettings["speed"]?.toDoubleOrNull()
-        val temperature = request.ttsSettings["temperature"]?.toDoubleOrNull() ?: DEFAULT_TEMPERATURE
+        val deliveryMode = request.ttsSettings["deliveryMode"]?.takeIf { it.isNotBlank() }?.uppercase()
+        val options = InworldSynthesisOptions(
+            speed = request.ttsSettings["speed"]?.toDoubleOrNull(),
+            // deliveryMode replaces temperature on TTS-2 — only default temperature when deliveryMode is unset
+            temperature = if (deliveryMode != null) request.ttsSettings["temperature"]?.toDoubleOrNull()
+                          else request.ttsSettings["temperature"]?.toDoubleOrNull() ?: DEFAULT_TEMPERATURE,
+            deliveryMode = deliveryMode
+        )
         val style = inferStyle(request)
 
         return if (style == PodcastStyle.DIALOGUE || style == PodcastStyle.INTERVIEW) {
-            generateDialogue(request, modelId, speed, temperature)
+            generateDialogue(request, modelId, options)
         } else {
-            generateMonologue(request, modelId, speed, temperature)
+            generateMonologue(request, modelId, options)
         }
     }
 
-    private fun generateMonologue(request: TtsRequest, modelId: String, speed: Double?, temperature: Double?): TtsResult {
+    private fun generateMonologue(request: TtsRequest, modelId: String, options: InworldSynthesisOptions): TtsResult {
         val voiceId = request.ttsVoices["default"]
             ?: throw IllegalStateException("Inworld TTS requires a 'default' voice in ttsVoices")
 
         val processedScript = InworldScriptPostProcessor.process(request.script)
         val chunks = TextChunker.chunk(processedScript, maxChunkSize)
-        log.info("Generating Inworld TTS audio for {} chunks in parallel (voice: {}, model: {}, speed: {}, temperature: {})", chunks.size, voiceId, modelId, speed, temperature)
+        log.info("Generating Inworld TTS audio for {} chunks in parallel (voice: {}, model: {}, options: {})", chunks.size, voiceId, modelId, options)
 
         val totalCharacters = AtomicInteger(0)
         val semaphore = Semaphore(MAX_CONCURRENCY)
@@ -96,7 +102,7 @@ class InworldTtsProvider(
                 async {
                     semaphore.withPermit {
                         log.info("Generating Inworld TTS chunk {}/{} ({} chars)", index + 1, chunks.size, chunk.length)
-                        val response = synthesizeWithRetry(request.userId, voiceId, chunk, modelId, speed, temperature)
+                        val response = synthesizeWithRetry(request.userId, voiceId, chunk, modelId, options)
                         totalCharacters.addAndGet(response.processedCharactersCount)
                         Base64.getDecoder().decode(response.audioContent)
                     }
@@ -112,7 +118,7 @@ class InworldTtsProvider(
         )
     }
 
-    private fun generateDialogue(request: TtsRequest, modelId: String, speed: Double?, temperature: Double?): TtsResult {
+    private fun generateDialogue(request: TtsRequest, modelId: String, options: InworldSynthesisOptions): TtsResult {
         val turns = DialogueScriptParser.parse(request.script)
         if (turns.isEmpty()) {
             throw IllegalStateException("Dialogue script produced no speaker turns")
@@ -132,7 +138,7 @@ class InworldTtsProvider(
             turnChunks.map { chunk -> ChunkWork(voiceId, chunk) }
         }
 
-        log.info("Generating Inworld dialogue: {} total chunks in parallel, model: {}", allChunks.size, modelId)
+        log.info("Generating Inworld dialogue: {} total chunks in parallel, model: {}, options: {}", allChunks.size, modelId, options)
 
         val totalCharacters = AtomicInteger(0)
         val semaphore = Semaphore(MAX_CONCURRENCY)
@@ -141,7 +147,7 @@ class InworldTtsProvider(
                 async {
                     semaphore.withPermit {
                         log.info("Generating Inworld dialogue chunk {}/{} ({} chars)", index + 1, allChunks.size, work.text.length)
-                        val response = synthesizeWithRetry(request.userId, work.voiceId, work.text, modelId, speed, temperature)
+                        val response = synthesizeWithRetry(request.userId, work.voiceId, work.text, modelId, options)
                         totalCharacters.addAndGet(response.processedCharactersCount)
                         Base64.getDecoder().decode(response.audioContent)
                     }
@@ -158,11 +164,11 @@ class InworldTtsProvider(
     }
 
     private suspend fun synthesizeWithRetry(
-        userId: String, voiceId: String, text: String, modelId: String, speed: Double?, temperature: Double?
+        userId: String, voiceId: String, text: String, modelId: String, options: InworldSynthesisOptions
     ): InworldSpeechResponse {
         for (attempt in 0 until MAX_RETRY_ATTEMPTS) {
             try {
-                return apiClient.synthesizeSpeech(userId, voiceId, text, modelId, speed, temperature)
+                return apiClient.synthesizeSpeech(userId, voiceId, text, modelId, options)
             } catch (e: InworldRateLimitException) {
                 if (attempt == MAX_RETRY_ATTEMPTS - 1) throw e
                 val delayMs = RETRY_DELAYS_MS[attempt]

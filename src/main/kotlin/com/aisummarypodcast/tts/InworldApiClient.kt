@@ -18,6 +18,12 @@ data class InworldSpeechResponse(
     val processedCharactersCount: Int
 )
 
+data class InworldSynthesisOptions(
+    val speed: Double? = null,
+    val temperature: Double? = null,
+    val deliveryMode: String? = null
+)
+
 @Component
 class InworldApiClient(
     private val providerConfigService: UserProviderConfigService,
@@ -26,7 +32,7 @@ class InworldApiClient(
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    fun synthesizeSpeech(userId: String, voiceId: String, text: String, modelId: String, speed: Double? = null, temperature: Double? = null): InworldSpeechResponse {
+    fun synthesizeSpeech(userId: String, voiceId: String, text: String, modelId: String, options: InworldSynthesisOptions = InworldSynthesisOptions()): InworldSpeechResponse {
         val client = createClient(userId)
 
         val audioConfig = mutableMapOf<String, Any>(
@@ -34,7 +40,7 @@ class InworldApiClient(
             "sampleRateHertz" to 48000,
             "bitRateHertz" to 128000
         )
-        speed?.let { audioConfig["speakingRate"] = it }
+        options.speed?.let { audioConfig["speakingRate"] = it }
 
         val body = mutableMapOf<String, Any>(
             "text" to text,
@@ -42,7 +48,11 @@ class InworldApiClient(
             "modelId" to modelId,
             "audioConfig" to audioConfig
         )
-        temperature?.let { body["temperature"] = it }
+        if (options.deliveryMode != null) {
+            body["deliveryMode"] = options.deliveryMode
+        } else {
+            options.temperature?.let { body["temperature"] = it }
+        }
         body["applyTextNormalization"] = "ON"
 
         @Suppress("UNCHECKED_CAST")

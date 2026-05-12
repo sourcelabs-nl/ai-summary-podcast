@@ -57,6 +57,9 @@ app:
       "[inworld-tts-1.5-mini]":
         type: tts
         cost-per-million-chars: 5.00
+      "[inworld-tts-2]":
+        type: tts
+        cost-per-million-chars: 35.00
   llm:
     defaults:
       filter:

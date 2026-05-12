@@ -636,6 +636,38 @@ export default function PodcastSettingsPage() {
                   })()}
                 </div>
               </FieldGroup>
+              {(() => {
+                const selectedModel = form.ttsSettings?.model ?? "";
+                if (form.ttsProvider !== "inworld" || selectedModel !== "inworld-tts-2") return null;
+                const current = form.ttsSettings?.deliveryMode ?? "";
+                const value = current === "" ? "_unset" : current;
+                return (
+                  <FieldGroup label="Delivery Mode" description="Inworld TTS-2 only. STABLE for consistency, BALANCED (default) for general use, EXPRESSIVE for emotional range. When set, replaces the temperature parameter.">
+                    <Select
+                      value={value}
+                      onValueChange={(v) => {
+                        const next = { ...(form.ttsSettings ?? {}) };
+                        if (v === "_unset") {
+                          delete next.deliveryMode;
+                        } else {
+                          next.deliveryMode = v;
+                        }
+                        update("ttsSettings", next);
+                      }}
+                    >
+                      <SelectTrigger className="w-[240px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="_unset">— (provider default)</SelectItem>
+                        <SelectItem value="STABLE">STABLE</SelectItem>
+                        <SelectItem value="BALANCED">BALANCED</SelectItem>
+                        <SelectItem value="EXPRESSIVE">EXPRESSIVE</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </FieldGroup>
+                );
+              })()}
               <FieldGroup label="TTS Voices" description="Voice assignment per role. For monologue styles use key 'default'. For dialogue/interview use role keys (e.g. 'interviewer', 'expert', 'host', 'cohost'). Values are provider-specific voice IDs.">
                 <KeyValueEditor
                   value={form.ttsVoices}

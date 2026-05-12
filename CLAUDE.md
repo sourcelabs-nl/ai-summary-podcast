@@ -39,6 +39,8 @@ Controllers validate input, delegate to services, and map responses — no busin
 
 **Jackson:** Configure Jackson features via Spring Boot properties (`spring.jackson.*` in `application.yaml`), not programmatically. Inject the Spring-managed `JsonMapper` bean when custom mapper configuration is needed (e.g., for `BeanOutputConverter` in Spring AI). See the `spring-boot` skill (Rule SB6) for details.
 
+**Parameter objects:** When a function's parameter list grows long (more than 4-5 params), and the parameters are functionally related, wrap them in a Kotlin `data class` instead of adding more positional arguments. Long positional call sites are fragile under change and hurt readability. Concrete example: `InworldApiClient.synthesizeSpeech(...)` takes mandatory request identity (userId, voiceId, text, modelId) plus an `InworldSynthesisOptions(speed, temperature, deliveryMode)` data class for optional knobs — extending the options doesn't ripple through every caller. Apply this anywhere optional/related fields cluster (TTS settings, LLM request params, search filters, etc.).
+
 **Post-implementation check:** After every code change, validate that the architecture guidelines are respected — especially controller hygiene (no business logic, no direct repository access) and proper service layer delegation. Fix violations before considering the change complete.
 
 ## Code Navigation (LSP)
