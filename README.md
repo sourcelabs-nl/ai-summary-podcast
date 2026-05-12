@@ -207,7 +207,7 @@ Per-podcast overrides use the `llmModels` field, mapping stage names (`filter`, 
 ```json
 {
   "llmModels": {
-    "compose": {"provider": "openrouter", "model": "anthropic/claude-opus-4.6"}
+    "compose": {"provider": "openrouter", "model": "anthropic/claude-opus-4.7"}
   }
 }
 ```
@@ -400,7 +400,7 @@ curl -X POST http://localhost:8085/users/{userId}/podcasts \
     "topic": "artificial intelligence and machine learning",
     "language": "en",
     "style": "deep-dive",
-    "llmModels": {"compose": {"provider": "openrouter", "model": "anthropic/claude-opus-4.6"}},
+    "llmModels": {"compose": {"provider": "openrouter", "model": "anthropic/claude-opus-4.7"}},
     "ttsProvider": "openai",
     "ttsVoices": {"default": "onyx"},
     "ttsSettings": {"speed": 1.1},

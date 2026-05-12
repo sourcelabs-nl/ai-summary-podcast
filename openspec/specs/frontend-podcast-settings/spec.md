@@ -48,8 +48,8 @@ The LLM Models field SHALL display a per-stage model selector for the `filter` a
 - **THEN** the compose stage selector shows "Default: openrouter / anthropic/claude-sonnet-4.6" and the dropdowns use the default values as placeholders
 
 #### Scenario: Override a stage model
-- **WHEN** the user selects provider `openrouter` and model `anthropic/claude-opus-4.6` for the compose stage
-- **THEN** the form stores `llmModels.compose` as `{"provider": "openrouter", "model": "anthropic/claude-opus-4.6"}`
+- **WHEN** the user selects provider `openrouter` and model `anthropic/claude-opus-4.7` for the compose stage
+- **THEN** the form stores `llmModels.compose` as `{"provider": "openrouter", "model": "anthropic/claude-opus-4.7"}`
 
 #### Scenario: Clear an override
 - **WHEN** the user clears the override for a stage (resets to default)

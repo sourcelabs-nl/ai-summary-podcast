@@ -38,7 +38,7 @@ app:
         type: llm
         input-cost-per-mtok: 3.00
         output-cost-per-mtok: 15.00
-      "[anthropic/claude-opus-4.6]":
+      "[anthropic/claude-opus-4.7]":
         type: llm
         input-cost-per-mtok: 5.00
         output-cost-per-mtok: 25.00
