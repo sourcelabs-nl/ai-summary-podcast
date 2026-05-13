@@ -577,6 +577,13 @@ export default function PodcastSettingsPage() {
                   className={inputClass}
                 />
               </FieldGroup>
+              <FieldGroup label="Custom Instructions" description="Additional instructions appended to the LLM composition prompt. Use this for tone, structure, engagement techniques, or topic-specific guidance.">
+                <textarea
+                  value={form.customInstructions ?? ""}
+                  onChange={(e) => update("customInstructions", e.target.value)}
+                  className={`${textareaClass} min-h-[300px]`}
+                />
+              </FieldGroup>
               <FieldGroup label="Composer Temperature" description="Sampling temperature for the script composer (briefing/dialogue/interview). Higher values produce more variety; lower values are more deterministic. Range 0.0–2.0. Leave empty for system default (0.95).">
                 <input
                   type="number"
@@ -598,11 +605,12 @@ export default function PodcastSettingsPage() {
                   className={inputClass}
                 />
               </FieldGroup>
-              <FieldGroup label="Custom Instructions" description="Additional instructions appended to the LLM composition prompt. Use this for tone, structure, engagement techniques, or topic-specific guidance.">
-                <textarea
-                  value={form.customInstructions ?? ""}
-                  onChange={(e) => update("customInstructions", e.target.value)}
-                  className={`${textareaClass} min-h-[300px]`}
+              <FieldGroup label="Composer Settings" description="Advanced composer settings as key/value pairs. The 'temperature' key is also editable above for convenience. Unknown keys are persisted as-is for future use.">
+                <KeyValueEditor
+                  value={form.composeSettings}
+                  onChange={(v) => update("composeSettings", v)}
+                  keyPlaceholder="Setting (e.g. temperature)"
+                  valuePlaceholder="Value"
                 />
               </FieldGroup>
             </CardContent>
