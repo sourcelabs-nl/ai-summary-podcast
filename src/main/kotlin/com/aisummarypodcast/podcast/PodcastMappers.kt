@@ -36,7 +36,8 @@ internal fun Podcast.toResponse() = PodcastResponse(
     requireReview = requireReview, maxLlmCostCents = maxLlmCostCents,
     maxArticleAgeDays = maxArticleAgeDays, speakerNames = speakerNames,
     fullBodyThreshold = fullBodyThreshold, sponsor = sponsor, pronunciations = pronunciations,
-    recapLookbackEpisodes = recapLookbackEpisodes, lastGeneratedAt = lastGeneratedAt
+    recapLookbackEpisodes = recapLookbackEpisodes, composeSettings = composeSettings,
+    lastGeneratedAt = lastGeneratedAt
 )
 
 internal fun Episode.toResponse() = EpisodeResponse(

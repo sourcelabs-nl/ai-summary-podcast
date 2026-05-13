@@ -25,7 +25,7 @@ class InterviewComposerTest {
         encryption = EncryptionProperties(masterKey = "test-key")
     )
 
-    private val composer = InterviewComposer(appProperties, mockk(), mockk())
+    private val composer = InterviewComposer(appProperties, mockk(), mockk(), PromptVarietyPicker())
 
     private val podcast = Podcast(
         id = "p1", userId = "u1", name = "Tech Talk", topic = "tech",
@@ -240,15 +240,15 @@ class InterviewComposerTest {
         }
         val prompt = composer.buildPrompt(manyArticles, podcast)
 
-        assertTrue(prompt.contains("COMING UP TEASER"))
-        assertTrue(prompt.contains("2-3 short punchy fragments"))
+        assertTrue(prompt.contains("- TEASER:"))
+        assertTrue(prompt.contains("under 25 words"))
     }
 
     @Test
     fun `prompt omits coming up teaser when fewer than 5 articles`() {
         val prompt = composer.buildPrompt(articles, podcast) // 2 articles
 
-        assertFalse(prompt.contains("COMING UP TEASER"))
+        assertFalse(prompt.contains("- TEASER:"))
     }
 
     @Test
@@ -285,11 +285,11 @@ class InterviewComposerTest {
     fun `prompt includes varied interruption types`() {
         val prompt = composer.buildPrompt(articles, podcast)
 
-        assertTrue(prompt.contains("Excited:"))
-        assertTrue(prompt.contains("Skeptical:"))
-        assertTrue(prompt.contains("Confused (audience surrogate):"))
-        assertTrue(prompt.contains("Connecting dots:"))
-        assertTrue(prompt.contains("Playful disagreement:"))
+        assertTrue(prompt.contains("Excited"))
+        assertTrue(prompt.contains("Skeptical"))
+        assertTrue(prompt.contains("Confused"))
+        assertTrue(prompt.contains("Connecting dots"))
+        assertTrue(prompt.contains("Playful disagreement"))
         assertTrue(prompt.contains("expert can push back"))
     }
 

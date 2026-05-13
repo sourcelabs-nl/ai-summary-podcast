@@ -25,7 +25,7 @@ class DialogueComposerTest {
         encryption = EncryptionProperties(masterKey = "test-key")
     )
 
-    private val composer = DialogueComposer(appProperties, mockk(), mockk())
+    private val composer = DialogueComposer(appProperties, mockk(), mockk(), PromptVarietyPicker())
 
     private val podcast = Podcast(
         id = "p1", userId = "u1", name = "Tech Talk", topic = "tech",

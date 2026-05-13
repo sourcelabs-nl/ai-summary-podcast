@@ -139,6 +139,7 @@ Each podcast can be tailored to your preferences via the following settings:
 | `sponsor` | `null` | Sponsor configuration — e.g. `{"name": "Acme Corp", "message": "building the future"}`. Adds a sponsor message after the introduction and in the sign-off |
 | `pronunciations` | `null` | IPA pronunciation dictionary — maps terms to phonemes (e.g. `{"Anthropic": "/ænˈθɹɒpɪk/"}`) for correct TTS pronunciation. Currently supported by Inworld TTS |
 | `recapLookbackEpisodes` | `null` | Number of recent episodes to check for topic overlap (default: 7). The dedup filter uses article titles and summaries from these episodes to prevent repeating previously covered topics |
+| `composeSettings` | — | Composer (script LLM) settings. Currently supports `temperature` (range `0.0`–`2.0`, default `0.95`) which controls sampling variety in `BriefingComposer`, `DialogueComposer`, and `InterviewComposer`. The composer also rotates six prompt axes (opening style, transition vocabulary, sign-off shape, teaser shape, topic-entry pattern, penultimate-exchange shape) deterministically per `(podcastId, episodeDate)` to reduce structural repetition across episodes |
 
 ### Briefing Styles
 

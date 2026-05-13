@@ -60,7 +60,8 @@ data class StageDefaults(
 
 data class BriefingProperties(
     val targetWords: Int = 1500,
-    val fullBodyThreshold: Int = 5
+    val fullBodyThreshold: Int = 5,
+    val defaultTemperature: Double = 0.95
 )
 
 data class EpisodesProperties(

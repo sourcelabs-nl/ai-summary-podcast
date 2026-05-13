@@ -36,6 +36,7 @@ export interface Podcast {
   fullBodyThreshold?: number;
   sponsor?: Record<string, string>;
   pronunciations?: Record<string, string>;
+  composeSettings?: Record<string, string>;
   lastGeneratedAt?: string;
 }
 

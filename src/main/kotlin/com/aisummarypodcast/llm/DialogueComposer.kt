@@ -6,13 +6,15 @@ import com.aisummarypodcast.store.Podcast
 import org.slf4j.LoggerFactory
 import org.springframework.ai.openai.OpenAiChatOptions
 import org.springframework.stereotype.Component
+import java.time.LocalDate
 import kotlin.time.measureTimedValue
 
 @Component
 class DialogueComposer(
     private val appProperties: AppProperties,
     private val modelResolver: ModelResolver,
-    private val chatClientFactory: ChatClientFactory
+    private val chatClientFactory: ChatClientFactory,
+    private val varietyPicker: PromptVarietyPicker
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -26,11 +28,12 @@ class DialogueComposer(
         log.info("[LLM] Composing dialogue from {} articles for podcast '{}' ({})", articles.size, podcast.name, podcast.id)
         val chatClient = chatClientFactory.createForModel(podcast.userId, composeModelDef)
         val prompt = buildPrompt(articles, podcast, ttsScriptGuidelines, followUpAnnotations, topicLabels)
+        val temperature = resolveTemperature(podcast, appProperties)
 
         val (result, elapsed) = measureTimedValue {
             val chatResponse = chatClient.prompt()
                 .user(prompt)
-                .options(OpenAiChatOptions.builder().model(composeModelDef.model).build())
+                .options(OpenAiChatOptions.builder().model(composeModelDef.model).temperature(temperature).build())
                 .call()
                 .chatResponse()
 
@@ -70,6 +73,13 @@ class DialogueComposer(
         val ttsGuidelinesBlock = buildTtsGuidelinesBlock(ttsScriptGuidelines)
         val topicOrderBlock = buildTopicOrderBlock(topicLabels)
 
+        val variety = varietyPicker.pick(podcast.id, LocalDate.now())
+        val openingDirective = PromptVarietyDescriptors.describe(variety.openingStyle)
+        val transitionsDirective = PromptVarietyDescriptors.describe(variety.transitionVocab)
+        val signOffDirective = PromptVarietyDescriptors.describe(variety.signOffShape)
+        val topicEntryDirective = PromptVarietyDescriptors.describe(variety.topicEntryPattern)
+        val penultimateDirective = PromptVarietyDescriptors.describe(variety.penultimateExchangeShape)
+
         return """
             You are writing a dialogue script for a podcast with multiple speakers. Create a natural, engaging conversation between the speakers about the topics below.
 
@@ -94,16 +104,20 @@ class DialogueComposer(
             - ONLY discuss topics that are present in the article summaries below. Do NOT introduce facts, stories, or claims from outside the provided articles. If only a few articles are provided, produce a shorter script rather than padding with external knowledge
 
             Engagement techniques:
-            - HOOK OPENING: Do NOT start with a standard welcome. Instead, open with a provocative statement, surprising fact, or compelling question drawn from the most interesting article of the day. Then transition into the regular introduction
+            - HOOK OPENING: Do NOT start with a standard welcome. $openingDirective Then transition into the regular introduction
             - FRONT-LOAD THE BEST STORY: Lead with the most compelling or surprising article, not the order they appear in the summaries
-            - CURIOSITY HOOKS: The ${speakerRoles.first()} should use rhetorical questions and teaser hooks before transitions (e.g., "But here's where it gets really interesting...", "So why should we care?", "You'd think that's the whole story, but..."). Create micro-curiosity loops that pull listeners forward
-            - MID-ROLL CALLBACKS: Reference earlier topics later in the episode to create narrative cohesion (e.g., "Remember that thing we talked about earlier? Well, this connects directly...", "This ties back to what you said about..."). Cross-reference at least once per episode
-            - SHORT SEGMENTS WITH SIGNPOSTING: Keep individual topic segments concise (roughly 60-90 seconds each). Use clear verbal signposts so listeners always know where they are (e.g., "Next up...", "Switching gears...", "Now for something completely different...")
-            - NATURAL INTERRUPTIONS: Speakers should occasionally interrupt each other MID-TOPIC — not at the end of a complete explanation, but while the other speaker is still building their point. Keep each speaker turn to 3-5 sentences max, then have the other speaker jump in with a reaction, follow-up question, or interjection (e.g., "Wait — hold on, does that mean...", "Okay but that sounds like..."). The original speaker then continues in their NEXT turn. Aim for 3-4 interruptions per episode, spread across different topics
-            - EMPHASIS ON IMPORTANT NEWS: When covering major announcements or surprising developments, convey their significance — use emphatic language, exclamation marks, and brief pauses to let important news land. Not everything is exciting; save the energy for what truly stands out$toneBlock
+            - CURIOSITY HOOKS: The ${speakerRoles.first()} should use rhetorical questions and teaser hooks before transitions. Create micro-curiosity loops that pull listeners forward, but vary the phrasing each transition — do not reuse the same hook twice in one episode
+            - MID-ROLL CALLBACKS: Reference earlier topics later in the episode to create narrative cohesion. Cross-reference at least once per episode without using a stock phrasing
+            - SHORT SEGMENTS WITH SIGNPOSTING: Keep individual topic segments concise (roughly 60-90 seconds each). $transitionsDirective
+            - TOPIC ENTRY: $topicEntryDirective
+            - NATURAL INTERRUPTIONS: Speakers should occasionally interrupt each other MID-TOPIC — not at the end of a complete explanation, but while the other speaker is still building their point. Keep each speaker turn to 3-5 sentences max, then have the other speaker jump in with a reaction, follow-up question, or interjection in their own voice. The original speaker then continues in their NEXT turn. Aim for 3-4 interruptions per episode, spread across different topics. Vary the interruption style across the episode (excited, skeptical, confused, connecting-dots, playful disagreement); do not reuse the same opener phrase for two interruptions
+            - EMPHASIS ON IMPORTANT NEWS: When covering major announcements or surprising developments, convey their significance — use emphatic language, exclamation marks, and brief pauses to let important news land. Not everything is exciting; save the energy for what truly stands out
+            - PENULTIMATE EXCHANGE: $penultimateDirective
+            - SIGN-OFF: $signOffDirective Make the wording feel fresh; do not reuse phrasing from previous episodes$toneBlock
 
             Speaker transitions:
-            - NEVER place two consecutive tags of the same speaker (e.g., <${speakerRoles.first()}>...</${speakerRoles.first()}><${speakerRoles.first()}>...</${speakerRoles.first()}> is FORBIDDEN). Every speaker turn MUST be followed by the OTHER speaker before the same speaker can speak again$nameInstruction$languageInstruction$customInstructionsBlock
+            - NEVER place two consecutive tags of the same speaker (e.g., <${speakerRoles.first()}>...</${speakerRoles.first()}><${speakerRoles.first()}>...</${speakerRoles.first()}> is FORBIDDEN). Every speaker turn MUST be followed by the OTHER speaker before the same speaker can speak again
+            - Vary transition wording across the episode; do not reuse a stock bridge phrase$nameInstruction$languageInstruction$customInstructionsBlock
 
             Article summaries:
             $summaryBlock$ttsGuidelinesBlock$topicOrderBlock

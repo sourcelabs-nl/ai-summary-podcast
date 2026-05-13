@@ -7,6 +7,7 @@ import com.aisummarypodcast.store.PodcastStyle
 import org.slf4j.LoggerFactory
 import org.springframework.ai.openai.OpenAiChatOptions
 import org.springframework.stereotype.Component
+import java.time.LocalDate
 import kotlin.time.measureTimedValue
 
 data class CompositionResult(
@@ -19,7 +20,8 @@ data class CompositionResult(
 class BriefingComposer(
     private val appProperties: AppProperties,
     private val modelResolver: ModelResolver,
-    private val chatClientFactory: ChatClientFactory
+    private val chatClientFactory: ChatClientFactory,
+    private val varietyPicker: PromptVarietyPicker
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -40,11 +42,12 @@ class BriefingComposer(
         log.info("[LLM] Composing briefing from {} articles for podcast '{}' ({}) (style: {})", articles.size, podcast.name, podcast.id, podcast.style)
         val chatClient = chatClientFactory.createForModel(podcast.userId, composeModelDef)
         val prompt = buildPrompt(articles, podcast, ttsScriptGuidelines, followUpAnnotations, topicLabels)
+        val temperature = resolveTemperature(podcast, appProperties)
 
         val (result, elapsed) = measureTimedValue {
             val chatResponse = chatClient.prompt()
                 .user(prompt)
-                .options(OpenAiChatOptions.builder().model(composeModelDef.model).build())
+                .options(OpenAiChatOptions.builder().model(composeModelDef.model).temperature(temperature).build())
                 .call()
                 .chatResponse()
 
@@ -77,6 +80,11 @@ class BriefingComposer(
         val ttsGuidelinesBlock = buildTtsGuidelinesBlock(ttsScriptGuidelines)
         val topicOrderBlock = buildTopicOrderBlock(topicLabels)
 
+        val variety = varietyPicker.pick(podcast.id, LocalDate.now())
+        val openingDirective = PromptVarietyDescriptors.describe(variety.openingStyle)
+        val transitionsDirective = PromptVarietyDescriptors.describe(variety.transitionVocab)
+        val signOffDirective = PromptVarietyDescriptors.describe(variety.signOffShape)
+
         return """
             $stylePrompt
 
@@ -97,10 +105,11 @@ class BriefingComposer(
             - ONLY discuss topics that are present in the article summaries below. Do NOT introduce facts, stories, or claims from outside the provided articles. If only a few articles are provided, produce a shorter script rather than padding with external knowledge
 
             Engagement techniques:
-            - HOOK OPENING: Do NOT start with a standard welcome. Instead, open with a provocative statement, surprising fact, or compelling question drawn from the most interesting article of the day. Then transition into the regular introduction
+            - HOOK OPENING: Do NOT start with a standard welcome. $openingDirective Then transition into the regular introduction
             - FRONT-LOAD THE BEST STORY: Lead with the most compelling or surprising article, not the order they appear in the summaries
-            - SHORT SEGMENTS WITH SIGNPOSTING: Keep individual topic segments concise. Use clear verbal signposts and smooth transitions so listeners always know where they are
-            - EMPHASIS ON IMPORTANT NEWS: When covering major announcements or surprising developments, convey their significance — use emphatic language, exclamation marks, and brief pauses to let important news land. Not everything is exciting; save the energy for what truly stands out$toneBlock$languageInstruction$customInstructionsBlock
+            - SHORT SEGMENTS WITH SIGNPOSTING: Keep individual topic segments concise. Use clear verbal signposts and smooth transitions so listeners always know where they are. $transitionsDirective
+            - EMPHASIS ON IMPORTANT NEWS: When covering major announcements or surprising developments, convey their significance — use emphatic language, exclamation marks, and brief pauses to let important news land. Not everything is exciting; save the energy for what truly stands out
+            - SIGN-OFF: $signOffDirective Make the wording feel fresh; do not reuse phrasing from previous episodes$toneBlock$languageInstruction$customInstructionsBlock
 
             Article summaries:
             $summaryBlock$ttsGuidelinesBlock$topicOrderBlock
@@ -113,4 +122,14 @@ class BriefingComposer(
             .replace(Regex("\\s*\\((?:Dit script|This script|Note:|Disclaimer:)[^)]*\\)\\s*$"), "")
             .trim()
 
+}
+
+/**
+ * Resolves the compose-stage LLM temperature for a podcast: reads `composeSettings["temperature"]`,
+ * parses as Double, clamps to [0.0, 2.0], falls back to the system default.
+ */
+internal fun resolveTemperature(podcast: Podcast, appProperties: AppProperties): Double {
+    val fromSettings = podcast.composeSettings?.get("temperature")?.toDoubleOrNull()
+    val raw = fromSettings ?: appProperties.briefing.defaultTemperature
+    return raw.coerceIn(0.0, 2.0)
 }

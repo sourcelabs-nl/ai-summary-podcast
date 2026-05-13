@@ -7,6 +7,7 @@ import com.aisummarypodcast.store.TtsProviderType
 import com.aisummarypodcast.user.UserService
 import tools.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
+import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
@@ -65,6 +66,7 @@ class PodcastController(
         if (request.fullBodyThreshold != null && request.fullBodyThreshold < 1) {
             return ResponseEntity.badRequest().body(mapOf("error" to "fullBodyThreshold must be at least 1"))
         }
+        validateComposeSettings(request.composeSettings)?.let { return it }
         val podcast = podcastService.create(
             userId = userId,
             name = request.name,
@@ -92,7 +94,8 @@ class PodcastController(
                 fullBodyThreshold = request.fullBodyThreshold,
                 sponsor = request.sponsor,
                 pronunciations = request.pronunciations,
-                recapLookbackEpisodes = request.recapLookbackEpisodes
+                recapLookbackEpisodes = request.recapLookbackEpisodes,
+                composeSettings = request.composeSettings
             )
         )
         return ResponseEntity.created(URI.create("/users/$userId/podcasts/${podcast.id}"))
@@ -145,6 +148,7 @@ class PodcastController(
         if (request.fullBodyThreshold != null && request.fullBodyThreshold < 1) {
             return ResponseEntity.badRequest().body(mapOf("error" to "fullBodyThreshold must be at least 1"))
         }
+        validateComposeSettings(request.composeSettings)?.let { return it }
         val updated = podcastService.update(
             podcastId,
             existing.copy(
@@ -168,7 +172,8 @@ class PodcastController(
                 fullBodyThreshold = request.fullBodyThreshold,
                 sponsor = request.sponsor.orKeep(existing.sponsor),
                 pronunciations = request.pronunciations.orKeep(existing.pronunciations),
-                recapLookbackEpisodes = request.recapLookbackEpisodes
+                recapLookbackEpisodes = request.recapLookbackEpisodes,
+                composeSettings = request.composeSettings.orKeep(existing.composeSettings)
             )
         ) ?: return ResponseEntity.notFound().build()
         return ResponseEntity.ok(updated.toResponse())
@@ -308,6 +313,18 @@ class PodcastController(
         }
 
         return emitter
+    }
+
+    private fun validateComposeSettings(composeSettings: Map<String, String>?): ResponseEntity<Any>? {
+        val temperatureRaw = composeSettings?.get("temperature") ?: return null
+        val temperature = temperatureRaw.toDoubleOrNull()
+            ?: return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
+                .body(mapOf("error" to "composeSettings.temperature must be a number"))
+        if (temperature < 0.0 || temperature > 2.0) {
+            return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
+                .body(mapOf("error" to "composeSettings.temperature must be in [0.0, 2.0]"))
+        }
+        return null
     }
 
 }

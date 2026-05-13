@@ -162,7 +162,8 @@ class PodcastService(
             fullBodyThreshold = podcast?.fullBodyThreshold,
             sponsor = podcast?.sponsor,
             pronunciations = podcast?.pronunciations,
-            recapLookbackEpisodes = podcast?.recapLookbackEpisodes
+            recapLookbackEpisodes = podcast?.recapLookbackEpisodes,
+            composeSettings = podcast?.composeSettings
         )
         return podcastRepository.save(newPodcast)
     }
@@ -194,7 +195,8 @@ class PodcastService(
             fullBodyThreshold = updates.fullBodyThreshold,
             sponsor = updates.sponsor,
             pronunciations = updates.pronunciations,
-            recapLookbackEpisodes = updates.recapLookbackEpisodes
+            recapLookbackEpisodes = updates.recapLookbackEpisodes,
+            composeSettings = updates.composeSettings
         )
         return podcastRepository.save(updated)
     }

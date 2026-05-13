@@ -257,6 +257,7 @@ export default function PodcastSettingsPage() {
             fullBodyThreshold: form.fullBodyThreshold ?? null,
             sponsor: form.sponsor,
             pronunciations: form.pronunciations,
+            composeSettings: form.composeSettings,
           }),
         }
       );
@@ -573,6 +574,27 @@ export default function PodcastSettingsPage() {
                   value={form.maxLlmCostCents ?? ""}
                   onChange={(e) => updateNumber("maxLlmCostCents", e.target.value)}
                   placeholder={defaults ? `${defaults.maxLlmCostCents} (system default)` : ""}
+                  className={inputClass}
+                />
+              </FieldGroup>
+              <FieldGroup label="Composer Temperature" description="Sampling temperature for the script composer (briefing/dialogue/interview). Higher values produce more variety; lower values are more deterministic. Range 0.0–2.0. Leave empty for system default (0.95).">
+                <input
+                  type="number"
+                  step={0.05}
+                  min={0}
+                  max={2}
+                  value={form.composeSettings?.temperature ?? ""}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    const current = { ...(form.composeSettings ?? {}) };
+                    if (raw === "") {
+                      delete current.temperature;
+                    } else {
+                      current.temperature = raw;
+                    }
+                    update("composeSettings", Object.keys(current).length > 0 ? current : undefined);
+                  }}
+                  placeholder="0.95"
                   className={inputClass}
                 />
               </FieldGroup>

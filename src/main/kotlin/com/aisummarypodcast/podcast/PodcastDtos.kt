@@ -24,7 +24,8 @@ data class CreatePodcastRequest(
     @JsonProperty("fullBodyThreshold") val fullBodyThreshold: Int? = null,
     val sponsor: Map<String, String>? = null,
     val pronunciations: Map<String, String>? = null,
-    @JsonProperty("recapLookbackEpisodes") val recapLookbackEpisodes: Int? = null
+    @JsonProperty("recapLookbackEpisodes") val recapLookbackEpisodes: Int? = null,
+    val composeSettings: Map<String, String>? = null
 )
 
 data class UpdatePodcastRequest(
@@ -48,7 +49,8 @@ data class UpdatePodcastRequest(
     @JsonProperty("fullBodyThreshold") val fullBodyThreshold: Int? = null,
     val sponsor: Map<String, String>? = null,
     val pronunciations: Map<String, String>? = null,
-    @JsonProperty("recapLookbackEpisodes") val recapLookbackEpisodes: Int? = null
+    @JsonProperty("recapLookbackEpisodes") val recapLookbackEpisodes: Int? = null,
+    val composeSettings: Map<String, String>? = null
 )
 
 data class PodcastResponse(
@@ -75,6 +77,7 @@ data class PodcastResponse(
     val sponsor: Map<String, String>?,
     val pronunciations: Map<String, String>?,
     val recapLookbackEpisodes: Int?,
+    val composeSettings: Map<String, String>?,
     val lastGeneratedAt: String?
 )
 

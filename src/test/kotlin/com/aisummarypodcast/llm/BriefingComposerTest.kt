@@ -23,7 +23,8 @@ class BriefingComposerTest {
     }
     private val modelResolver = mockk<ModelResolver>()
     private val chatClientFactory = mockk<ChatClientFactory>()
-    private val composer = BriefingComposer(appProperties, modelResolver, chatClientFactory)
+    private val varietyPicker = PromptVarietyPicker()
+    private val composer = BriefingComposer(appProperties, modelResolver, chatClientFactory, varietyPicker)
 
     @Test
     fun `stripSectionHeaders removes Opening header line`() {

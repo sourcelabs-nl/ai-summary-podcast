@@ -30,6 +30,7 @@ data class Podcast(
     val sponsor: Map<String, String>? = null,
     val pronunciations: Map<String, String>? = null,
     val recapLookbackEpisodes: Int? = null,
+    val composeSettings: Map<String, String>? = null,
     val lastGeneratedAt: String? = null,
     @Version val version: Long? = null
 )

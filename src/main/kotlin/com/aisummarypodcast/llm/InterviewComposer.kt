@@ -6,13 +6,15 @@ import com.aisummarypodcast.store.Podcast
 import org.slf4j.LoggerFactory
 import org.springframework.ai.openai.OpenAiChatOptions
 import org.springframework.stereotype.Component
+import java.time.LocalDate
 import kotlin.time.measureTimedValue
 
 @Component
 class InterviewComposer(
     private val appProperties: AppProperties,
     private val modelResolver: ModelResolver,
-    private val chatClientFactory: ChatClientFactory
+    private val chatClientFactory: ChatClientFactory,
+    private val varietyPicker: PromptVarietyPicker
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -26,11 +28,12 @@ class InterviewComposer(
         log.info("[LLM] Composing interview from {} articles for podcast '{}' ({})", articles.size, podcast.name, podcast.id)
         val chatClient = chatClientFactory.createForModel(podcast.userId, composeModelDef)
         val prompt = buildPrompt(articles, podcast, ttsScriptGuidelines, followUpAnnotations, topicLabels)
+        val temperature = resolveTemperature(podcast, appProperties)
 
         val (result, elapsed) = measureTimedValue {
             val chatResponse = chatClient.prompt()
                 .user(prompt)
-                .options(OpenAiChatOptions.builder().model(composeModelDef.model).build())
+                .options(OpenAiChatOptions.builder().model(composeModelDef.model).temperature(temperature).build())
                 .call()
                 .chatResponse()
 
@@ -68,10 +71,17 @@ class InterviewComposer(
         val languageInstruction = buildLanguageInstruction(podcast.language, "interview")
         val sponsorBlock = buildSponsorBlock(podcast.sponsor, speakerPrefix = "the interviewer should ")
 
+        val variety = varietyPicker.pick(podcast.id, LocalDate.now())
+        val openingDirective = PromptVarietyDescriptors.describe(variety.openingStyle)
+        val transitionsDirective = PromptVarietyDescriptors.describe(variety.transitionVocab)
+        val signOffDirective = PromptVarietyDescriptors.describe(variety.signOffShape)
+        val teaserDirective = PromptVarietyDescriptors.describe(variety.teaserShape)
+        val topicEntryDirective = PromptVarietyDescriptors.describe(variety.topicEntryPattern)
+        val penultimateDirective = PromptVarietyDescriptors.describe(variety.penultimateExchangeShape)
+
         val comingUpTeaser = if (articles.size >= 5) {
             val placement = if (podcast.sponsor != null) "immediately after the sponsor message" else "immediately after the introduction"
-            """
-            - COMING UP TEASER: $placement, the interviewer rattles off 2-3 short punchy fragments previewing the most interesting topics. Keep the ENTIRE teaser under 25 words, no full sentences, just intriguing fragments separated by commas. Be spectacular, create curiosity. Example: "Coming up: AI agents going rogue, a model that halves its own memory, and the security flaw nobody's talking about." """
+            "\n            - TEASER: $placement, the interviewer previews the most interesting topics. $teaserDirective Keep the entire teaser under 25 words. Create curiosity without spoiling the punchlines."
         } else ""
 
         val ttsGuidelinesBlock = buildTtsGuidelinesBlock(ttsScriptGuidelines)
@@ -100,25 +110,28 @@ class InterviewComposer(
             - ONLY discuss topics that are present in the article summaries below. Do NOT introduce facts, stories, or claims from outside the provided articles. If only a few articles are provided, produce a shorter script rather than padding with external knowledge
 
             Engagement techniques:
-            - HOOK OPENING: Do NOT start with a standard welcome. Instead, open with a provocative statement, surprising fact, or compelling question drawn from the most interesting article of the day. Then transition into the regular introduction
+            - HOOK OPENING: Do NOT start with a standard welcome. $openingDirective Then transition into the regular introduction
             - FRONT-LOAD THE BEST STORY: Lead with the most compelling or surprising article, not the order they appear in the summaries
-            - CURIOSITY HOOKS: The interviewer should use rhetorical questions and teaser hooks before transitions (e.g., "But here's where it gets really interesting...", "So why should we care?", "You'd think that's the whole story, but..."). Create micro-curiosity loops that pull listeners forward
-            - MID-ROLL CALLBACKS: Reference earlier topics later in the episode to create narrative cohesion (e.g., "Remember that framework we discussed earlier? Well, this connects directly...", "This ties back to what you said about..."). Cross-reference at least once per episode
-            - SHORT SEGMENTS WITH SIGNPOSTING: Keep individual topic segments concise (roughly 60-90 seconds each). Use clear verbal signposts so listeners always know where they are (e.g., "Next up...", "Switching gears...", "Now for something completely different...")
-            - STRATEGIC CLIFFHANGERS: Include 2-3 forward hooks spread across the episode. Before transitioning to a new topic, tease something from a later story to keep listeners hooked (e.g., "We'll dig into that bombshell in a moment, but first...", "And this actually connects to something wild we'll get to later — I don't want to spoil it yet.", "Keep that in mind, because it's about to become very relevant."). Do NOT overuse — only 2-3 per episode, placed at natural transition points
-            - SPONTANEOUS INTERRUPTIONS: The interviewer should interrupt the expert 4-5 times per episode with genuine, varied reactions — not polite topic bridges, but emotional and spontaneous interjections. Mix these types:
-              * Excited: "Wait, wait — did you say 100x?!"
-              * Skeptical: "Hold on, I'm not buying that. Isn't that exactly what they said last year?"
-              * Confused (audience surrogate): "Okay you lost me — back up. What does that actually mean?"
-              * Connecting dots: "Oh! That reminds me of what we just talked about with..."
-              * Playful disagreement: "See, I actually think that's completely wrong, and here's why..."
-              The expert can push back too: "No no, let me finish this part because it changes everything."
-            - STRICT TURN LENGTH: The expert MUST NOT speak for more than 3-4 sentences in a single turn. This is a HARD RULE, not a suggestion. After 3-4 sentences, the interviewer MUST jump in — even if it's just a short reaction ("That's huge.", "Wow.", "Okay I need to process that."). Long expert monologues are the number one cause of listener drop-off. Keep the rhythm tight
-            - EMPHASIS ON IMPORTANT NEWS: When covering major announcements or surprising developments, convey their significance — use emphatic language, exclamation marks, and brief pauses to let important news land. Not everything is exciting; save the energy for what truly stands out$toneBlock
+            - CURIOSITY HOOKS: The interviewer should use rhetorical questions and teaser hooks before transitions, varying the phrasing across the episode — do not lean on the same hook construction twice
+            - MID-ROLL CALLBACKS: Reference earlier topics later in the episode to create narrative cohesion. Cross-reference at least once per episode without resorting to a stock phrasing
+            - SHORT SEGMENTS WITH SIGNPOSTING: Keep individual topic segments concise (roughly 60-90 seconds each). $transitionsDirective
+            - TOPIC ENTRY: $topicEntryDirective Vary the entry wording across topics within the same episode
+            - STRATEGIC CLIFFHANGERS: Include 2-3 forward hooks spread across the episode, teasing something from a later story before transitioning. Phrase each cliffhanger differently — no two should share the same construction. Do NOT overuse — only 2-3 per episode at natural transition points
+            - SPONTANEOUS INTERRUPTIONS: The interviewer should interrupt the expert 4-5 times per episode with genuine, varied reactions — not polite topic bridges, but emotional and spontaneous interjections. Mix the flavours across these categories:
+              * Excited (sudden disbelief at a number or claim)
+              * Skeptical (pushing back on a framing or precedent)
+              * Confused (audience-surrogate request for plainer language)
+              * Connecting dots (linking back to an earlier topic)
+              * Playful disagreement (taking the opposite side for friction)
+              Each interruption MUST be phrased differently from the others in this episode. The expert can push back too with their own voice when their thought is being cut off mid-argument.
+            - STRICT TURN LENGTH: The expert MUST NOT speak for more than 3-4 sentences in a single turn. This is a HARD RULE, not a suggestion. After 3-4 sentences, the interviewer MUST jump in — even if it's just a short reaction. Long expert monologues are the number one cause of listener drop-off. Keep the rhythm tight
+            - EMPHASIS ON IMPORTANT NEWS: When covering major announcements or surprising developments, convey their significance — use emphatic language, exclamation marks, and brief pauses to let important news land. Not everything is exciting; save the energy for what truly stands out
+            - PENULTIMATE EXCHANGE: $penultimateDirective
+            - SIGN-OFF: $signOffDirective Make the wording feel fresh; do not reuse phrasing from previous episodes$toneBlock
 
             Speaker transitions:
-            - Speaker transitions must sound natural — do NOT start a turn with a bare name address (e.g., "Jarno, the market..."). Instead, use conversational bridges: reactions, follow-ups, or connectors before transitioning (e.g., "That's a great point. Now I'm curious about...", "Interesting — speaking of which...")
-            - When using the other speaker's name, place it mid-sentence or at the end of a question (e.g., "What do you make of this, Jarno?") rather than as the first word of a turn
+            - Speaker transitions must sound natural — do NOT start a turn with a bare name address. Instead, use conversational bridges: reactions, follow-ups, or connectors before transitioning
+            - When using the other speaker's name, place it mid-sentence or at the end of a question rather than as the first word of a turn
             - Vary transition patterns — not every handover needs a name, a reaction, or the same phrasing. Mix questions, reactions, bridges, and direct topic shifts
             - STRICT STRUCTURAL RULE — NEVER place two consecutive tags of the same speaker. The pattern <expert>...</expert><expert>...</expert> or <interviewer>...</interviewer><interviewer>...</interviewer> is ABSOLUTELY FORBIDDEN and will break the TTS pipeline. Tags MUST strictly alternate: <interviewer>...</interviewer><expert>...</expert><interviewer>...</interviewer><expert>...</expert>. This rule overrides any other instruction including custom instructions below$nameInstruction$languageInstruction$customInstructionsBlock
 
