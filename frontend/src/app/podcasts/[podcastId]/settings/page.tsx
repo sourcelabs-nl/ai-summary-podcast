@@ -584,28 +584,7 @@ export default function PodcastSettingsPage() {
                   className={`${textareaClass} min-h-[300px]`}
                 />
               </FieldGroup>
-              <FieldGroup label="Composer Temperature" description="Sampling temperature for the script composer (briefing/dialogue/interview). Higher values produce more variety; lower values are more deterministic. Range 0.0–2.0. Leave empty for system default (0.95).">
-                <input
-                  type="number"
-                  step={0.05}
-                  min={0}
-                  max={2}
-                  value={form.composeSettings?.temperature ?? ""}
-                  onChange={(e) => {
-                    const raw = e.target.value;
-                    const current = { ...(form.composeSettings ?? {}) };
-                    if (raw === "") {
-                      delete current.temperature;
-                    } else {
-                      current.temperature = raw;
-                    }
-                    update("composeSettings", Object.keys(current).length > 0 ? current : undefined);
-                  }}
-                  placeholder="0.95"
-                  className={inputClass}
-                />
-              </FieldGroup>
-              <FieldGroup label="Composer Settings" description="Advanced composer settings as key/value pairs. The 'temperature' key is also editable above for convenience. Unknown keys are persisted as-is for future use.">
+              <FieldGroup label="Composer Settings" description="Script composer settings as key/value pairs. Common keys: 'temperature' (sampling variety for briefing/dialogue/interview composers, 0.0–2.0, default 0.95). Unknown keys are persisted as-is for future use.">
                 <KeyValueEditor
                   value={form.composeSettings}
                   onChange={(v) => update("composeSettings", v)}
